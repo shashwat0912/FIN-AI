@@ -103,10 +103,6 @@ A comprehensive, AI-powered financial management platform built with modern web 
 - **Anomaly Detection** - Isolation Forest, Autoencoders
 - **Gradient Boosting** - XGBoost, LightGBM for classification
 
-### External Services
-- **Firebase 10.8.0** - Authentication and real-time features (optional)
-- **Stripe 14.9.0** - Payment processing integration
-
 ### Development Tools
 - **ESLint** - Code linting and quality assurance
 - **Prettier** - Code formatting and style consistency
