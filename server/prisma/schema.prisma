@@ -1,0 +1,145 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Enums converted to strings for SQLite compatibility
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  password  String?  // Add password field (optional for now)
+  avatar    String?
+  role      String   @default("USER")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  transactions Transaction[]
+  budgets      Budget[]
+  goals        Goal[]
+  aiSessions   AiSession[]
+  refreshTokens RefreshToken[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model Otp {
+  id         String   @id @default(cuid())
+  identifier String   // email or phone number
+  otpHash    String   // hashed OTP
+  expiresAt  DateTime
+  attempts   Int      @default(0)
+  verified   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([identifier, expiresAt])
+  @@map("otps")
+}
+
+model OtpRateLimit {
+  id         String   @id @default(cuid())
+  identifier String   // email or phone number
+  count      Int      @default(1)
+  windowStart DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@index([identifier, windowStart])
+  @@map("otp_rate_limits")
+}
+
+model Transaction {
+  id          String          @id @default(cuid())
+  amount      Decimal
+  description String
+  category    String
+  type        String
+  date        DateTime
+  userId      String
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("transactions")
+}
+
+model Budget {
+  id          String      @id @default(cuid())
+  name        String
+  amount      Decimal
+  spent       Decimal     @default(0)
+  period      String
+  userId      String
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("budgets")
+}
+
+model Goal {
+  id            String     @id @default(cuid())
+  name          String
+  description   String?
+  targetAmount  Decimal
+  currentAmount Decimal    @default(0)
+  targetDate    DateTime?
+  status        String     @default("ACTIVE")
+  userId        String
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("goals")
+}
+
+model AiSession {
+  id        String   @id @default(cuid())
+  query     String
+  response  String
+  category  String?
+  userId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("ai_sessions")
+}
+
+model KnowledgeChunk {
+  id        String   @id @default(cuid())
+  content   String
+  category  String
+  source    String?
+  metadata  String?  // SQLite doesn't support Json type natively
+  embedding String?  // SQLite doesn't support vector type
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("knowledge_chunks")
+}
