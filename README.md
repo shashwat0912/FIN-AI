@@ -73,7 +73,6 @@ A comprehensive financial management platform built with modern web technologies
 - **Recharts 2.12.2** - Interactive data visualization and charts
 - **Custom Analytics** - Built-in financial analytics and reporting
 
-
 ### Development Tools
 - **ESLint** - Code linting and quality assurance
 - **Prettier** - Code formatting and style consistency
@@ -268,7 +267,6 @@ npm run test
 npm run test:coverage
 ```
 
-
 ## 🔧 Environment Setup (Optional Features)
 
 ### AI Advisor (Optional)
@@ -294,7 +292,6 @@ npm run build
 # Build backend
 cd server
 npm run build
-
 ```
 
 ### Docker Deployment
@@ -344,5 +341,13 @@ docker-compose up -d
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
+## 📝 License
 
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
+## 🙏 Acknowledgments
+
+- OpenAI for providing the AI capabilities
+- The React and Node.js communities for excellent documentation
+- Tailwind CSS for the beautiful design system
+- Prisma for the amazing database ORM
