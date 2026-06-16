@@ -1,0 +1,167 @@
+name: CD
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: Deploy after publishing images
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  FRONTEND_IMAGE_NAME: frontend
+  BACKEND_IMAGE_NAME: backend
+
+jobs:
+  publish:
+    name: Build and Publish Images
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    outputs:
+      image_namespace: ${{ steps.names.outputs.image_namespace }}
+      frontend_image: ${{ steps.names.outputs.frontend_image }}
+      backend_image: ${{ steps.names.outputs.backend_image }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Normalize image names
+        id: names
+        shell: bash
+        run: |
+          image_namespace="${REGISTRY}/${GITHUB_REPOSITORY,,}"
+          echo "image_namespace=${image_namespace}" >> "$GITHUB_OUTPUT"
+          echo "frontend_image=${image_namespace}/${FRONTEND_IMAGE_NAME}" >> "$GITHUB_OUTPUT"
+          echo "backend_image=${image_namespace}/${BACKEND_IMAGE_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Frontend metadata
+        id: frontend_meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.names.outputs.frontend_image }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=sha,prefix=sha-,format=long
+
+      - name: Backend metadata
+        id: backend_meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.names.outputs.backend_image }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=sha,prefix=sha-,format=long
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.frontend
+          push: true
+          build-args: |
+            VITE_API_BASE_URL=${{ vars.VITE_API_BASE_URL || '/api/v1' }}
+          tags: ${{ steps.frontend_meta.outputs.tags }}
+          labels: ${{ steps.frontend_meta.outputs.labels }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./server
+          file: ./server/Dockerfile
+          push: true
+          tags: ${{ steps.backend_meta.outputs.tags }}
+          labels: ${{ steps.backend_meta.outputs.labels }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+  deploy-config:
+    name: Check Deploy Configuration
+    runs-on: ubuntu-latest
+    needs: publish
+    outputs:
+      enabled: ${{ steps.check.outputs.enabled }}
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+    steps:
+      - name: Check required secrets
+        id: check
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.deploy }}" == "true" && -n "$DEPLOY_HOST" && -n "$DEPLOY_USER" && -n "$DEPLOY_SSH_KEY" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy:
+    name: Deploy over SSH
+    runs-on: ubuntu-latest
+    needs:
+      - publish
+      - deploy-config
+    if: needs.deploy-config.outputs.enabled == 'true'
+    timeout-minutes: 15
+
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '~/finance-ai' }}
+      DEPLOY_COMMAND: ${{ vars.DEPLOY_COMMAND || 'docker compose --env-file .release.env -f docker-compose.yml pull && docker compose --env-file .release.env -f docker-compose.yml up -d' }}
+      FRONTEND_IMAGE: ${{ needs.publish.outputs.frontend_image }}:sha-${{ github.sha }}
+      BACKEND_IMAGE: ${{ needs.publish.outputs.backend_image }}:sha-${{ github.sha }}
+
+    steps:
+      - name: Configure SSH
+        shell: bash
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: Deploy release
+        shell: bash
+        run: |
+          ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" \
+            "mkdir -p $DEPLOY_PATH && cd $DEPLOY_PATH && \
+             printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u '${{ github.actor }}' --password-stdin && \
+             echo 'FRONTEND_IMAGE=$FRONTEND_IMAGE' > .release.env && \
+             echo 'BACKEND_IMAGE=$BACKEND_IMAGE' >> .release.env && \
+             $DEPLOY_COMMAND"

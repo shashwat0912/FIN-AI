@@ -1,5 +1,5 @@
-# Use Node.js 18 Alpine image
-FROM node:18-alpine
+# Build stage
+FROM node:18-alpine AS builder
 
 # Set working directory
 WORKDIR /app
@@ -10,8 +10,8 @@ RUN apk add --no-cache python3 make g++
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install all dependencies; TypeScript and Prisma CLI are needed during build.
+RUN npm ci
 
 # Copy source code
 COPY . .
@@ -22,8 +22,22 @@ RUN npx prisma generate
 # Build the application
 RUN npm run build
 
+# Remove development dependencies after the build while preserving generated Prisma client.
+RUN npm prune --omit=dev
+
+# Production stage
+FROM node:18-alpine AS runtime
+
+WORKDIR /app
+
 # Create logs directory
 RUN mkdir -p logs
+
+# Copy runtime files from the builder.
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/prisma ./prisma
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs
@@ -32,6 +46,8 @@ RUN adduser -S nodejs -u 1001
 # Change ownership of the app directory
 RUN chown -R nodejs:nodejs /app
 USER nodejs
+
+ENV NODE_ENV=production
 
 # Expose port
 EXPOSE 3000
