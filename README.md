@@ -127,17 +127,19 @@ A comprehensive financial management platform built with modern web technologies
 
 6. **Start the development servers**
    ```bash
-   # Terminal 1: Start the backend server
-   cd server && npm run dev
-   
-   # Terminal 2: Start the frontend server
+   # Recommended: start frontend + backend together
    npm run dev
+
+   # Optional: run them separately if you prefer two terminals
+   cd server && npm run dev
+   npm run dev:frontend
    ```
 
 7. **Access the application**
-   - Frontend: http://localhost:5173 (or 5174, 5175, 5176)
+   - Frontend: http://localhost:5173
    - Backend API: http://localhost:3000
    - API Health Check: http://localhost:3000/api/v1/health
+   - If `5173` is busy, stop the old frontend process first. The dev stack now fails fast instead of silently moving to another port.
 
 ## 📁 Project Structure
 
