@@ -1,0 +1,273 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Enums converted to strings for SQLite compatibility
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  password  String?
+  avatar    String?
+  role      String   @default("USER")
+  timezone  String   @default("Asia/Kolkata")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  transactions          Transaction[]
+  budgets               Budget[]
+  goals                 Goal[]
+  aiSessions            AiSession[]
+  refreshTokens         RefreshToken[]
+  chatMessages          ChatMessage[]
+  pendingConfirmations  PendingConfirmation[]
+  conversationSummary   ConversationSummary?
+  idempotencyLogs       IdempotencyLog[]
+  categoryMappings      CategoryMapping[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model Otp {
+  id         String   @id @default(cuid())
+  identifier String   // email or phone number
+  otpHash    String   // hashed OTP
+  expiresAt  DateTime
+  attempts   Int      @default(0)
+  verified   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([identifier, expiresAt])
+  @@map("otps")
+}
+
+model OtpRateLimit {
+  id         String   @id @default(cuid())
+  identifier String   // email or phone number
+  count      Int      @default(1)
+  windowStart DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@index([identifier, windowStart])
+  @@map("otp_rate_limits")
+}
+
+model Transaction {
+  id          String          @id @default(cuid())
+  amount      Decimal
+  description String
+  category    String
+  type        String
+  source      String          @default("manual")
+  date        DateTime
+  userId      String
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("transactions")
+}
+
+model Budget {
+  id          String      @id @default(cuid())
+  name        String
+  amount      Decimal
+  spent       Decimal     @default(0)
+  period      String
+  userId      String
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("budgets")
+}
+
+model Goal {
+  id            String     @id @default(cuid())
+  name          String
+  description   String?
+  targetAmount  Decimal
+  currentAmount Decimal    @default(0)
+  targetDate    DateTime?
+  status        String     @default("ACTIVE")
+  userId        String
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("goals")
+}
+
+model AiSession {
+  id        String   @id @default(cuid())
+  query     String
+  response  String
+  category  String?
+  userId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("ai_sessions")
+}
+
+model KnowledgeChunk {
+  id        String   @id @default(cuid())
+  content   String
+  category  String
+  source    String?
+  metadata  String?  // SQLite doesn't support Json type natively
+  embedding String?  // SQLite doesn't support vector type
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("knowledge_chunks")
+}
+
+model RagDocument {
+  id           String     @id @default(cuid())
+  title        String
+  sourceType   String
+  sourceUri    String?
+  jurisdiction String     @default("india")
+  language     String     @default("en")
+  checksum     String?    @unique
+  metadata     String?
+  chunkCount   Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  chunks RagChunk[]
+
+  @@index([jurisdiction, sourceType])
+  @@index([sourceUri])
+  @@map("rag_documents")
+}
+
+model RagChunk {
+  id          String    @id @default(cuid())
+  documentId  String
+  chunkIndex  Int
+  category    String    @default("general")
+  content     String
+  tokenCount  Int       @default(0)
+  embedding   String?   // JSON string of embedding floats
+  metadata    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  document RagDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, chunkIndex])
+  @@index([documentId, createdAt])
+  @@index([category])
+  @@map("rag_chunks")
+}
+
+model ChatMessage {
+  id         String   @id @default(cuid())
+  userId     String
+  role       String   // USER, ASSISTANT, SYSTEM
+  content    String
+  intent     String?
+  metadata   String?  // JSON stored as string for SQLite
+  tokenCount Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pendingConfirmation PendingConfirmation?
+
+  @@index([userId, createdAt])
+  @@map("chat_messages")
+}
+
+model PendingConfirmation {
+  id             String    @id @default(cuid())
+  userId         String
+  chatMessageId  String    @unique
+  type           String    // transaction, budget
+  data           String    // JSON stored as string
+  status         String    @default("PENDING") // PENDING, CONFIRMED, EDITED, CANCELLED, EXPIRED
+  createdAt      DateTime  @default(now())
+  expiresAt      DateTime
+  resolvedAt     DateTime?
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chatMessage ChatMessage @relation(fields: [chatMessageId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, expiresAt])
+  @@map("pending_confirmations")
+}
+
+model ConversationSummary {
+  id                     String   @id @default(cuid())
+  userId                 String   @unique
+  summary                String
+  messageCountAtSummary  Int      @default(0)
+  tokenCount             Int      @default(0)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("conversation_summaries")
+}
+
+model IdempotencyLog {
+  key         String   @id
+  userId      String
+  endpoint    String
+  status      String   // PROCESSING, COMPLETED, FAILED
+  requestHash String
+  response    String?  // cached JSON response
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@map("idempotency_logs")
+}
+
+model CategoryMapping {
+  id         String   @id @default(cuid())
+  userId     String
+  keyword    String
+  category   String
+  confidence Float    @default(1.0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, keyword])
+  @@map("category_mappings")
+}
