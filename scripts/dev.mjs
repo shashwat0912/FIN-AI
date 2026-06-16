@@ -98,5 +98,5 @@ process.on('SIGINT', () => shutdown(0));
 process.on('SIGTERM', () => shutdown(0));
 
 process.stdout.write('Starting frontend and backend together...\n');
-startProcess('server', ['--prefix', 'server', 'run', 'dev']);
+startProcess('server', ['--prefix', 'backend', 'run', 'dev']);
 startProcess('frontend', ['run', 'dev:frontend']);

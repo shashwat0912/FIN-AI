@@ -7,9 +7,9 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'happy-dom',
-    setupFiles: ['./src/test/setup.ts'],
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'src/**/*.spec.ts', 'src/**/*.spec.tsx'],
-    exclude: ['server/**', 'dist/**', 'node_modules/**'],
+    setupFiles: ['./frontend/test/setup.ts'],
+    include: ['frontend/**/*.test.ts', 'frontend/**/*.test.tsx', 'frontend/**/*.spec.ts', 'frontend/**/*.spec.tsx'],
+    exclude: ['backend/**', 'dist/**', 'node_modules/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
@@ -20,19 +20,18 @@ export default defineConfig({
         '**/*.test.tsx',
         '**/*.spec.ts',
         '**/*.spec.tsx',
-        'src/test/',
-        'src/main.tsx',
-        'src/vite-env.d.ts',
+        'frontend/test/',
+        'frontend/main.tsx',
+        'frontend/vite-env.d.ts',
       ],
     },
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': path.resolve(__dirname, './frontend'),
     },
   },
 });
-
 
 
 
