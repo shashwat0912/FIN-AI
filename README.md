@@ -353,3 +353,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - The React and Node.js communities for excellent documentation
 - Tailwind CSS for the beautiful design system
 - Prisma for the amazing database ORM
+
