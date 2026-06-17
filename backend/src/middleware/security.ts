@@ -327,11 +327,16 @@ export const clearFailedAttempts = (req: Request, res: Response, next: NextFunct
 export const environmentValidator = (req: Request, res: Response, next: NextFunction) => {
   // Check if we're in production and validate accordingly
   if (config.NODE_ENV === 'production') {
+
+    // Allow Docker/Kubernetes health checks
+    if (req.path.includes('/health')) {
+      return next();
+    }
+  
     // Production-specific security checks
-    // Check X-Forwarded-Proto header (set by reverse proxy) or direct connection
     const forwardedProto = req.get('X-Forwarded-Proto');
     const isSecure = req.secure || forwardedProto === 'https';
-    
+  
     if (!isSecure) {
       return res.status(400).json({
         success: false,
