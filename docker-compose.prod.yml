@@ -25,7 +25,7 @@ services:
   # Backend API
   backend:
     build:
-      context: ./server
+      context: ./backend
       dockerfile: Dockerfile
     container_name: finance-ai-backend
     environment:
