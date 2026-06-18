@@ -25,14 +25,18 @@ const validateEnv = (): EnvConfig => {
     }, 0);
   }
 
-  // Validate API URL format
+  // Allow relative URLs like /api/v1
+if (apiBaseUrl.startsWith('/')) {
+  // valid
+} else {
   try {
     new URL(apiBaseUrl);
-  } catch (error) {
+  } catch {
     throw new Error(
-      `Invalid VITE_API_BASE_URL: "${apiBaseUrl}". Must be a valid URL.`
+      `Invalid VITE_API_BASE_URL: "${apiBaseUrl}". Must be a valid URL or relative path.`
     );
   }
+}
 
   return {
     API_BASE_URL: apiBaseUrl,

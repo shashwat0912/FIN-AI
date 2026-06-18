@@ -29,7 +29,7 @@ services:
       dockerfile: Dockerfile
     container_name: finance-ai-backend
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       PORT: 3000
       DATABASE_URL: postgresql://${DB_USER:-financeai}:${DB_PASSWORD:-changeme}@postgres:5432/${DB_NAME:-financeai}
       JWT_SECRET: ${JWT_SECRET}

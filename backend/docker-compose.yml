@@ -44,12 +44,12 @@ services:
     ports:
       - "3000:3000"
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       PORT: 3000
       DATABASE_URL: postgresql://postgres:postgres123@postgres:5432/finance_ai_db?schema=public
       JWT_SECRET: your-super-secret-jwt-key-change-this-in-production
       JWT_REFRESH_SECRET: your-super-secret-refresh-key-change-this-in-production
-      CORS_ORIGIN: http://localhost:5173
+      CORS_ORIGIN: http://localhost:5173,http://localhost:5174,http://localhost:5175
       REDIS_URL: redis://redis:6379
     depends_on:
       postgres:

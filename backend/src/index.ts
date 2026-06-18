@@ -23,6 +23,9 @@ import { startSummarizationJob } from './jobs/summarizationJob';
 
 const app = express();
 
+// Trust Nginx / reverse proxy headers
+app.set('trust proxy', 1);
+
 // Enhanced Security middleware
 app.use(securityHeaders);
 app.use(environmentValidator);
