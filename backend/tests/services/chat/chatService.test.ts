@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const fsmMocks = vi.hoisted(() => ({
+  getState: vi.fn(),
+  transition: vi.fn(),
+  resetToIdle: vi.fn(),
+}));
+
 vi.mock('../../../src/config/database', () => ({
   default: {
     chatMessage: {
@@ -52,13 +58,13 @@ vi.mock('../../../src/services/chat/contextManager', () => ({
 vi.mock('../../../src/services/chat/conversationStateMachine', () => ({
   ConversationStateMachine: class {
     async getState() {
-      return { state: 'IDLE' };
+      return fsmMocks.getState();
     }
-    async transition() {
-      return { state: 'IDLE' };
+    async transition(userId: string, event: string, data?: any) {
+      return fsmMocks.transition(userId, event, data);
     }
     async resetToIdle() {
-      return { state: 'IDLE' };
+      return fsmMocks.resetToIdle();
     }
   },
 }));
@@ -80,6 +86,25 @@ describe('ChatService monthly summary flow', () => {
   beforeEach(() => {
     service = new ChatService();
     vi.clearAllMocks();
+    fsmMocks.getState.mockResolvedValue({
+      userId: 'user-1',
+      state: 'IDLE',
+      pendingConfirmationId: null,
+      pendingData: null,
+      stateEnteredAt: new Date().toISOString(),
+      clarificationAttempts: 0,
+      lastIntent: null,
+    });
+    fsmMocks.transition.mockResolvedValue({
+      userId: 'user-1',
+      state: 'IDLE',
+      pendingConfirmationId: null,
+      pendingData: null,
+      stateEnteredAt: new Date().toISOString(),
+      clarificationAttempts: 0,
+      lastIntent: null,
+    });
+    fsmMocks.resetToIdle.mockResolvedValue(undefined);
     vi.mocked(prisma.categoryMapping.findUnique).mockResolvedValue(null as any);
     vi.mocked(prisma.categoryMapping.findMany).mockResolvedValue([] as any);
     vi.mocked(prisma.categoryMapping.create).mockResolvedValue({} as any);
@@ -239,5 +264,96 @@ describe('ChatService monthly summary flow', () => {
     expect((result.confirmationCard?.data as any).type).toBe('income');
     expect((result.confirmationCard?.data as any).category).toBe('Investment');
     expect(result.message).toContain('Investment');
+  });
+
+  it('starts expense capture mode instead of creating a fake quick-action transaction', async () => {
+    vi.mocked(prisma.chatMessage.create).mockResolvedValue({
+      id: 'm7',
+      role: 'ASSISTANT',
+      content: 'ok',
+      createdAt: new Date(),
+    } as any);
+
+    const result = await service.processMessage('user-1', 'Log expense');
+
+    expect(result.conversationState).toBe('AWAITING_EXPENSE_DETAILS');
+    expect(result.message).toContain('What did you spend on');
+    expect(prisma.pendingConfirmation.create).not.toHaveBeenCalled();
+    expect(fsmMocks.transition).toHaveBeenCalledWith(
+      'user-1',
+      'START_LOG_EXPENSE',
+      expect.objectContaining({ lastIntent: 'LOG_EXPENSE' })
+    );
+  });
+
+  it('creates an expense confirmation from details while awaiting expense capture', async () => {
+    fsmMocks.getState.mockResolvedValue({
+      userId: 'user-1',
+      state: 'AWAITING_EXPENSE_DETAILS',
+      pendingConfirmationId: null,
+      pendingData: null,
+      stateEnteredAt: new Date().toISOString(),
+      clarificationAttempts: 0,
+      lastIntent: 'LOG_EXPENSE',
+    });
+    vi.mocked(prisma.chatMessage.create).mockResolvedValue({
+      id: 'm8',
+      role: 'ASSISTANT',
+      content: 'ok',
+      createdAt: new Date(),
+    } as any);
+
+    const result = await service.processMessage('user-1', '400 burger');
+
+    expect(result.confirmationCard).not.toBeNull();
+    expect(result.conversationState).toBe('AWAITING_CONFIRMATION');
+    expect((result.confirmationCard?.data as any).amount).toBe(400);
+    expect((result.confirmationCard?.data as any).description).toBe('burger');
+    expect((result.confirmationCard?.data as any).category).toBe('Food');
+  });
+
+  it('applies typed edits while awaiting confirmation and keeps confirmation state', async () => {
+    fsmMocks.getState.mockResolvedValue({
+      userId: 'user-1',
+      state: 'AWAITING_CONFIRMATION',
+      pendingConfirmationId: 'pending-1',
+      pendingData: null,
+      stateEnteredAt: new Date().toISOString(),
+      clarificationAttempts: 0,
+      lastIntent: 'LOG_EXPENSE',
+    });
+    vi.mocked(prisma.pendingConfirmation.findFirst).mockResolvedValue({
+      id: 'pending-1',
+      userId: 'user-1',
+      type: 'transaction',
+      data: JSON.stringify({
+        amount: 400,
+        description: 'burger',
+        category: 'Food',
+        type: 'expense',
+        date: null,
+      }),
+      status: 'PENDING',
+    } as any);
+    vi.mocked(prisma.pendingConfirmation.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.chatMessage.create).mockResolvedValue({
+      id: 'm9',
+      role: 'USER',
+      content: 'ok',
+      createdAt: new Date(),
+    } as any);
+
+    const result = await service.processMessage('user-1', 'change amount to 500 category Transport');
+
+    expect(result.conversationState).toBe('AWAITING_CONFIRMATION');
+    expect(result.confirmationCard).not.toBeNull();
+    expect((result.confirmationCard?.data as any).amount).toBe(500);
+    expect((result.confirmationCard?.data as any).category).toBe('Transport');
+    expect(fsmMocks.resetToIdle).not.toHaveBeenCalled();
+    expect(fsmMocks.transition).toHaveBeenCalledWith(
+      'user-1',
+      'EDIT_APPLIED',
+      { pendingConfirmationId: 'pending-1' }
+    );
   });
 });

@@ -99,6 +99,49 @@ describe('ChatDrawer integration', () => {
     );
   });
 
+  it('sends Log expense as a capture command instead of a fake sample transaction', async () => {
+    mockApiClient.post.mockResolvedValue({
+      success: true,
+      message: 'ok',
+      data: {
+        message: 'Sure. What did you spend on?',
+        confirmationCard: null,
+        chartData: null,
+        suggestedChips: ['Cancel'],
+        conversationState: 'AWAITING_EXPENSE_DETAILS',
+        rateLimitInfo: null,
+        isFallbackMode: false,
+      },
+      timestamp: new Date().toISOString(),
+    });
+
+    const user = userEvent.setup();
+    render(<ChatFAB />);
+
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /open chat/i }));
+    });
+    await waitFor(() => expect(mockApiClient.get).toHaveBeenCalled());
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: 'Log expense' }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Log expense').length).toBeGreaterThan(0);
+      expect(screen.getByText('Sure. What did you spend on?')).toBeInTheDocument();
+    });
+
+    expect(mockApiClient.post).toHaveBeenCalledWith(
+      '/chat/message',
+      { content: 'Log expense' },
+      {
+        headers: {
+          'X-Idempotency-Key': 'idem-key-123',
+        },
+      }
+    );
+  });
+
   it('shows a backend-unavailable toast after retries are exhausted', async () => {
     const networkError = Object.assign(
       new Error('Cannot connect to backend server. Please make sure the backend is running on http://localhost:3000'),

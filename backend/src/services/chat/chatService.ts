@@ -54,6 +54,9 @@ export class ChatService {
     if (currentState.state === 'AWAITING_CATEGORY') {
       return this.handleCategorySelection(userId, content, currentState);
     }
+    if (currentState.state === 'AWAITING_EXPENSE_DETAILS') {
+      return this.handleExpenseDetailsInput(userId, content);
+    }
     if (currentState.state === 'AWAITING_CONFIRMATION') {
       return this.handleConfirmationInput(userId, content, currentState);
     }
@@ -62,6 +65,23 @@ export class ChatService {
     await prisma.chatMessage.create({
       data: { userId, role: 'USER', content, tokenCount: Math.ceil(content.split(/\s+/).length / 0.75) },
     });
+
+    const normalizedContent = content.trim().replace(/\s+/g, ' ');
+
+    if (this.isStartExpenseCaptureCommand(normalizedContent)) {
+      const response = await this.startExpenseCapture(userId);
+      await prisma.chatMessage.create({
+        data: {
+          userId,
+          role: 'ASSISTANT',
+          content: response.message,
+          intent: ChatIntentType.LOG_EXPENSE,
+          metadata: null,
+          tokenCount: Math.ceil(response.message.split(/\s+/).length / 0.75),
+        },
+      });
+      return response;
+    }
 
     await this.fsm.transition(userId, 'MESSAGE_RECEIVED');
 
@@ -92,7 +112,6 @@ export class ChatService {
     }
 
     // Normalize so "50   dosa" parses like "50 dosa"
-    const normalizedContent = content.trim().replace(/\s+/g, ' ');
     const contextMessages = await this.contextManager.buildContextWindow(userId, content);
     const parsed = await this.intentParser.parse(normalizedContent, contextMessages);
 
@@ -222,7 +241,10 @@ export class ChatService {
     }
 
     const currentData = JSON.parse(pending.data);
-    const updatedData = { ...currentData, ...updates };
+    const updatedData =
+      pending.type === 'transaction'
+        ? this.applyTransactionUpdates(currentData as TransactionEntities, updates)
+        : this.applyBudgetUpdates(currentData as BudgetEntities, updates);
 
     await prisma.pendingConfirmation.update({
       where: { id: confirmationId },
@@ -236,7 +258,12 @@ export class ChatService {
       status: 'PENDING',
     };
 
-    return this.makeResponse('Updated. Please confirm:', { confirmationCard: card });
+    await this.fsm.transition(userId, 'EDIT_APPLIED', { pendingConfirmationId: confirmationId });
+
+    return this.makeResponse('Updated. Please confirm:', {
+      confirmationCard: card,
+      conversationState: 'AWAITING_CONFIRMATION',
+    });
   }
 
   async cancelAction(userId: string, confirmationId: string): Promise<ChatResponsePayload> {
@@ -600,6 +627,59 @@ export class ChatService {
     return this.handleLogTransaction(userId, pendingData, parsed);
   }
 
+  private async handleExpenseDetailsInput(
+    userId: string,
+    content: string
+  ): Promise<ChatResponsePayload> {
+    const lower = content.toLowerCase().trim();
+
+    await prisma.chatMessage.create({
+      data: { userId, role: 'USER', content, tokenCount: Math.ceil(content.split(/\s+/).length / 0.75) },
+    });
+
+    if (['cancel', 'no', 'nope', 'stop', 'never mind', 'nevermind', 'n'].includes(lower)) {
+      await this.fsm.transition(userId, 'CANCELLED');
+      const response = this.makeResponse('No problem. Expense logging cancelled.', {
+        suggestedChips: ['Log expense', 'Check budget', 'Monthly summary'],
+      });
+      await prisma.chatMessage.create({
+        data: {
+          userId,
+          role: 'ASSISTANT',
+          content: response.message,
+          intent: ChatIntentType.GENERAL_CHAT,
+          tokenCount: Math.ceil(response.message.split(/\s+/).length / 0.75),
+        },
+      });
+      return response;
+    }
+
+    const entities = this.parseExpenseDetails(content);
+    if (!entities) {
+      await this.fsm.transition(userId, 'START_LOG_EXPENSE');
+      const response = this.makeResponse(
+        'Please include an amount and what it was for, like "400 burger", "1200 groceries", or "500 Uber".',
+        {
+          conversationState: 'AWAITING_EXPENSE_DETAILS',
+          suggestedChips: ['Cancel'],
+        }
+      );
+      await prisma.chatMessage.create({
+        data: {
+          userId,
+          role: 'ASSISTANT',
+          content: response.message,
+          intent: ChatIntentType.LOG_EXPENSE,
+          tokenCount: Math.ceil(response.message.split(/\s+/).length / 0.75),
+        },
+      });
+      return response;
+    }
+
+    await this.fsm.transition(userId, 'EXPENSE_DETAILS_RECEIVED');
+    return this.handleLogTransaction(userId, entities, { isFallback: true });
+  }
+
   private async handleConfirmationInput(
     userId: string,
     content: string,
@@ -616,6 +696,16 @@ export class ChatService {
     if (['no', 'cancel', 'nope', '❌', 'n'].includes(lower)) {
       if (state.pendingConfirmationId) {
         return this.cancelAction(userId, state.pendingConfirmationId);
+      }
+    }
+
+    if (state.pendingConfirmationId) {
+      const editUpdates = this.parseConfirmationEdit(content);
+      if (editUpdates) {
+        await prisma.chatMessage.create({
+          data: { userId, role: 'USER', content, tokenCount: Math.ceil(content.split(/\s+/).length / 0.75) },
+        });
+        return this.editAction(userId, state.pendingConfirmationId, editUpdates);
       }
     }
 
@@ -638,6 +728,160 @@ export class ChatService {
       isFallbackMode: false,
       ...overrides,
     };
+  }
+
+  private isStartExpenseCaptureCommand(content: string): boolean {
+    const normalized = content.toLowerCase().replace(/\s+/g, ' ').trim();
+    return /^(log|add|record|track)\s+(an?\s+)?expense$/.test(normalized);
+  }
+
+  private async startExpenseCapture(userId: string): Promise<ChatResponsePayload> {
+    await this.fsm.transition(userId, 'START_LOG_EXPENSE', {
+      lastIntent: ChatIntentType.LOG_EXPENSE,
+      pendingConfirmationId: null,
+      pendingData: null,
+    });
+
+    return this.makeResponse(
+      'Sure. What did you spend on? Type the amount and details, like "400 burger", "1200 groceries", or "500 Uber".',
+      {
+        conversationState: 'AWAITING_EXPENSE_DETAILS',
+        suggestedChips: ['Cancel'],
+      }
+    );
+  }
+
+  private parseExpenseDetails(content: string): TransactionEntities | null {
+    const normalized = (content || '').replace(/\s+/g, ' ').trim();
+    const naturalExpenseMatch =
+      normalized.match(/(?:spent|paid|bought)\s+(?:₹|rs\.?\s*|inr\s*)?([\d,]+(?:\.\d{1,2})?(?:\s*(?:k|lakh|lac))?)\s*(?:on|for|at)\s+(.+)/i) ||
+      normalized.match(/^(?:₹|rs\.?\s*|inr\s*)?([\d,]+(?:\.\d{1,2})?(?:\s*(?:k|lakh|lac))?)\s*(?:on|for|at)\s+(.+)/i);
+
+    if (naturalExpenseMatch) {
+      const amount = this.parseFlexibleAmount(naturalExpenseMatch[1]);
+      const description = naturalExpenseMatch[2].trim();
+      if (amount > 0 && description) {
+        return {
+          amount,
+          description,
+          category: null,
+          type: 'expense',
+          date: null,
+        };
+      }
+    }
+
+    const parsed = this.parseBulkTransactionLine(content, 'expense', null);
+    if (!parsed || parsed.amount <= 0 || !parsed.description.trim()) {
+      return null;
+    }
+
+    return {
+      amount: parsed.amount,
+      description: parsed.description,
+      category: parsed.categoryHint || null,
+      type: 'expense',
+      date: null,
+    };
+  }
+
+  private parseConfirmationEdit(content: string): Partial<TransactionEntities | BudgetEntities> | null {
+    const raw = (content || '').trim();
+    if (!raw) return null;
+
+    const updates: Partial<TransactionEntities & BudgetEntities> = {};
+    const amountMatch = raw.match(
+      /\b(?:amount|price|cost|value|total)\s*(?:to|as|=|:)?\s*(?:₹|rs\.?\s*|inr\s*)?([\d,]+(?:\.\d{1,2})?(?:\s*(?:k|lakh|lac))?)\b/i
+    ) || raw.match(
+      /\b(?:change|update|set|make)\s+(?:it\s+)?(?:to\s+)?(?:₹|rs\.?\s*|inr\s*)?([\d,]+(?:\.\d{1,2})?(?:\s*(?:k|lakh|lac))?)\b/i
+    );
+
+    if (amountMatch) {
+      const amount = this.parseFlexibleAmount(amountMatch[1]);
+      if (amount > 0) {
+        updates.amount = amount;
+      }
+    }
+
+    const categoryMatch = raw.match(/\b(?:category|cat)\s*(?:to|as|=|:)?\s*([a-z][a-z0-9 &'/-]{1,40})\b/i);
+    if (categoryMatch) {
+      updates.category = categoryMatch[1].trim();
+    } else if (!amountMatch) {
+      const makeCategoryMatch = raw.match(/^(?:make|set|change)\s+(?:it\s+)?(?:to\s+)?([a-z][a-z0-9 &'/-]{1,40})$/i);
+      if (makeCategoryMatch) {
+        updates.category = makeCategoryMatch[1].trim();
+      }
+    }
+
+    const descriptionMatch = raw.match(/\b(?:description|desc|details?|note)\s*(?:to|as|=|:)?\s*(.+)$/i);
+    if (descriptionMatch) {
+      const description = descriptionMatch[1].trim();
+      if (description) {
+        updates.description = description;
+      }
+    }
+
+    return Object.keys(updates).length > 0 ? updates : null;
+  }
+
+  private applyTransactionUpdates(
+    currentData: TransactionEntities,
+    updates: Partial<TransactionEntities | BudgetEntities>
+  ): TransactionEntities {
+    const currentType = currentData.type === 'income' ? 'income' : 'expense';
+    const next: TransactionEntities = { ...currentData };
+    const maybeAmount = Number((updates as Partial<TransactionEntities>).amount);
+
+    if (Number.isFinite(maybeAmount) && maybeAmount > 0) {
+      next.amount = maybeAmount;
+    }
+
+    if ('description' in updates && typeof (updates as Partial<TransactionEntities>).description === 'string') {
+      const description = ((updates as Partial<TransactionEntities>).description || '').trim();
+      if (description) {
+        next.description = this.normalizeTransactionDescription(description, currentType);
+      }
+    }
+
+    if ('category' in updates && typeof updates.category === 'string') {
+      const category = this.normalizeCategoryLabel(updates.category, currentType, next.description);
+      if (category) {
+        next.category = category;
+      }
+    }
+
+    if ('date' in updates && typeof (updates as Partial<TransactionEntities>).date === 'string') {
+      const date = (updates as Partial<TransactionEntities>).date;
+      if (date && !Number.isNaN(Date.parse(date))) {
+        next.date = date;
+      }
+    }
+
+    next.type = currentType;
+    return next;
+  }
+
+  private applyBudgetUpdates(
+    currentData: BudgetEntities,
+    updates: Partial<TransactionEntities | BudgetEntities>
+  ): BudgetEntities {
+    const next: BudgetEntities = { ...currentData };
+    const maybeAmount = Number(updates.amount);
+
+    if (Number.isFinite(maybeAmount) && maybeAmount > 0) {
+      next.amount = maybeAmount;
+    }
+    if ('category' in updates && typeof updates.category === 'string' && updates.category.trim()) {
+      next.category = this.normalizeCategoryLabel(updates.category, 'expense') || updates.category.trim();
+    }
+    if ('period' in updates && (updates as Partial<BudgetEntities>).period) {
+      const period = (updates as Partial<BudgetEntities>).period;
+      if (period === 'weekly' || period === 'monthly') {
+        next.period = period;
+      }
+    }
+
+    return next;
   }
 
   private normalizeTransactionDescription(raw: string, type: 'income' | 'expense'): string {

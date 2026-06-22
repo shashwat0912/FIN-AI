@@ -46,7 +46,11 @@ export class ConversationStateMachine {
       const current = await this.getState(userId);
       const next = this.computeNextState(current, event, data);
 
-      if (next.state !== current.state || next.pendingConfirmationId !== current.pendingConfirmationId) {
+      const nextComparable = { ...next, stateEnteredAt: current.stateEnteredAt };
+      const hasChanged = JSON.stringify(nextComparable) !== JSON.stringify(current);
+      const shouldRefreshState = event === 'EDIT_APPLIED';
+
+      if (hasChanged || shouldRefreshState) {
         next.stateEnteredAt = new Date().toISOString();
         await redis.set(`${STATE_PREFIX}${userId}`, JSON.stringify(next), 'EX', STATE_TTL_SECONDS);
       }
@@ -82,6 +86,16 @@ export class ConversationStateMachine {
     switch (current.state) {
       case 'IDLE':
         if (event === 'MESSAGE_RECEIVED') return { ...merged, state: 'PROCESSING' };
+        if (event === 'START_LOG_EXPENSE') {
+          return {
+            ...merged,
+            state: 'AWAITING_EXPENSE_DETAILS',
+            lastIntent: ChatIntentType.LOG_EXPENSE,
+          };
+        }
+        if (event === 'EDIT_APPLIED' && merged.pendingConfirmationId) {
+          return { ...merged, state: 'AWAITING_CONFIRMATION' };
+        }
         return current;
 
       case 'PROCESSING':
@@ -89,7 +103,30 @@ export class ConversationStateMachine {
         if (event === 'CATEGORY_UNCLEAR') {
           return { ...merged, state: 'AWAITING_CATEGORY', clarificationAttempts: 1 };
         }
+        if (event === 'START_LOG_EXPENSE') {
+          return {
+            ...merged,
+            state: 'AWAITING_EXPENSE_DETAILS',
+            lastIntent: ChatIntentType.LOG_EXPENSE,
+          };
+        }
+        if (event === 'EXPENSE_DETAILS_RECEIVED') return { ...merged, state: 'PROCESSING' };
+        if (event === 'EDIT_APPLIED' && merged.pendingConfirmationId) {
+          return { ...merged, state: 'AWAITING_CONFIRMATION' };
+        }
         if (event === 'RESPONSE_SENT') return { ...merged, state: 'IDLE' };
+        return current;
+
+      case 'AWAITING_EXPENSE_DETAILS':
+        if (event === 'EXPENSE_DETAILS_RECEIVED') return { ...merged, state: 'PROCESSING' };
+        if (event === 'CANCELLED' || event === 'EXPIRED') return { ...defaultState(current.userId) };
+        if (event === 'START_LOG_EXPENSE') {
+          return {
+            ...merged,
+            state: 'AWAITING_EXPENSE_DETAILS',
+            lastIntent: ChatIntentType.LOG_EXPENSE,
+          };
+        }
         return current;
 
       case 'AWAITING_CATEGORY':
@@ -109,6 +146,7 @@ export class ConversationStateMachine {
         if (event === 'CONFIRMED') return { ...defaultState(current.userId) };
         if (event === 'CANCELLED') return { ...defaultState(current.userId) };
         if (event === 'EDIT_REQUESTED') return { ...merged, state: 'PROCESSING' };
+        if (event === 'EDIT_APPLIED') return { ...merged, state: 'AWAITING_CONFIRMATION' };
         if (event === 'EXPIRED') return { ...defaultState(current.userId) };
         return current;
 

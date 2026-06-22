@@ -35,7 +35,7 @@ export default function ChatDrawer() {
     const normalized = chip.trim().toLowerCase();
     if (normalized === 'monthly summary') return 'How much did I spend this month?';
     if (normalized === 'check budget') return 'Check budget';
-    if (normalized === 'log expense') return 'Spent 400 on food';
+    if (normalized === 'log expense') return 'Log expense';
     if (normalized === 'log income') return '60000 salary';
     if (normalized === 'get advice') return 'How can I save more money?';
     return chip;

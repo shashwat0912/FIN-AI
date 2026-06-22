@@ -122,7 +122,12 @@ export const ChatIntentType = {
 
 export type ChatIntentType = (typeof ChatIntentType)[keyof typeof ChatIntentType];
 
-export type ConversationStateType = 'IDLE' | 'PROCESSING' | 'AWAITING_CATEGORY' | 'AWAITING_CONFIRMATION';
+export type ConversationStateType =
+  | 'IDLE'
+  | 'PROCESSING'
+  | 'AWAITING_CATEGORY'
+  | 'AWAITING_CONFIRMATION'
+  | 'AWAITING_EXPENSE_DETAILS';
 
 export interface TransactionEntities {
   amount: number;
