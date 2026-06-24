@@ -60,6 +60,9 @@ export class ChatService {
     if (currentState.state === 'AWAITING_CONFIRMATION') {
       return this.handleConfirmationInput(userId, content, currentState);
     }
+    if (currentState.state === 'AWAITING_EDIT_DETAILS') {
+      return this.handleEditDetailsInput(userId, content, currentState);
+    }
 
     // Persist user message
     await prisma.chatMessage.create({
@@ -241,10 +244,23 @@ export class ChatService {
     }
 
     const currentData = JSON.parse(pending.data);
-    const updatedData =
+    let updatedData =
       pending.type === 'transaction'
         ? this.applyTransactionUpdates(currentData as TransactionEntities, updates)
         : this.applyBudgetUpdates(currentData as BudgetEntities, updates);
+
+    if (
+      pending.type === 'transaction' &&
+      'description' in updates &&
+      !('category' in updates)
+    ) {
+      const txnData = updatedData as TransactionEntities;
+      const inferredCategory = await this.inferCategory(userId, txnData);
+      txnData.category =
+        this.normalizeCategoryLabel(inferredCategory, txnData.type, txnData.description) ||
+        (txnData.type === 'income' ? 'Other Income' : 'Miscellaneous');
+      updatedData = txnData;
+    }
 
     await prisma.pendingConfirmation.update({
       where: { id: confirmationId },
@@ -704,9 +720,10 @@ export class ChatService {
         await prisma.chatMessage.create({
           data: { userId, role: 'USER', content, tokenCount: Math.ceil(content.split(/\s+/).length / 0.75) },
         });
+        await this.fsm.transition(userId, 'EDIT_REQUESTED', { pendingConfirmationId: state.pendingConfirmationId });
 
         return this.makeResponse('What would you like to edit? For example: "change amount to 500" or "category Transport".', {
-          conversationState: 'AWAITING_CONFIRMATION',
+          conversationState: 'AWAITING_EDIT_DETAILS',
         });
       }
 
@@ -731,6 +748,48 @@ export class ChatService {
     await this.fsm.resetToIdle(userId);
     return this.processMessage(userId, content);
   }
+
+  private async handleEditDetailsInput(
+    userId: string,
+    content: string,
+    state: any
+  ): Promise<ChatResponsePayload> {
+    const lower = content.toLowerCase().trim();
+
+    if (['yes', 'confirm', 'confirm all', 'ok', 'done', 'add all', '✅', 'y'].includes(lower) && state.pendingConfirmationId) {
+      return this.confirmAction(userId, state.pendingConfirmationId);
+    }
+
+    if (['no', 'cancel', 'nope', '❌', 'n'].includes(lower) && state.pendingConfirmationId) {
+      return this.cancelAction(userId, state.pendingConfirmationId);
+    }
+
+    await prisma.chatMessage.create({
+      data: { userId, role: 'USER', content, tokenCount: Math.ceil(content.split(/\s+/).length / 0.75) },
+    });
+
+    if (!state.pendingConfirmationId) {
+      await this.fsm.resetToIdle(userId);
+      return this.makeResponse('No pending action found to edit.');
+    }
+
+    if (['edit', 'change', 'update'].includes(lower)) {
+      await this.fsm.transition(userId, 'EDIT_REQUESTED', { pendingConfirmationId: state.pendingConfirmationId });
+      return this.makeResponse('What would you like to edit? For example: "300 noodles", "500", or "category Transport".', {
+        conversationState: 'AWAITING_EDIT_DETAILS',
+      });
+    }
+
+    const editUpdates = this.parseEditDetails(content);
+    if (editUpdates) {
+      return this.editAction(userId, state.pendingConfirmationId, editUpdates);
+    }
+
+    return this.makeResponse('Please tell me what to edit, like "300 noodles", "500", "category Transport", or "description to burger meal".', {
+      conversationState: 'AWAITING_EDIT_DETAILS',
+    });
+  }
+
   private makeResponse(
     message: string,
     overrides?: Partial<ChatResponsePayload>
@@ -839,6 +898,31 @@ export class ChatService {
     }
 
     return Object.keys(updates).length > 0 ? updates : null;
+  }
+
+  private parseEditDetails(content: string): Partial<TransactionEntities | BudgetEntities> | null {
+    const explicitUpdates = this.parseConfirmationEdit(content);
+    if (explicitUpdates) return explicitUpdates;
+
+    const raw = (content || '').trim().replace(/\s+/g, ' ');
+    const amountWithDescription = raw.match(/^(?:₹|rs\.?\s*|inr\s*)?([\d,]+(?:\.\d{1,2})?(?:\s*(?:k|lakh|lac))?)\s+(.+)$/i);
+    if (amountWithDescription) {
+      const amount = this.parseFlexibleAmount(amountWithDescription[1]);
+      const description = amountWithDescription[2].trim();
+      if (amount > 0 && description) {
+        return { amount, description };
+      }
+    }
+
+    const amountOnly = raw.match(/^(?:₹|rs\.?\s*|inr\s*)?([\d,]+(?:\.\d{1,2})?(?:\s*(?:k|lakh|lac))?)$/i);
+    if (amountOnly) {
+      const amount = this.parseFlexibleAmount(amountOnly[1]);
+      if (amount > 0) {
+        return { amount };
+      }
+    }
+
+    return null;
   }
 
   private applyTransactionUpdates(

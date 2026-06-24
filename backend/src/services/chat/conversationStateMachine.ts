@@ -145,8 +145,16 @@ export class ConversationStateMachine {
       case 'AWAITING_CONFIRMATION':
         if (event === 'CONFIRMED') return { ...defaultState(current.userId) };
         if (event === 'CANCELLED') return { ...defaultState(current.userId) };
-        if (event === 'EDIT_REQUESTED') return { ...merged, state: 'PROCESSING' };
+        if (event === 'EDIT_REQUESTED') return { ...merged, state: 'AWAITING_EDIT_DETAILS' };
         if (event === 'EDIT_APPLIED') return { ...merged, state: 'AWAITING_CONFIRMATION' };
+        if (event === 'EXPIRED') return { ...defaultState(current.userId) };
+        return current;
+
+      case 'AWAITING_EDIT_DETAILS':
+        if (event === 'CONFIRMED') return { ...defaultState(current.userId) };
+        if (event === 'CANCELLED') return { ...defaultState(current.userId) };
+        if (event === 'EDIT_APPLIED') return { ...merged, state: 'AWAITING_CONFIRMATION' };
+        if (event === 'EDIT_REQUESTED') return { ...merged, state: 'AWAITING_EDIT_DETAILS' };
         if (event === 'EXPIRED') return { ...defaultState(current.userId) };
         return current;
 

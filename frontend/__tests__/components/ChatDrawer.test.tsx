@@ -148,6 +148,80 @@ describe('ChatDrawer integration', () => {
     );
   });
 
+  it('opens confirmation edit modal and saves without chat edit bubbles', async () => {
+    useChatStore.setState({
+      isOpen: true,
+      historyLoaded: true,
+      pendingConfirmation: {
+        id: 'pending-1',
+        type: 'transaction',
+        data: {
+          amount: 400,
+          description: 'burger',
+          category: 'Food',
+          type: 'expense',
+          date: null,
+        },
+        status: 'PENDING',
+      },
+    });
+    mockApiClient.post.mockResolvedValue({
+      success: true,
+      message: 'ok',
+      data: {
+        message: 'Updated. Please confirm:',
+        confirmationCard: {
+          id: 'pending-1',
+          type: 'transaction',
+          data: {
+            amount: 300,
+            description: 'noodles',
+            category: 'Food',
+            type: 'expense',
+            date: null,
+          },
+          status: 'PENDING',
+        },
+        chartData: null,
+        suggestedChips: [],
+        conversationState: 'AWAITING_CONFIRMATION',
+        rateLimitInfo: null,
+        isFallbackMode: false,
+      },
+      timestamp: new Date().toISOString(),
+    });
+
+    const user = userEvent.setup();
+    render(<ChatFAB />);
+
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+    expect(screen.getByRole('heading', { name: 'Edit transaction' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Amount')).toBeInTheDocument();
+    expect(screen.getByLabelText('Description')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Category')).not.toBeInTheDocument();
+    expect(screen.queryByText('What would you like to edit?')).not.toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText('Amount'));
+    await user.type(screen.getByLabelText('Amount'), '300');
+    await user.clear(screen.getByLabelText('Description'));
+    await user.type(screen.getByLabelText('Description'), 'noodles');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(mockApiClient.post).toHaveBeenCalledWith(
+        '/chat/edit',
+        { confirmationId: 'pending-1', data: { amount: 300, description: 'noodles' } },
+        {
+          headers: {
+            'X-Idempotency-Key': 'idem-key-123',
+          },
+        }
+      );
+    });
+    expect(screen.queryByRole('heading', { name: 'Edit transaction' })).not.toBeInTheDocument();
+    expect(screen.queryByText('What would you like to edit?')).not.toBeInTheDocument();
+  });
+
   it('shows a backend-unavailable toast after retries are exhausted', async () => {
     const networkError = Object.assign(
       new Error('Cannot connect to backend server. Please make sure the backend is running on http://localhost:3000'),

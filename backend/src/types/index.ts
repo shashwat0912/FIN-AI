@@ -127,6 +127,7 @@ export type ConversationStateType =
   | 'PROCESSING'
   | 'AWAITING_CATEGORY'
   | 'AWAITING_CONFIRMATION'
+  | 'AWAITING_EDIT_DETAILS'
   | 'AWAITING_EXPENSE_DETAILS';
 
 export interface TransactionEntities {

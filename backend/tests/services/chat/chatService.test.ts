@@ -400,10 +400,172 @@ describe('ChatService monthly summary flow', () => {
 
     const result = await service.processMessage('user-1', 'Edit');
 
-    expect(result.conversationState).toBe('AWAITING_CONFIRMATION');
+    expect(result.conversationState).toBe('AWAITING_EDIT_DETAILS');
     expect(result.message).toContain('What would you like to edit');
     expect(result.suggestedChips).toEqual([]);
+    expect(fsmMocks.transition).toHaveBeenCalledWith(
+      'user-1',
+      'EDIT_REQUESTED',
+      { pendingConfirmationId: 'pending-1' }
+    );
     expect(prisma.pendingConfirmation.update).not.toHaveBeenCalled();
+  });
+
+  it('applies amount and description from edit details after explicit edit', async () => {
+    fsmMocks.getState.mockResolvedValue({
+      userId: 'user-1',
+      state: 'AWAITING_EDIT_DETAILS',
+      pendingConfirmationId: 'pending-1',
+      pendingData: null,
+      stateEnteredAt: new Date().toISOString(),
+      clarificationAttempts: 0,
+      lastIntent: 'LOG_EXPENSE',
+    });
+    vi.mocked(prisma.pendingConfirmation.findFirst).mockResolvedValue({
+      id: 'pending-1',
+      userId: 'user-1',
+      type: 'transaction',
+      data: JSON.stringify({
+        amount: 400,
+        description: 'burger',
+        category: 'Food',
+        type: 'expense',
+        date: null,
+      }),
+      status: 'PENDING',
+    } as any);
+    vi.mocked(prisma.pendingConfirmation.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.chatMessage.create).mockResolvedValue({
+      id: 'm11',
+      role: 'USER',
+      content: '300 noodles',
+      createdAt: new Date(),
+    } as any);
+
+    const result = await service.processMessage('user-1', '300 noodles');
+
+    expect(result.conversationState).toBe('AWAITING_CONFIRMATION');
+    expect(result.confirmationCard).not.toBeNull();
+    expect((result.confirmationCard?.data as any).amount).toBe(300);
+    expect((result.confirmationCard?.data as any).description).toBe('noodles');
+    expect((result.confirmationCard?.data as any).category).toBe('Miscellaneous');
+    expect(fsmMocks.transition).toHaveBeenCalledWith(
+      'user-1',
+      'EDIT_APPLIED',
+      { pendingConfirmationId: 'pending-1' }
+    );
+  });
+
+  it('applies category from edit details after explicit edit', async () => {
+    fsmMocks.getState.mockResolvedValue({
+      userId: 'user-1',
+      state: 'AWAITING_EDIT_DETAILS',
+      pendingConfirmationId: 'pending-1',
+      pendingData: null,
+      stateEnteredAt: new Date().toISOString(),
+      clarificationAttempts: 0,
+      lastIntent: 'LOG_EXPENSE',
+    });
+    vi.mocked(prisma.pendingConfirmation.findFirst).mockResolvedValue({
+      id: 'pending-1',
+      userId: 'user-1',
+      type: 'transaction',
+      data: JSON.stringify({
+        amount: 400,
+        description: 'burger',
+        category: 'Miscellaneous',
+        type: 'expense',
+        date: null,
+      }),
+      status: 'PENDING',
+    } as any);
+    vi.mocked(prisma.pendingConfirmation.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.chatMessage.create).mockResolvedValue({
+      id: 'm12',
+      role: 'USER',
+      content: 'category Food',
+      createdAt: new Date(),
+    } as any);
+
+    const result = await service.processMessage('user-1', 'category Food');
+
+    expect(result.conversationState).toBe('AWAITING_CONFIRMATION');
+    expect(result.confirmationCard).not.toBeNull();
+    expect((result.confirmationCard?.data as any).amount).toBe(400);
+    expect((result.confirmationCard?.data as any).description).toBe('burger');
+    expect((result.confirmationCard?.data as any).category).toBe('Food');
+  });
+
+  it('recalculates category when edited description changes without explicit category', async () => {
+    vi.mocked(prisma.pendingConfirmation.findFirst).mockResolvedValue({
+      id: 'pending-1',
+      userId: 'user-1',
+      type: 'transaction',
+      data: JSON.stringify({
+        amount: 200,
+        description: 'autp',
+        category: 'Food',
+        type: 'expense',
+        date: null,
+      }),
+      status: 'PENDING',
+    } as any);
+    vi.mocked(prisma.pendingConfirmation.update).mockResolvedValue({} as any);
+
+    const result = await service.editAction('user-1', 'pending-1', { description: 'auto' });
+
+    expect(result.confirmationCard).not.toBeNull();
+    expect((result.confirmationCard?.data as any).description).toBe('auto');
+    expect((result.confirmationCard?.data as any).category).toBe('Transport');
+  });
+
+  it('recalculates category to Transport when edited description changes to Cab', async () => {
+    vi.mocked(prisma.pendingConfirmation.findFirst).mockResolvedValue({
+      id: 'pending-1',
+      userId: 'user-1',
+      type: 'transaction',
+      data: JSON.stringify({
+        amount: 200,
+        description: 'misc',
+        category: 'Food',
+        type: 'expense',
+        date: null,
+      }),
+      status: 'PENDING',
+    } as any);
+    vi.mocked(prisma.pendingConfirmation.update).mockResolvedValue({} as any);
+
+    const result = await service.editAction('user-1', 'pending-1', { description: 'Cab' });
+
+    expect(result.confirmationCard).not.toBeNull();
+    expect((result.confirmationCard?.data as any).description).toBe('Cab');
+    expect((result.confirmationCard?.data as any).category).toBe('Transport');
+  });
+
+  it('does not recalculate category when category is explicitly edited', async () => {
+    vi.mocked(prisma.pendingConfirmation.findFirst).mockResolvedValue({
+      id: 'pending-1',
+      userId: 'user-1',
+      type: 'transaction',
+      data: JSON.stringify({
+        amount: 200,
+        description: 'autp',
+        category: 'Miscellaneous',
+        type: 'expense',
+        date: null,
+      }),
+      status: 'PENDING',
+    } as any);
+    vi.mocked(prisma.pendingConfirmation.update).mockResolvedValue({} as any);
+
+    const result = await service.editAction('user-1', 'pending-1', {
+      description: 'auto',
+      category: 'Food',
+    });
+
+    expect(result.confirmationCard).not.toBeNull();
+    expect((result.confirmationCard?.data as any).description).toBe('auto');
+    expect((result.confirmationCard?.data as any).category).toBe('Food');
   });
 
   it('blocks unrelated messages while a confirmation is pending', async () => {
@@ -417,13 +579,13 @@ describe('ChatService monthly summary flow', () => {
       lastIntent: 'LOG_EXPENSE',
     });
     vi.mocked(prisma.chatMessage.create).mockResolvedValue({
-      id: 'm11',
+      id: 'm13',
       role: 'USER',
-      content: '500 coffee',
+      content: '300 noodles',
       createdAt: new Date(),
     } as any);
 
-    const result = await service.processMessage('user-1', '500 coffee');
+    const result = await service.processMessage('user-1', '300 noodles');
 
     expect(result.conversationState).toBe('AWAITING_CONFIRMATION');
     expect(result.message).toBe('You already have a pending transaction. Please Confirm, Cancel, or Edit it first.');

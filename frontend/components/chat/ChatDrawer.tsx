@@ -18,6 +18,7 @@ export default function ChatDrawer() {
     closeChat,
     sendMessage,
     confirm,
+    edit,
     clearToast,
     retryLastAction,
   } = useChatStore();
@@ -71,7 +72,7 @@ export default function ChatDrawer() {
           <ConfirmationCard
             card={pendingConfirmation}
             onConfirm={() => confirm(pendingConfirmation.id)}
-            onEdit={() => sendMessage('Edit')}
+            onEdit={(data) => edit(pendingConfirmation.id, data)}
             onCancel={() => sendMessage('Cancel')}
             disabled={isLoading}
           />
