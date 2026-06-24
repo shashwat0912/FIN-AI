@@ -8,6 +8,17 @@ export default {
   darkMode: 'class', // Enable class-based dark mode
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['Inter', 'Geist', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        amount: ['Inter', 'Geist', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+      },
+      fontSize: {
+        display: ['32px', { lineHeight: '40px', fontWeight: '600' }],
+        heading: ['20px', { lineHeight: '28px', fontWeight: '500' }],
+        body: ['14px', { lineHeight: '20px', fontWeight: '400' }],
+        caption: ['12px', { lineHeight: '16px', fontWeight: '400' }],
+        amount: ['14px', { lineHeight: '20px', fontWeight: '500' }],
+      },
       colors: {
         // V2 semantic palette
         background: '#0A0A0B',

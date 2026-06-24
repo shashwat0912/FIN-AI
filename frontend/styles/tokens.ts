@@ -21,6 +21,22 @@ export const v2Colors = {
   danger: '#EF4444',
 } as const;
 
+export const typography = {
+  display: 'text-display font-semibold',
+  heading: 'text-heading font-medium',
+  body: 'text-body font-normal',
+  caption: 'text-caption font-normal',
+  amount: 'text-amount font-medium tabular-nums',
+} as const;
+
+export const typographyValues = {
+  display: { fontSize: '32px', fontWeight: 600, lineHeight: '40px' },
+  heading: { fontSize: '20px', fontWeight: 500, lineHeight: '28px' },
+  body: { fontSize: '14px', fontWeight: 400, lineHeight: '20px' },
+  caption: { fontSize: '12px', fontWeight: 400, lineHeight: '16px' },
+  amount: { fontSize: '14px', fontWeight: 500, lineHeight: '20px' },
+} as const;
+
 export const colors = {
   // V2 semantic tokens (raw values + Tailwind class aliases)
   v2: v2Colors,
@@ -264,4 +280,3 @@ export const getStateIcon = (state: 'positive' | 'negative' | 'neutral') => {
   };
   return icons[state];
 };
-

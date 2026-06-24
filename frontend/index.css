@@ -66,6 +66,21 @@
   --color-accent: #10B981;
   --color-accent-subtle: #10B98115;
   --color-danger: #EF4444;
+  --font-size-display: 32px;
+  --font-size-heading: 20px;
+  --font-size-body: 14px;
+  --font-size-caption: 12px;
+  --font-size-amount: 14px;
+  --font-weight-display: 600;
+  --font-weight-heading: 500;
+  --font-weight-body: 400;
+  --font-weight-caption: 400;
+  --font-weight-amount: 500;
+  --line-height-display: 40px;
+  --line-height-heading: 28px;
+  --line-height-body: 20px;
+  --line-height-caption: 16px;
+  --line-height-amount: 20px;
   --premium-primary: var(--color-accent);
   --premium-secondary: #059669;
   --premium-accent: var(--color-accent);
@@ -73,6 +88,39 @@
   --premium-emerald: var(--color-accent);
   --premium-slate: #475569;
   --premium-zinc: var(--color-text-secondary);
+}
+
+@layer utilities {
+  .text-display {
+    font-size: var(--font-size-display);
+    line-height: var(--line-height-display);
+    font-weight: var(--font-weight-display);
+  }
+
+  .text-heading {
+    font-size: var(--font-size-heading);
+    line-height: var(--line-height-heading);
+    font-weight: var(--font-weight-heading);
+  }
+
+  .text-body {
+    font-size: var(--font-size-body);
+    line-height: var(--line-height-body);
+    font-weight: var(--font-weight-body);
+  }
+
+  .text-caption {
+    font-size: var(--font-size-caption);
+    line-height: var(--line-height-caption);
+    font-weight: var(--font-weight-caption);
+  }
+
+  .text-amount {
+    font-size: var(--font-size-amount);
+    line-height: var(--line-height-amount);
+    font-weight: var(--font-weight-amount);
+    font-variant-numeric: tabular-nums;
+  }
 }
 
 /* Premium Theme Transition Animations */
