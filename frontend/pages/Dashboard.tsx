@@ -52,12 +52,16 @@ export default function Dashboard() {
 
   return (
     <div className={layout.spacing.section + ' w-full'}>
-      {/* Welcome Section */}
-      <div className={`text-center mb-8 ${components.premiumBg.purple} rounded-2xl ${layout.spacing.card} premium-shadow-lg`}>
-        <h1 className="text-3xl font-bold premium-gradient-text mb-2">
-          {t('welcome-back')}, {t('user')}! 👋
-        </h1>
-        <p className={`${colors.text.secondary} text-lg`}>{t('whats-happening')}</p>
+      {/* Greeting Row */}
+      <div className="mb-4 flex flex-col gap-1 border-b border-border bg-background pb-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-body text-text-primary">Good evening, {t('user')}</p>
+        <p className="text-body text-text-secondary">
+          {new Intl.DateTimeFormat('en-IN', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+          }).format(new Date())}
+        </p>
       </div>
 
 
