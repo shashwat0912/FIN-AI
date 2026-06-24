@@ -4,11 +4,12 @@ import { ConfirmationCard as ConfirmationCardType, ChatTransactionEntities, Chat
 interface ConfirmationCardProps {
   card: ConfirmationCardType;
   onConfirm: () => void;
+  onEdit: () => void;
   onCancel: () => void;
   disabled?: boolean;
 }
 
-export default function ConfirmationCard({ card, onConfirm, onCancel, disabled }: ConfirmationCardProps) {
+export default function ConfirmationCard({ card, onConfirm, onEdit, onCancel, disabled }: ConfirmationCardProps) {
   const isTransaction = card.type === 'transaction';
   const txn = card.data as ChatTransactionEntities;
   const budget = card.data as ChatBudgetEntities;
@@ -41,6 +42,7 @@ export default function ConfirmationCard({ card, onConfirm, onCancel, disabled }
 
       <div className="flex gap-2">
         <button
+          type="button"
           onClick={onConfirm}
           disabled={disabled}
           className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
@@ -48,6 +50,15 @@ export default function ConfirmationCard({ card, onConfirm, onCancel, disabled }
           <Check className="w-3.5 h-3.5" /> Confirm
         </button>
         <button
+          type="button"
+          onClick={onEdit}
+          disabled={disabled}
+          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-900/60 disabled:opacity-50 transition-colors"
+        >
+          <Pencil className="w-3.5 h-3.5" /> Edit
+        </button>
+        <button
+          type="button"
           onClick={onCancel}
           disabled={disabled}
           className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-gray-200 dark:bg-dark-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-dark-600 disabled:opacity-50 transition-colors"

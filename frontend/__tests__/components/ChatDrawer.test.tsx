@@ -33,6 +33,10 @@ function resetChatStore() {
   });
 }
 
+async function sendChatMessage(user: ReturnType<typeof userEvent.setup>, message: string) {
+  await user.type(screen.getByPlaceholderText('Type a message...'), `${message}{enter}`);
+}
+
 describe('ChatDrawer integration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -53,7 +57,7 @@ describe('ChatDrawer integration', () => {
     resetChatStore();
   });
 
-  it('opens the drawer, sends a quick action, and renders the assistant response', async () => {
+  it('opens the drawer, sends a message, and renders the assistant response without chips', async () => {
     mockApiClient.post.mockResolvedValue({
       success: true,
       message: 'ok',
@@ -77,7 +81,7 @@ describe('ChatDrawer integration', () => {
     });
     await waitFor(() => expect(mockApiClient.get).toHaveBeenCalled());
     await act(async () => {
-      await user.click(screen.getByRole('button', { name: 'Log income' }));
+      await sendChatMessage(user, '60000 salary');
     });
 
     await waitFor(() => {
@@ -87,6 +91,7 @@ describe('ChatDrawer integration', () => {
     await waitFor(() => {
       expect(screen.getByText('Income logged successfully.')).toBeInTheDocument();
     });
+    expect(screen.queryByRole('button', { name: 'Log another income' })).not.toBeInTheDocument();
 
     expect(mockApiClient.post).toHaveBeenCalledWith(
       '/chat/message',
@@ -99,7 +104,7 @@ describe('ChatDrawer integration', () => {
     );
   });
 
-  it('sends Log expense as a capture command instead of a fake sample transaction', async () => {
+  it('sends typed Log expense as a capture command instead of a fake sample transaction', async () => {
     mockApiClient.post.mockResolvedValue({
       success: true,
       message: 'ok',
@@ -123,13 +128,14 @@ describe('ChatDrawer integration', () => {
     });
     await waitFor(() => expect(mockApiClient.get).toHaveBeenCalled());
     await act(async () => {
-      await user.click(screen.getByRole('button', { name: 'Log expense' }));
+      await sendChatMessage(user, 'Log expense');
     });
 
     await waitFor(() => {
-      expect(screen.getAllByText('Log expense').length).toBeGreaterThan(0);
+      expect(screen.getByText('Log expense')).toBeInTheDocument();
       expect(screen.getByText('Sure. What did you spend on?')).toBeInTheDocument();
     });
+    expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
 
     expect(mockApiClient.post).toHaveBeenCalledWith(
       '/chat/message',
@@ -158,7 +164,7 @@ describe('ChatDrawer integration', () => {
     });
     await waitFor(() => expect(mockApiClient.get).toHaveBeenCalled());
     await act(async () => {
-      await user.click(screen.getByRole('button', { name: 'Log income' }));
+      await sendChatMessage(user, '60000 salary');
     });
 
     await waitFor(() => {
@@ -185,7 +191,7 @@ describe('ChatDrawer integration', () => {
     });
     await waitFor(() => expect(mockApiClient.get).toHaveBeenCalled());
     await act(async () => {
-      await user.click(screen.getByRole('button', { name: 'Log income' }));
+      await sendChatMessage(user, '60000 salary');
     });
 
     await waitFor(() => {
@@ -201,7 +207,7 @@ describe('ChatDrawer integration', () => {
       await user.click(screen.getByRole('button', { name: 'Dismiss chat toast' }));
     });
     await act(async () => {
-      await user.click(screen.getByRole('button', { name: 'Log expense' }));
+      await sendChatMessage(user, 'Log expense');
     });
 
     await waitFor(() => {

@@ -3,7 +3,6 @@ import { useChatStore } from '../../hooks/useChatStore';
 import MessageList from './MessageList';
 import ChatInputBar from './ChatInputBar';
 import ConfirmationCard from './ConfirmationCard';
-import QuickActionChips from './QuickActionChips';
 import RateLimitBanner from './RateLimitBanner';
 import ChatToast from './ChatToast';
 
@@ -13,37 +12,17 @@ export default function ChatDrawer() {
     isLoading,
     isOpen,
     pendingConfirmation,
-    suggestedChips,
     isRateLimited,
     isFallbackMode,
     toast,
     closeChat,
     sendMessage,
     confirm,
-    cancel,
     clearToast,
     retryLastAction,
   } = useChatStore();
 
   if (!isOpen) return null;
-
-  const chips = pendingConfirmation
-    ? []
-    : ['Log expense', 'Log income', 'Check budget', 'Monthly summary', 'Get advice'];
-
-  const mapChipToMessage = (chip: string): string => {
-    const normalized = chip.trim().toLowerCase();
-    if (normalized === 'monthly summary') return 'How much did I spend this month?';
-    if (normalized === 'check budget') return 'Check budget';
-    if (normalized === 'log expense') return 'Log expense';
-    if (normalized === 'log income') return '60000 salary';
-    if (normalized === 'get advice') return 'How can I save more money?';
-    return chip;
-  };
-
-  const handleChipClick = (chip: string) => {
-    sendMessage(mapChipToMessage(chip));
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end pointer-events-none">
@@ -92,21 +71,9 @@ export default function ChatDrawer() {
           <ConfirmationCard
             card={pendingConfirmation}
             onConfirm={() => confirm(pendingConfirmation.id)}
-            onCancel={cancel}
+            onEdit={() => sendMessage('Edit')}
+            onCancel={() => sendMessage('Cancel')}
             disabled={isLoading}
-          />
-        )}
-
-        {/* Quick action chips */}
-        {!pendingConfirmation && messages.length === 0 && (
-          <QuickActionChips chips={chips} onChipClick={handleChipClick} />
-        )}
-
-        {/* Suggested chips from last response */}
-        {!pendingConfirmation && messages.length > 0 && (
-          <QuickActionChips
-            chips={suggestedChips.length > 0 ? suggestedChips : chips}
-            onChipClick={handleChipClick}
           />
         )}
 

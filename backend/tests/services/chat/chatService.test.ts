@@ -151,7 +151,7 @@ describe('ChatService monthly summary flow', () => {
     expect(result.message.toLowerCase()).toContain('spent');
     expect(result.message).toContain('₹1,000');
     expect(result.message.toLowerCase()).toContain('this month');
-    expect(result.suggestedChips.length).toBeGreaterThan(0);
+    expect(result.suggestedChips).toEqual([]);
   });
 
   it('parses multi-line expense lists and logs them as separate transactions', async () => {
@@ -171,6 +171,30 @@ describe('ChatService monthly summary flow', () => {
     expect(result.message).toContain('Logged 3 expense item(s)');
     expect(result.message).toContain('₹1,100');
     expect(result.message.toLowerCase()).toContain('netflix');
+    expect(result.suggestedChips).toEqual([]);
+  });
+
+  it('parses single-line amount-first bulk entries and logs them as separate transactions', async () => {
+    vi.mocked(prisma.chatMessage.create).mockResolvedValue({
+      id: 'm1b',
+      role: 'ASSISTANT',
+      content: 'ok',
+      createdAt: new Date(),
+    } as any);
+
+    const result = await service.processMessage(
+      'user-1',
+      '500 dosa 30 chai 400 coffee 20 auto'
+    );
+
+    expect(prisma.$transaction).toHaveBeenCalled();
+    expect(result.message).toContain('Logged 4 expense item(s)');
+    expect(result.message).toContain('₹950');
+    expect(result.message).toContain('dosa ₹500');
+    expect(result.message).toContain('chai ₹30');
+    expect(result.message).toContain('coffee ₹400');
+    expect(result.message).toContain('auto ₹20');
+    expect(result.suggestedChips).toEqual([]);
   });
 
   it('parses income list header and logs multiple income entries', async () => {
@@ -355,5 +379,55 @@ describe('ChatService monthly summary flow', () => {
       'EDIT_APPLIED',
       { pendingConfirmationId: 'pending-1' }
     );
+  });
+
+  it('keeps pending confirmation state when explicit edit is requested', async () => {
+    fsmMocks.getState.mockResolvedValue({
+      userId: 'user-1',
+      state: 'AWAITING_CONFIRMATION',
+      pendingConfirmationId: 'pending-1',
+      pendingData: null,
+      stateEnteredAt: new Date().toISOString(),
+      clarificationAttempts: 0,
+      lastIntent: 'LOG_EXPENSE',
+    });
+    vi.mocked(prisma.chatMessage.create).mockResolvedValue({
+      id: 'm10',
+      role: 'USER',
+      content: 'Edit',
+      createdAt: new Date(),
+    } as any);
+
+    const result = await service.processMessage('user-1', 'Edit');
+
+    expect(result.conversationState).toBe('AWAITING_CONFIRMATION');
+    expect(result.message).toContain('What would you like to edit');
+    expect(result.suggestedChips).toEqual([]);
+    expect(prisma.pendingConfirmation.update).not.toHaveBeenCalled();
+  });
+
+  it('blocks unrelated messages while a confirmation is pending', async () => {
+    fsmMocks.getState.mockResolvedValue({
+      userId: 'user-1',
+      state: 'AWAITING_CONFIRMATION',
+      pendingConfirmationId: 'pending-1',
+      pendingData: null,
+      stateEnteredAt: new Date().toISOString(),
+      clarificationAttempts: 0,
+      lastIntent: 'LOG_EXPENSE',
+    });
+    vi.mocked(prisma.chatMessage.create).mockResolvedValue({
+      id: 'm11',
+      role: 'USER',
+      content: '500 coffee',
+      createdAt: new Date(),
+    } as any);
+
+    const result = await service.processMessage('user-1', '500 coffee');
+
+    expect(result.conversationState).toBe('AWAITING_CONFIRMATION');
+    expect(result.message).toBe('You already have a pending transaction. Please Confirm, Cancel, or Edit it first.');
+    expect(result.suggestedChips).toEqual([]);
+    expect(prisma.pendingConfirmation.create).not.toHaveBeenCalled();
   });
 });

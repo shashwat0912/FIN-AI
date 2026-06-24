@@ -700,6 +700,16 @@ export class ChatService {
     }
 
     if (state.pendingConfirmationId) {
+      if (['edit', 'change', 'update'].includes(lower)) {
+        await prisma.chatMessage.create({
+          data: { userId, role: 'USER', content, tokenCount: Math.ceil(content.split(/\s+/).length / 0.75) },
+        });
+
+        return this.makeResponse('What would you like to edit? For example: "change amount to 500" or "category Transport".', {
+          conversationState: 'AWAITING_CONFIRMATION',
+        });
+      }
+
       const editUpdates = this.parseConfirmationEdit(content);
       if (editUpdates) {
         await prisma.chatMessage.create({
@@ -707,13 +717,20 @@ export class ChatService {
         });
         return this.editAction(userId, state.pendingConfirmationId, editUpdates);
       }
+
+      await prisma.chatMessage.create({
+        data: { userId, role: 'USER', content, tokenCount: Math.ceil(content.split(/\s+/).length / 0.75) },
+      });
+
+      return this.makeResponse('You already have a pending transaction. Please Confirm, Cancel, or Edit it first.', {
+        conversationState: 'AWAITING_CONFIRMATION',
+      });
     }
 
     // Treat as unrelated message — reset state and process fresh
     await this.fsm.resetToIdle(userId);
     return this.processMessage(userId, content);
   }
-
   private makeResponse(
     message: string,
     overrides?: Partial<ChatResponsePayload>
@@ -722,11 +739,11 @@ export class ChatService {
       message,
       confirmationCard: null,
       chartData: null,
-      suggestedChips: [],
       conversationState: 'IDLE',
       rateLimitInfo: null,
       isFallbackMode: false,
       ...overrides,
+      suggestedChips: [],
     };
   }
 
@@ -1068,7 +1085,9 @@ export class ChatService {
       )
       .filter(Boolean);
 
-    if (parts.length < 2) return null;
+    if (parts.length < 2) {
+      return this.tryParseSingleLineAmountFirstBulk(raw);
+    }
 
     const items: BulkTransactionItem[] = [];
     const skippedLines: string[] = [];
@@ -1088,6 +1107,28 @@ export class ChatService {
         items.push(parsed);
       } else {
         skippedLines.push(line);
+      }
+    }
+
+    if (items.length < 2) return null;
+    return { items, skippedLines };
+  }
+
+  private tryParseSingleLineAmountFirstBulk(raw: string): BulkTransactionParseResult | null {
+    const normalized = raw.replace(/\s+/g, ' ').trim();
+    const amountFirstPattern =
+      /(?:^|\s)((?:₹|rs\.?\s*|inr\s*)?[\d,]+(?:\.\d{1,2})?(?:\s*(?:k|lakh|lac))?)\s+(.+?)(?=\s+(?:₹|rs\.?\s*|inr\s*)?[\d,]+(?:\.\d{1,2})?(?:\s*(?:k|lakh|lac))?\s+|$)/gi;
+
+    const items: BulkTransactionItem[] = [];
+    const skippedLines: string[] = [];
+    let match: RegExpExecArray | null;
+
+    while ((match = amountFirstPattern.exec(normalized)) !== null) {
+      const parsed = this.parseBulkTransactionLine(`${match[1]} ${match[2]}`, 'expense', null);
+      if (parsed) {
+        items.push(parsed);
+      } else {
+        skippedLines.push(`${match[1]} ${match[2]}`.trim());
       }
     }
 
