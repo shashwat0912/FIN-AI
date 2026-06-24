@@ -226,3 +226,31 @@ Confirmation cards:
 - Loud animations or animated decoration.
 - Adding new dependencies for visual polish.
 - Replacing established repo patterns when small token/style changes are enough.
+
+## Implementation Constraints
+
+- Preserve all existing business logic.
+- Preserve API contracts.
+- Preserve transaction confirmation flow.
+- Preserve deterministic parser behavior.
+- Preserve chat functionality.
+- Preserve existing accessibility behavior.
+- Prefer small diffs over rewrites.
+- Do not introduce new UI libraries.
+- Reuse existing components where possible.
+- Keep mobile responsiveness intact.
+- Update tests only when UI changes require it.
+
+## Rollout Order
+
+1. Design tokens and color system
+2. Typography system
+3. Dashboard stat hierarchy
+4. Header simplification
+5. Chart redesign
+6. Chat panel redesign
+7. Action cleanup
+8. Sidebar cleanup
+
+Do not perform all changes in a single implementation pass.
+Prefer small, reviewable diffs.
