@@ -9,6 +9,15 @@ export default {
   theme: {
     extend: {
       colors: {
+        // V2 semantic palette
+        background: '#0A0A0B',
+        surface: '#141416',
+        border: '#1F1F23',
+        'text-primary': '#FAFAFA',
+        'text-secondary': '#71717A',
+        'text-muted': '#52525B',
+        danger: '#EF4444',
+        'accent-subtle': '#10B98115',
         // Premium dark mode palette
         dark: {
           50: '#f8f9fa',
@@ -25,6 +34,8 @@ export default {
         },
         // Soft accent colors for dark mode
         accent: {
+          DEFAULT: '#10B981',
+          subtle: '#10B98115',
           50: '#f0f9ff',
           100: '#e0f2fe',
           200: '#bae6fd',

@@ -57,13 +57,22 @@
 
 /* Premium Color Variables */
 :root {
-  --premium-primary: #6366f1;
-  --premium-secondary: #8b5cf6;
-  --premium-accent: #06b6d4;
+  --color-bg: #0A0A0B;
+  --color-surface: #141416;
+  --color-border: #1F1F23;
+  --color-text-primary: #FAFAFA;
+  --color-text-secondary: #71717A;
+  --color-text-muted: #52525B;
+  --color-accent: #10B981;
+  --color-accent-subtle: #10B98115;
+  --color-danger: #EF4444;
+  --premium-primary: var(--color-accent);
+  --premium-secondary: #059669;
+  --premium-accent: var(--color-accent);
   --premium-gold: #f59e0b;
-  --premium-emerald: #10b981;
+  --premium-emerald: var(--color-accent);
   --premium-slate: #475569;
-  --premium-zinc: #71717a;
+  --premium-zinc: var(--color-text-secondary);
 }
 
 /* Premium Theme Transition Animations */

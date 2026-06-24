@@ -1,9 +1,9 @@
 @layer components {
   .btn-primary {
     @apply inline-flex items-center px-4 py-2 border border-transparent 
-           rounded-lg shadow-sm text-white bg-gradient-to-r from-indigo-600 to-purple-600
-           hover:from-indigo-700 hover:to-purple-700 
-           focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500
+           rounded-lg shadow-sm text-white bg-accent
+           hover:bg-emerald-600
+           focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent
            transition-all duration-300 hover:scale-105 active:scale-95;
   }
 
@@ -15,14 +15,14 @@
   .input-primary {
     @apply block w-full px-4 py-3 border border-gray-200 rounded-lg
            bg-white/50 backdrop-blur-sm
-           focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500
-           hover:border-indigo-300 transition-all duration-300
+           focus:ring-2 focus:ring-accent focus:border-accent
+           hover:border-emerald-300 transition-all duration-300
            placeholder:text-gray-400 sm:text-sm;
   }
 
   .custom-scrollbar {
     @apply scrollbar-thin scrollbar-track-transparent
-           scrollbar-thumb-indigo-200 hover:scrollbar-thumb-indigo-300;
+           scrollbar-thumb-emerald-200 hover:scrollbar-thumb-emerald-300;
   }
 
   .stat-card {
@@ -35,12 +35,11 @@
 
   .nav-item {
     @apply flex items-center px-4 py-2.5 rounded-lg transition-all duration-300
-           hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50
+           hover:bg-emerald-50
            hover:scale-105 active:scale-95;
   }
 
   .nav-item-active {
-    @apply bg-gradient-to-r from-indigo-500/10 to-purple-500/10
-           text-indigo-700 font-medium;
+    @apply bg-accent-subtle text-emerald-700 font-medium;
   }
 }

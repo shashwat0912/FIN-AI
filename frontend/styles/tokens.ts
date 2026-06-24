@@ -9,44 +9,72 @@
 // COLOR TOKENS
 // ============================================
 
+export const v2Colors = {
+  background: '#0A0A0B',
+  surface: '#141416',
+  border: '#1F1F23',
+  textPrimary: '#FAFAFA',
+  textSecondary: '#71717A',
+  textMuted: '#52525B',
+  accent: '#10B981',
+  accentSubtle: '#10B98115',
+  danger: '#EF4444',
+} as const;
+
 export const colors = {
+  // V2 semantic tokens (raw values + Tailwind class aliases)
+  v2: v2Colors,
+  semantic: {
+    background: 'bg-background',
+    surface: 'bg-surface',
+    border: 'border-border',
+    textPrimary: 'text-text-primary',
+    textSecondary: 'text-text-secondary',
+    textMuted: 'text-text-muted',
+    accent: 'text-accent',
+    accentBg: 'bg-accent',
+    accentSubtleBg: 'bg-accent-subtle',
+    danger: 'text-danger',
+    dangerBg: 'bg-danger',
+  },
+
   // Base surface colors (most common pattern)
   surface: {
-    base: 'bg-white dark:bg-dark-900',
-    elevated: 'bg-gray-50 dark:bg-dark-800',
-    overlay: 'bg-gray-100 dark:bg-dark-800',
-    hover: 'hover:bg-gray-50 dark:hover:bg-dark-800',
+    base: 'bg-white dark:bg-surface',
+    elevated: 'bg-gray-50 dark:bg-surface',
+    overlay: 'bg-gray-100 dark:bg-border',
+    hover: 'hover:bg-gray-50 dark:hover:bg-border',
   },
 
   // Border colors
   border: {
-    default: 'border-gray-200 dark:border-dark-700',
-    light: 'border-gray-100 dark:border-dark-800',
-    dark: 'border-gray-300 dark:border-dark-600',
+    default: 'border-gray-200 dark:border-border',
+    light: 'border-gray-100 dark:border-border',
+    dark: 'border-gray-300 dark:border-border',
   },
 
   // Text colors
   text: {
-    primary: 'text-gray-900 dark:text-white',
-    secondary: 'text-gray-600 dark:text-gray-400',
-    tertiary: 'text-gray-500 dark:text-gray-500',
+    primary: 'text-gray-900 dark:text-text-primary',
+    secondary: 'text-gray-600 dark:text-text-secondary',
+    tertiary: 'text-gray-500 dark:text-text-muted',
     disabled: 'text-gray-400 dark:text-gray-600',
     inverse: 'text-white dark:text-gray-900',
   },
 
   // Semantic state colors (for financial data)
   state: {
-    positive: 'text-green-600 dark:text-green-400',
-    negative: 'text-red-600 dark:text-red-400',
-    neutral: 'text-blue-600 dark:text-blue-400',
+    positive: 'text-accent dark:text-accent',
+    negative: 'text-danger dark:text-danger',
+    neutral: 'text-text-secondary dark:text-text-secondary',
     warning: 'text-yellow-600 dark:text-yellow-400',
   },
 
   // Background state colors
   stateBg: {
-    positive: 'bg-green-600 dark:bg-green-400',
-    negative: 'bg-red-600 dark:bg-red-400',
-    neutral: 'bg-blue-600 dark:bg-blue-400',
+    positive: 'bg-accent dark:bg-accent',
+    negative: 'bg-danger dark:bg-danger',
+    neutral: 'bg-text-muted dark:bg-text-muted',
     warning: 'bg-yellow-600 dark:bg-yellow-400',
   },
 
@@ -131,14 +159,14 @@ export const components = {
 
   // Input variants
   input: {
-    base: `premium-input w-full px-4 py-3 rounded-lg font-medium ${colors.border.default} focus:border-purple-500 dark:focus:border-purple-400 transition-all duration-200`,
+    base: `premium-input w-full px-4 py-3 rounded-lg font-medium ${colors.border.default} focus:border-accent dark:focus:border-accent transition-all duration-200`,
     error: `premium-input w-full px-4 py-3 rounded-lg font-medium border-red-500 dark:border-red-400 focus:border-red-600 dark:focus:border-red-500 transition-all duration-200`,
   },
 
   // Navigation items
   nav: {
     base: `flex items-center space-x-3 px-4 py-3 rounded-lg ${colors.text.primary} font-medium transition-all duration-200 group`,
-    active: `flex items-center space-x-3 px-4 py-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 border-r-2 border-purple-600 font-medium transition-all duration-200 group`,
+    active: `flex items-center space-x-3 px-4 py-3 rounded-lg bg-emerald-50 dark:bg-accent-subtle text-emerald-700 dark:text-accent border-r-2 border-accent font-medium transition-all duration-200 group`,
     hover: `${colors.surface.hover} hover:text-gray-900 dark:hover:text-white`,
   },
 
@@ -236,5 +264,4 @@ export const getStateIcon = (state: 'positive' | 'negative' | 'neutral') => {
   };
   return icons[state];
 };
-
 
