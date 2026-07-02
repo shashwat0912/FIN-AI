@@ -249,12 +249,12 @@ export default function Settings() {
       try {
         await apiClient.logout();
         localStorage.clear();
-        window.location.reload();
+        window.location.assign('/');
       } catch (error: any) {
         logger.error('Error logging out', error);
         // Force logout even if API fails
         localStorage.clear();
-        window.location.reload();
+        window.location.assign('/');
       }
     }
   };

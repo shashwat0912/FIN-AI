@@ -33,16 +33,16 @@ export default function Dashboard() {
   const handleQuickAction = (action: string) => {
     switch (action) {
       case 'transactions':
-        navigate('/transactions');
+        navigate('/dashboard/transactions');
         break;
       case 'goals':
-        navigate('/goals');
+        navigate('/dashboard/goals');
         break;
       case 'budget':
-        navigate('/budget');
+        navigate('/dashboard/budget');
         break;
       case 'ai':
-        navigate('/ai-advisor');
+        navigate('/dashboard/ai-advisor');
         break;
       default:
         break;

@@ -33,7 +33,7 @@ export default function SimpleTopBar({ onMenuClick }: SimpleTopBarProps) {
     if (e.key === 'Enter') {
       if (searchQuery.trim()) {
         // Navigate to transactions page with search query
-        navigate(`/transactions?search=${encodeURIComponent(searchQuery.trim())}`);
+        navigate(`/dashboard/transactions?search=${encodeURIComponent(searchQuery.trim())}`);
         setSearchQuery('');
       }
     }
@@ -126,7 +126,7 @@ export default function SimpleTopBar({ onMenuClick }: SimpleTopBarProps) {
 
         {/* Settings */}
         <button
-          onClick={() => navigate('/settings')}
+          onClick={() => navigate('/dashboard/settings')}
           className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
         >
           <Settings className="h-5 w-5" />
@@ -134,7 +134,7 @@ export default function SimpleTopBar({ onMenuClick }: SimpleTopBarProps) {
 
         {/* User Profile */}
         <button
-          onClick={() => navigate('/settings')}
+          onClick={() => navigate('/dashboard/settings')}
           className="flex items-center space-x-3 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600"
         >
           <div className="h-8 w-8 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full flex items-center justify-center text-white font-semibold text-sm">

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { LanguageProvider } from './context/LanguageContext';
 import { DarkModeProvider } from './context/DarkModeContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import OtpLoginForm from './components/OtpLoginForm';
 import MainLayout from './components/layout/MainLayout';
+import LandingPage from './pages/LandingPage';
 import Dashboard from './pages/Dashboard';
 import Transactions from './pages/Transactions';
 import Budget from './pages/Budget';
@@ -115,32 +116,48 @@ function App() {
     );
   }
 
+  const AuthEntry = () => (isAuthenticated ? <Navigate to="/dashboard" replace /> : <OtpLoginForm />);
+  const RequireAuth = () => (isAuthenticated ? <Outlet /> : <Navigate to="/login" replace />);
+
   return (
     <ErrorBoundary>
       <BrowserRouter>
         <DarkModeProvider>
           <LanguageProvider>
             <Routes>
-              {/* Main app routes */}
-              {!isAuthenticated ? (
-                <Route path="*" element={<OtpLoginForm />} />
-              ) : (
-                <Route path="*" element={
-                  <MainLayout>
-                    <Routes>
-                      <Route path="/" element={<Dashboard />} />
-                      <Route path="/transactions" element={<Transactions />} />
-                      <Route path="/budget" element={<Budget />} />
-                      <Route path="/goals" element={<Goals />} />
-                      <Route path="/ai-advisor" element={<AiAdvisor />} />
-                      <Route path="/settings" element={<Settings />} />
-                      <Route path="/mvp" element={<MvpCoach />} />
-                      <Route path="/v1" element={<FinanceV1 />} />
-                      <Route path="*" element={<Navigate to="/" replace />} />
-                    </Routes>
-                  </MainLayout>
-                } />
-              )}
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/login" element={<AuthEntry />} />
+              <Route path="/signup" element={<AuthEntry />} />
+
+              <Route element={<RequireAuth />}>
+                <Route
+                  path="/dashboard/*"
+                  element={
+                    <MainLayout>
+                      <Routes>
+                        <Route index element={<Dashboard />} />
+                        <Route path="transactions" element={<Transactions />} />
+                        <Route path="budget" element={<Budget />} />
+                        <Route path="goals" element={<Goals />} />
+                        <Route path="ai-advisor" element={<AiAdvisor />} />
+                        <Route path="settings" element={<Settings />} />
+                        <Route path="mvp" element={<MvpCoach />} />
+                        <Route path="v1" element={<FinanceV1 />} />
+                        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                      </Routes>
+                    </MainLayout>
+                  }
+                />
+              </Route>
+
+              <Route path="/transactions" element={<Navigate to="/dashboard/transactions" replace />} />
+              <Route path="/budget" element={<Navigate to="/dashboard/budget" replace />} />
+              <Route path="/goals" element={<Navigate to="/dashboard/goals" replace />} />
+              <Route path="/ai-advisor" element={<Navigate to="/dashboard/ai-advisor" replace />} />
+              <Route path="/settings" element={<Navigate to="/dashboard/settings" replace />} />
+              <Route path="/mvp" element={<Navigate to="/dashboard/mvp" replace />} />
+              <Route path="/v1" element={<Navigate to="/dashboard/v1" replace />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </LanguageProvider>
         </DarkModeProvider>

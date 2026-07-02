@@ -383,7 +383,7 @@ export default function MvpCoach() {
                   <div className="mt-5 flex flex-wrap gap-3">
                     <button
                       type="button"
-                      onClick={() => navigate('/budget')}
+                      onClick={() => navigate('/dashboard/budget')}
                       className="rounded-2xl bg-gray-900 px-4 py-2 text-sm font-medium text-white transition hover:-translate-y-0.5 hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
                     >
                       Set Budget

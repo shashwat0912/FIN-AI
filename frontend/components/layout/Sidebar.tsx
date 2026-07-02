@@ -13,13 +13,13 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { t } = useLanguage();
   
   const navItems = [
-    { path: '/', label: t('dashboard'), icon: LayoutDashboard },
-    { path: '/transactions', label: t('transactions'), icon: WalletCards },
-    { path: '/budget', label: t('budget'), icon: PieChart },
-    { path: '/goals', label: t('goals'), icon: Goal },
-    { path: '/ai-advisor', label: t('ai-advisor'), icon: BrainCircuit },
-    { path: '/v1', label: t('finance-v1'), icon: Layers },
-    { path: '/settings', label: t('settings'), icon: Settings }
+    { path: '/dashboard', label: t('dashboard'), icon: LayoutDashboard },
+    { path: '/dashboard/transactions', label: t('transactions'), icon: WalletCards },
+    { path: '/dashboard/budget', label: t('budget'), icon: PieChart },
+    { path: '/dashboard/goals', label: t('goals'), icon: Goal },
+    { path: '/dashboard/ai-advisor', label: t('ai-advisor'), icon: BrainCircuit },
+    { path: '/dashboard/v1', label: t('finance-v1'), icon: Layers },
+    { path: '/dashboard/settings', label: t('settings'), icon: Settings }
   ];
 
   return (

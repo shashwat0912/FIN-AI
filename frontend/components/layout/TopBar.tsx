@@ -147,9 +147,9 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
         // Navigate to selected result
         const result = searchResults[selectedResultIndex];
         if (result.type === 'transaction') {
-          navigate('/transactions');
+          navigate('/dashboard/transactions');
         } else if (result.type === 'goal') {
-          navigate('/goals');
+          navigate('/dashboard/goals');
         } else if (result.type === 'trend') {
           navigate('/dashboard');
         }
@@ -158,7 +158,7 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
         setSelectedResultIndex(-1);
       } else if (searchQuery.trim()) {
         // Navigate to transactions page with search query
-        navigate(`/transactions?search=${encodeURIComponent(searchQuery.trim())}`);
+        navigate(`/dashboard/transactions?search=${encodeURIComponent(searchQuery.trim())}`);
         setShowSearchResults(false);
         setSearchQuery('');
       }
@@ -194,7 +194,7 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
     const confirmed = window.confirm('Are you sure you want to log out?');
     if (confirmed) {
       localStorage.clear();
-      window.location.reload();
+      window.location.assign('/');
     }
   };
 
@@ -280,9 +280,9 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
                     onClick={() => {
                       // Navigate based on result type
                       if (result.type === 'transaction') {
-                        navigate('/transactions');
+                        navigate('/dashboard/transactions');
                       } else if (result.type === 'goal') {
-                        navigate('/goals');
+                        navigate('/dashboard/goals');
                       } else if (result.type === 'trend') {
                         navigate('/dashboard');
                       }
@@ -391,7 +391,7 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
 
         {/* Settings */}
         <button
-          onClick={() => navigate('/settings')}
+          onClick={() => navigate('/dashboard/settings')}
           className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-all duration-200 group"
           title="Open settings"
         >
@@ -425,7 +425,7 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
               
               <button
                 onClick={() => {
-                  navigate('/settings');
+                  navigate('/dashboard/settings');
                   setShowUserMenu(false);
                 }}
                 className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"
