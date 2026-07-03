@@ -1,13 +1,30 @@
 import React, { useState, useEffect } from 'react';
+import {
+  AlertCircle,
+  ArrowLeft,
+  ArrowRight,
+  CheckCircle2,
+  Clock3,
+  Loader2,
+  LockKeyhole,
+  Mail,
+  RefreshCw,
+  ShieldCheck,
+  Smartphone,
+  Sparkles,
+} from 'lucide-react';
 import { apiClient } from '../lib/api';
-import { useDarkMode } from '../context/DarkModeContext';
-import DarkModeToggle from './common/DarkModeToggle';
 import { tokenRefreshService } from '../services/tokenRefreshService';
 
 type Step = 'identifier' | 'otp';
 
+const trustItems = [
+  'Secure OTP verification',
+  'Your financial data is never sold',
+  'You stay in control of AI recommendations',
+];
+
 export default function OtpLoginForm() {
-  const { isDarkMode } = useDarkMode();
   const [step, setStep] = useState<Step>('identifier');
   const [identifier, setIdentifier] = useState('');
   const [otp, setOtp] = useState('');
@@ -123,96 +140,144 @@ export default function OtpLoginForm() {
     setError(null);
   };
 
+  const identifierLabel = identifierType === 'phone' ? 'phone' : 'email';
+
   return (
-    <div className="min-h-screen relative overflow-hidden">
-      {/* Animated gradient background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50 dark:from-dark-950 dark:via-purple-900/20 dark:to-blue-900/20" />
-      
-      {/* Floating orbs/shapes for depth */}
-      <div className="absolute top-20 left-10 w-48 h-48 sm:w-72 sm:h-72 bg-purple-300/30 dark:bg-purple-500/10 rounded-full blur-3xl animate-pulse" />
-      <div className="absolute bottom-20 right-10 w-64 h-64 sm:w-96 sm:h-96 bg-blue-300/30 dark:bg-blue-300/10 rounded-full blur-3xl animate-pulse delay-1000" />
-      
-      {/* Dark Mode Toggle - Top Right */}
-      <div className="absolute top-4 right-4 z-20">
-        <DarkModeToggle size="md" />
-      </div>
-      
-      {/* Content container */}
-      <div className="relative z-10 min-h-screen flex items-center justify-center py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-md w-full">
-          <div className="glass-card p-6 sm:p-8 rounded-2xl shadow-2xl backdrop-blur-xl border border-white/20 dark:border-white/10 animate-theme-slide-in">
-            {/* App Branding */}
-            <div className="text-center mb-8">
-              <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-purple-600 to-blue-600 shadow-xl mb-4 animate-theme-fade-in">
-                <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
+    <div className="landing-page relative min-h-screen overflow-hidden bg-[#09090b] text-white antialiased">
+      <div className="bg-radial-emerald absolute inset-0" />
+      <div className="absolute inset-0 bg-grid [mask-image:radial-gradient(ellipse_72%_60%_at_50%_0%,#000_22%,transparent_76%)]" />
+
+      <div className="relative z-10 mx-auto grid min-h-screen w-full max-w-7xl grid-cols-1 gap-10 px-6 py-6 sm:px-8 sm:py-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-16">
+        <section className="flex flex-col justify-between gap-10 lg:min-h-[calc(100vh-4rem)]">
+          <a href="/" className="flex w-fit items-center gap-2 rounded-full text-white focus-visible:outline-none">
+            <span className="grid h-8 w-8 place-items-center rounded-md bg-emerald-500 text-zinc-950">
+              <span className="font-display text-sm font-bold">F</span>
+            </span>
+            <span className="font-display text-base font-semibold tracking-tight">FinanceAI</span>
+          </a>
+
+          <div className="max-w-2xl">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs text-zinc-300 backdrop-blur">
+              <ShieldCheck size={14} className="text-emerald-400" />
+              <span>Private access to your financial copilot</span>
+            </div>
+
+            <h1 className="font-display mt-8 text-balance text-4xl font-semibold leading-[1.04] tracking-tighter text-white sm:text-5xl lg:text-6xl">
+              Continue with confidence.
+            </h1>
+            <p className="mt-5 max-w-xl text-pretty text-base leading-relaxed text-zinc-400 sm:text-lg">
+              FinanceAI uses secure one-time verification so your money context stays protected from the first step.
+            </p>
+
+            <div className="mt-8 grid gap-3 sm:grid-cols-3 lg:max-w-xl">
+              {trustItems.map((item) => (
+                <div key={item} className="rounded-xl border border-white/[0.06] bg-white/[0.025] p-4">
+                  <CheckCircle2 size={17} className="text-emerald-400" />
+                  <p className="mt-3 text-sm leading-relaxed text-zinc-300">{item}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="hidden max-w-xl rounded-2xl border border-white/[0.06] bg-zinc-950/70 p-5 shadow-2xl shadow-emerald-950/20 backdrop-blur lg:block">
+            <div className="flex items-center justify-between border-b border-white/[0.06] pb-4">
+              <div>
+                <p className="text-xs text-zinc-500">Private copilot preview</p>
+                <p className="font-display mt-1 text-sm font-medium tracking-tight text-white">Ready after verification</p>
               </div>
-              <h1 className="text-2xl font-bold premium-gradient-text mb-2">Finance AI</h1>
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                {step === 'identifier' ? 'Welcome' : 'Verify OTP'}
+              <div className="rounded-full border border-emerald-500/20 bg-emerald-500/[0.08] px-3 py-1 text-xs text-emerald-300">
+                OTP secured
+              </div>
+            </div>
+            <div className="mt-5 grid grid-cols-3 gap-3">
+              {[
+                ['Spend signal', 'Private'],
+                ['Budget view', 'Locked'],
+                ['AI advice', 'User controlled'],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-xl border border-white/[0.06] bg-white/[0.025] p-3">
+                  <p className="text-[11px] text-zinc-500">{label}</p>
+                  <p className="mt-2 text-sm font-medium text-zinc-200">{value}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] p-4">
+              <div className="flex items-start gap-3">
+                <Sparkles size={17} className="mt-0.5 shrink-0 text-emerald-300" />
+                <p className="text-sm leading-relaxed text-zinc-300">
+                  Your dashboard opens only after verification. Recommendations stay explainable, editable, and under your control.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="flex items-center justify-center lg:justify-end">
+          <div className="w-full max-w-[460px] rounded-2xl border border-white/[0.08] bg-zinc-950/88 p-5 shadow-2xl shadow-black/40 backdrop-blur sm:p-7">
+            <div className="mb-7">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-emerald-500/20 bg-emerald-500/[0.08] text-emerald-300">
+                <LockKeyhole size={20} strokeWidth={1.8} />
+              </div>
+              <h2 className="font-display mt-5 text-2xl font-semibold tracking-tight text-white">
+                {step === 'identifier' ? 'Sign in securely' : 'Enter your verification code'}
               </h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                {step === 'identifier' 
-                  ? 'Enter your email or Indian phone number to continue'
-                  : `We sent a 4-digit code to your ${identifierType}`
-                }
+              <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+                {step === 'identifier'
+                  ? 'Use your email or Indian phone number. No password needed.'
+                  : `We sent a 4-digit code to your ${identifierLabel}.`}
               </p>
             </div>
 
             {/* Step 1: Enter Identifier */}
             {step === 'identifier' && (
-              <form className="space-y-6" onSubmit={handleSendOtp}>
+              <form className="space-y-5" onSubmit={handleSendOtp}>
                 <div>
-                  <label htmlFor="identifier" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Email or Phone Number
+                  <label htmlFor="identifier" className="block text-sm font-medium text-zinc-200">
+                    Email or phone number
                   </label>
-                  <input
-                    id="identifier"
-                    name="identifier"
-                    type="text"
-                    required
-                    value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
-                    className="premium-input w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-dark-700 
-                      focus:border-purple-500 dark:focus:border-purple-400 
-                      focus:ring-4 focus:ring-purple-500/20 
-                      transition-all duration-300 
-                      placeholder:text-gray-400 dark:placeholder:text-gray-500"
-                    placeholder="email@example.com or 9876543210"
-                  />
-                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                    📧 Email or 📱 Indian phone number (10 digits)
+                  <div className="mt-2 flex items-center rounded-xl border border-white/[0.10] bg-white/[0.03] px-3 transition-colors focus-within:border-emerald-400/70 focus-within:ring-4 focus-within:ring-emerald-500/10">
+                    <div className="flex items-center gap-1.5 text-zinc-500">
+                      <Mail size={16} />
+                      <Smartphone size={15} />
+                    </div>
+                    <input
+                      id="identifier"
+                      name="identifier"
+                      type="text"
+                      required
+                      value={identifier}
+                      onChange={(e) => setIdentifier(e.target.value)}
+                      className="min-h-12 w-full bg-transparent px-3 text-sm text-white outline-none placeholder:text-zinc-600"
+                      placeholder="email@example.com or 9876543210"
+                    />
+                  </div>
+                  <p className="mt-2 text-xs leading-relaxed text-zinc-500">
+                    Email or a 10-digit Indian mobile number works here.
                   </p>
                 </div>
 
                 {error && (
-                  <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800/50 
-                    rounded-xl p-4 animate-theme-fade-in backdrop-blur-sm">
-                    <div className="flex items-center">
-                      <svg className="w-5 h-5 text-red-600 dark:text-red-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                      </svg>
-                      <p className="text-sm font-medium text-red-600 dark:text-red-400">{error}</p>
-                    </div>
+                  <div className="flex items-start gap-3 rounded-xl border border-red-400/20 bg-red-400/10 p-4">
+                    <AlertCircle size={18} className="mt-0.5 shrink-0 text-red-300" />
+                    <p className="text-sm font-medium leading-relaxed text-red-200">{error}</p>
                   </div>
                 )}
 
                 <button
                   type="submit"
                   disabled={loading}
-                  className="premium-button w-full py-3 px-6 rounded-xl font-semibold 
-                    shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 
-                    transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed
-                    disabled:transform-none"
+                  className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-emerald-500 px-6 text-sm font-medium text-zinc-950 transition duration-150 hover:bg-emerald-400 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100"
                 >
                   {loading ? (
-                    <div className="flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                      Sending OTP...
-                    </div>
+                    <>
+                      <Loader2 size={17} className="animate-spin" />
+                      Sending code
+                    </>
                   ) : (
-                    'Send OTP'
+                    <>
+                      Send secure code
+                      <ArrowRight size={16} />
+                    </>
                   )}
                 </button>
               </form>
@@ -220,10 +285,10 @@ export default function OtpLoginForm() {
 
             {/* Step 2: Verify OTP */}
             {step === 'otp' && (
-              <form className="space-y-6" onSubmit={handleVerifyOtp}>
+              <form className="space-y-5" onSubmit={handleVerifyOtp}>
                 <div>
-                  <label htmlFor="otp" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Enter 4-Digit OTP
+                  <label htmlFor="otp" className="block text-sm font-medium text-zinc-200">
+                    4-digit code
                   </label>
                   <input
                     id="otp"
@@ -235,45 +300,42 @@ export default function OtpLoginForm() {
                     required
                     value={otp}
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                    className="premium-input w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-dark-700 
-                      focus:border-purple-500 dark:focus:border-purple-400 
-                      focus:ring-4 focus:ring-purple-500/20 
-                      transition-all duration-300 
-                      placeholder:text-gray-400 dark:placeholder:text-gray-500
-                      text-center text-2xl font-mono tracking-widest"
-                    placeholder="••••"
+                    className="mt-2 min-h-14 w-full rounded-xl border border-white/[0.10] bg-white/[0.03] px-4 text-center font-mono text-2xl tracking-[0.35em] text-white outline-none transition-colors placeholder:text-zinc-700 focus:border-emerald-400/70 focus:ring-4 focus:ring-emerald-500/10"
+                    placeholder="0000"
                     autoFocus
                   />
-                  {/* Show OTP in dev so you can see it (SMS/email are simulated) */}
+                  {/* Show OTP in dev so you can see it. SMS/email are simulated. */}
                   {otpForDev && (
-                    <div className="mt-2 mb-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50">
-                      <p className="text-xs font-medium text-amber-800 dark:text-amber-200 mb-1">🔑 Your OTP (development — not sent by SMS/email)</p>
-                      <p className="text-2xl font-mono font-bold text-amber-900 dark:text-amber-100 tracking-widest">{otpForDev}</p>
+                    <div className="mt-3 rounded-xl border border-amber-300/20 bg-amber-300/10 p-3">
+                      <p className="text-xs font-medium text-amber-100">Development code. Not sent by SMS or email.</p>
+                      <p className="mt-1 font-mono text-2xl font-bold tracking-widest text-amber-50">{otpForDev}</p>
                     </div>
                   )}
-                  <div className="mt-2 flex items-center justify-between text-xs">
-                    <span className="text-gray-500 dark:text-gray-400">
-                      ⏰ Valid for: <span className="font-mono font-semibold">{formatTime(timeRemaining)}</span>
+                  <div className="mt-3 flex items-center justify-between gap-3 text-xs">
+                    <span className="inline-flex items-center gap-1.5 text-zinc-500">
+                      <Clock3 size={14} />
+                      Valid for <span className="font-mono font-semibold text-zinc-300">{formatTime(timeRemaining)}</span>
                     </span>
                     {timeRemaining > 0 ? (
                       <button
                         type="button"
                         onClick={handleResendOtp}
                         disabled={loading}
-                        className="text-purple-600 hover:text-purple-500 font-medium disabled:opacity-50"
+                        className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 font-medium text-emerald-300 transition-colors hover:bg-emerald-500/10 hover:text-emerald-200 disabled:opacity-50"
                       >
-                        Resend OTP
+                        <RefreshCw size={13} />
+                        Resend
                       </button>
                     ) : (
-                      <span className="text-red-600 dark:text-red-400 font-medium">OTP Expired</span>
+                      <span className="font-medium text-red-300">Code expired</span>
                     )}
                   </div>
                 </div>
 
                 {isNewUser && (
                   <div>
-                    <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Your Name
+                    <label htmlFor="name" className="block text-sm font-medium text-zinc-200">
+                      Your name
                     </label>
                     <input
                       id="name"
@@ -282,28 +344,19 @@ export default function OtpLoginForm() {
                       required
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      className="premium-input w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-dark-700 
-                        focus:border-purple-500 dark:focus:border-purple-400 
-                        focus:ring-4 focus:ring-purple-500/20 
-                        transition-all duration-300 
-                        placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                      className="mt-2 min-h-12 w-full rounded-xl border border-white/[0.10] bg-white/[0.03] px-4 text-sm text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-emerald-400/70 focus:ring-4 focus:ring-emerald-500/10"
                       placeholder="Enter your full name"
                     />
-                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                      👋 Looks like you're new! Please enter your name to create an account.
+                    <p className="mt-2 text-xs leading-relaxed text-zinc-500">
+                      We need this once to create your FinanceAI account.
                     </p>
                   </div>
                 )}
 
                 {error && (
-                  <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800/50 
-                    rounded-xl p-4 animate-theme-fade-in backdrop-blur-sm">
-                    <div className="flex items-center">
-                      <svg className="w-5 h-5 text-red-600 dark:text-red-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                      </svg>
-                      <p className="text-sm font-medium text-red-600 dark:text-red-400">{error}</p>
-                    </div>
+                  <div className="flex items-start gap-3 rounded-xl border border-red-400/20 bg-red-400/10 p-4">
+                    <AlertCircle size={18} className="mt-0.5 shrink-0 text-red-300" />
+                    <p className="text-sm font-medium leading-relaxed text-red-200">{error}</p>
                   </div>
                 )}
 
@@ -311,18 +364,18 @@ export default function OtpLoginForm() {
                   <button
                     type="submit"
                     disabled={loading || timeRemaining <= 0}
-                    className="premium-button w-full py-3 px-6 rounded-xl font-semibold 
-                      shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 
-                      transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed
-                      disabled:transform-none"
+                    className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-emerald-500 px-6 text-sm font-medium text-zinc-950 transition duration-150 hover:bg-emerald-400 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100"
                   >
                     {loading ? (
-                      <div className="flex items-center justify-center">
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                        Verifying...
-                      </div>
+                      <>
+                        <Loader2 size={17} className="animate-spin" />
+                        Verifying
+                      </>
                     ) : (
-                      'Verify & Sign In'
+                      <>
+                        Verify and continue
+                        <ArrowRight size={16} />
+                      </>
                     )}
                   </button>
 
@@ -330,33 +383,29 @@ export default function OtpLoginForm() {
                     type="button"
                     onClick={handleBack}
                     disabled={loading}
-                    className="w-full py-3 px-6 rounded-xl font-semibold 
-                      bg-gray-100 dark:bg-dark-700 text-gray-700 dark:text-gray-300
-                      hover:bg-gray-200 dark:hover:bg-dark-600
-                      transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full border border-white/[0.12] px-6 text-sm font-medium text-zinc-300 transition-colors hover:bg-white/[0.05] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    ← Back
+                    <ArrowLeft size={16} />
+                    Back
                   </button>
                 </div>
               </form>
             )}
 
-            {/* Info Box */}
-            <div className="mt-6 p-4 bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-900/10 dark:to-blue-900/10 
-              rounded-xl border border-purple-200/50 dark:border-purple-800/30">
-              <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
-                🔒 Secure OTP Login
-              </p>
-              <ul className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
-                <li>• No password required</li>
-                <li>• OTP valid for 5 minutes</li>
-                <li>• Works with email or phone</li>
-              </ul>
+            <div className="mt-7 rounded-xl border border-white/[0.06] bg-white/[0.025] p-4">
+              <div className="flex items-start gap-3">
+                <ShieldCheck size={18} className="mt-0.5 shrink-0 text-emerald-400" />
+                <div>
+                  <p className="text-sm font-medium text-zinc-200">Secure OTP verification</p>
+                  <p className="mt-1 text-xs leading-relaxed text-zinc-500">
+                    No password to store. Codes expire quickly, and you can resend when needed.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        </section>
       </div>
     </div>
   );
 }
-
