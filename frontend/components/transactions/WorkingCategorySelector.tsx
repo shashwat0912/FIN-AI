@@ -137,28 +137,28 @@ const WorkingCategorySelector: React.FC<WorkingCategorySelectorProps> = ({
         onClick={() => {
           setIsOpen(!isOpen);
         }}
-        className="w-full px-4 py-3 rounded-lg border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white hover:border-purple-300 dark:hover:border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-500/20 transition-all duration-200 flex items-center justify-between group"
+        className="flex h-11 w-full items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900 px-3 text-left text-sm text-zinc-100 hover:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-emerald-400/10"
       >
-        <div className="flex items-center space-x-3">
+        <div className="flex min-w-0 items-center gap-2">
           {selectedCategory ? (
             <>
-              <span className="text-lg">{getEmojiIcon(selectedCategory.icon)}</span>
-              <span className="font-medium">{selectedCategory.name}</span>
+              <span className="hidden">{getEmojiIcon(selectedCategory.icon)}</span>
+              <span className="truncate font-medium">{selectedCategory.name}</span>
               {selectedCategory.description && (
-                <span className="text-sm text-gray-500 dark:text-gray-400">
+                <span className="hidden truncate text-zinc-500 sm:inline">
                   {selectedCategory.description}
                 </span>
               )}
             </>
           ) : (
-            <span className="text-gray-500 dark:text-gray-400">
+            <span className="text-zinc-500">
               Select a category
             </span>
           )}
         </div>
         
         <ChevronDown 
-          className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${
+          className={`h-4 w-4 shrink-0 text-zinc-500 transition-transform duration-200 ${
             isOpen ? 'rotate-180' : ''
           }`} 
         />
@@ -166,17 +166,17 @@ const WorkingCategorySelector: React.FC<WorkingCategorySelectorProps> = ({
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute z-50 w-full mt-2 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 max-h-96 overflow-hidden">
+        <div className="absolute z-50 mt-2 max-h-96 w-full overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950">
           {/* Search Bar */}
-          <div className="p-3 border-b border-gray-200 dark:border-gray-700">
+          <div className="border-b border-zinc-800 p-3">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search categories..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                className="h-10 w-full rounded-lg border border-zinc-800 bg-zinc-900 pl-9 pr-3 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-400/10"
               />
             </div>
           </div>
@@ -185,20 +185,20 @@ const WorkingCategorySelector: React.FC<WorkingCategorySelectorProps> = ({
           <div className="max-h-64 overflow-y-auto">
             {Object.entries(groupedCategories).map(([groupName, categories]) => (
               <div key={groupName} className="p-2">
-                <div className="px-3 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                <div className="px-3 py-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">
                   {groupName}
                 </div>
                 {categories.map((category) => (
                   <button
                     key={category.id}
                     onClick={() => handleCategorySelect(category)}
-                    className="w-full text-left px-3 py-2 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200 flex items-center space-x-3"
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-zinc-100 hover:bg-zinc-900"
                   >
-                    <span className="text-lg">{getEmojiIcon(category.icon)}</span>
+                    <span className="hidden">{getEmojiIcon(category.icon)}</span>
                     <div className="flex-1">
                       <div className="font-medium">{category.name}</div>
                       {category.description && (
-                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                        <div className="text-sm text-zinc-500">
                           {category.description}
                         </div>
                       )}
@@ -212,26 +212,26 @@ const WorkingCategorySelector: React.FC<WorkingCategorySelectorProps> = ({
             {!showCustomInput ? (
               <button
                 onClick={() => setShowCustomInput(true)}
-                className="w-full text-left px-3 py-2 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors duration-200 flex items-center space-x-3"
+                className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm font-medium text-emerald-300 hover:bg-emerald-500/10"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="h-4 w-4" />
                 <span>Add Custom Category</span>
               </button>
             ) : (
-              <div className="p-3 border-t border-gray-200 dark:border-gray-700">
-                <div className="flex space-x-2">
+              <div className="border-t border-zinc-800 p-3">
+                <div className="flex gap-2">
                   <input
                     type="text"
                     value={customCategory}
                     onChange={(e) => setCustomCategory(e.target.value)}
                     placeholder="Enter custom category..."
-                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                    className="min-w-0 flex-1 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-400/10"
                     onKeyPress={(e) => e.key === 'Enter' && handleCustomCategory()}
                     autoFocus
                   />
                   <button
                     onClick={handleCustomCategory}
-                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors duration-200"
+                    className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-zinc-950 hover:bg-emerald-400"
                   >
                     Add
                   </button>

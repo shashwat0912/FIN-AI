@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Filter, Edit3, Trash2, TrendingUp, TrendingDown } from 'lucide-react';
+import { Plus, Search, Filter, Trash2 } from 'lucide-react';
 import { apiClient, Transaction } from '../lib/api';
 import WorkingCategorySelector from '../components/transactions/WorkingCategorySelector';
 import { Category } from '../data/categories';
@@ -113,70 +113,69 @@ export default function Transactions() {
   });
 
   return (
-    <div className="space-y-6 p-4 sm:p-6">
+    <div className="mx-auto w-full max-w-[1440px] space-y-6 text-white">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{t('transactions')}</h1>
-          <p className="text-gray-600 mt-1">Manage your income and expenses</p>
+          <h1 className="font-display text-3xl font-bold tracking-tight text-white">{t('transactions')}</h1>
+          <p className="mt-2 text-sm text-zinc-400 sm:text-base">Review and manage your recorded activity.</p>
         </div>
         <button
           onClick={() => setShowAddForm(true)}
-          className="inline-flex w-full items-center justify-center px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-medium rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-200 shadow-lg hover:shadow-xl sm:w-auto"
+          className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-emerald-500 px-6 text-sm font-semibold text-zinc-950 hover:bg-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/60 sm:w-auto"
         >
-          <Plus className="w-5 h-5 mr-2" />
-          {t('add-transaction')}
+          <Plus className="h-4 w-4" />
+          Add transaction
         </button>
       </div>
 
       {/* Search and Filter */}
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+      <div className="flex flex-col gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-3 sm:flex-row">
+        <div className="relative flex-1">
+          <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
           <input
             type="text"
             placeholder={t('search-transactions')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-dark-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+            className="h-11 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-11 text-sm text-zinc-100 placeholder:text-zinc-500 hover:border-zinc-700 focus:border-emerald-400/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/10"
           />
         </div>
         <div className="relative filter-dropdown sm:shrink-0">
           <button 
             onClick={() => setShowFilterDropdown(!showFilterDropdown)}
-            className="flex w-full items-center justify-center px-4 py-2 border border-gray-200 dark:border-dark-700 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-800 bg-white dark:bg-dark-900 sm:w-auto"
+            className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-zinc-800 bg-zinc-950 px-4 text-sm font-medium text-zinc-200 hover:border-zinc-700 hover:bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-emerald-400/10 sm:w-auto"
           >
-            <Filter className="w-4 h-4 mr-2" />
+            <Filter className="h-4 w-4 text-zinc-500" />
             {t('filter')} {filterType !== 'ALL' && `(${filterType})`}
-            <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="h-4 w-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
           </button>
           
           {showFilterDropdown && (
-            <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-dark-900 rounded-lg shadow-lg border border-gray-200 dark:border-dark-700 z-10">
+            <div className="absolute right-0 z-10 mt-2 w-48 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950">
               <div className="py-1">
                 <button
                   onClick={() => {
                     setFilterType('ALL');
                     setShowFilterDropdown(false);
                   }}
-                  className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-dark-800 ${
-                    filterType === 'ALL' ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300' : 'text-gray-700 dark:text-gray-300'
+                  className={`w-full px-4 py-2.5 text-left text-sm hover:bg-zinc-900 ${
+                    filterType === 'ALL' ? 'bg-zinc-900 text-white' : 'text-zinc-400'
                   }`}
                 >
-{t('all')} {t('transactions')}
+                  {t('all')} {t('transactions')}
                 </button>
                 <button
                   onClick={() => {
                     setFilterType('INCOME');
                     setShowFilterDropdown(false);
                   }}
-                  className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-dark-800 flex items-center ${
-                    filterType === 'INCOME' ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'text-gray-700 dark:text-gray-300'
+                  className={`w-full px-4 py-2.5 text-left text-sm hover:bg-zinc-900 ${
+                    filterType === 'INCOME' ? 'bg-emerald-500/10 text-emerald-300' : 'text-zinc-400'
                   }`}
                 >
-                  <TrendingUp className="w-4 h-4 mr-2" />
                   {t('income')}
                 </button>
                 <button
@@ -184,11 +183,10 @@ export default function Transactions() {
                     setFilterType('EXPENSE');
                     setShowFilterDropdown(false);
                   }}
-                  className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-dark-800 flex items-center ${
-                    filterType === 'EXPENSE' ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300' : 'text-gray-700 dark:text-gray-300'
+                  className={`w-full px-4 py-2.5 text-left text-sm hover:bg-zinc-900 ${
+                    filterType === 'EXPENSE' ? 'bg-red-500/10 text-red-300' : 'text-zinc-400'
                   }`}
                 >
-                  <TrendingDown className="w-4 h-4 mr-2" />
                   {t('expense')}
                 </button>
               </div>
@@ -199,27 +197,27 @@ export default function Transactions() {
 
       {/* Add Transaction Form */}
       {showAddForm && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 dark:border-dark-700 p-6 dark:bg-dark-900">
-          <h3 className="text-lg font-semibold mb-4">{t('add-transaction')}</h3>
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-5 sm:p-6">
+          <h3 className="mb-4 text-lg font-semibold text-white">{t('add-transaction')}</h3>
           <form onSubmit={handleAddTransaction} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('amount')}</label>
+                <label className="mb-1.5 block text-sm font-medium text-zinc-300">{t('amount')}</label>
                 <input
                   type="number"
                   step="0.01"
                   required
                   value={newTransaction.amount}
                   onChange={(e) => setNewTransaction({ ...newTransaction, amount: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-dark-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-dark-800 dark:border-dark-700 dark:text-white dark:placeholder-gray-400"
+                  className="h-11 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-100 placeholder:text-zinc-500 hover:border-zinc-700 focus:border-emerald-400/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/10"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('type')}</label>
+                <label className="mb-1.5 block text-sm font-medium text-zinc-300">{t('type')}</label>
                 <select
                   value={newTransaction.type}
                   onChange={(e) => handleTypeChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-dark-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-dark-800 dark:border-dark-700 dark:text-white dark:placeholder-gray-400"
+                  className="h-11 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-100 hover:border-zinc-700 focus:border-emerald-400/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/10"
                 >
                   <option value="EXPENSE">{t('expense')}</option>
                   <option value="INCOME">{t('income')}</option>
@@ -227,17 +225,17 @@ export default function Transactions() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('description')}</label>
+                <label className="mb-1.5 block text-sm font-medium text-zinc-300">{t('description')}</label>
                 <input
                   type="text"
                   required
                   value={newTransaction.description}
                   onChange={(e) => setNewTransaction({ ...newTransaction, description: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-dark-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-dark-800 dark:border-dark-700 dark:text-white dark:placeholder-gray-400"
+                  className="h-11 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-100 placeholder:text-zinc-500 hover:border-zinc-700 focus:border-emerald-400/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/10"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('category')}</label>
+                <label className="mb-1.5 block text-sm font-medium text-zinc-300">{t('category')}</label>
                 <WorkingCategorySelector
                   selectedCategory={selectedCategory}
                   onCategorySelect={setSelectedCategory}
@@ -246,29 +244,29 @@ export default function Transactions() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('date')}</label>
+                <label className="mb-1.5 block text-sm font-medium text-zinc-300">{t('date')}</label>
                 <input
                   type="date"
                   required
                   value={newTransaction.date}
                   onChange={(e) => setNewTransaction({ ...newTransaction, date: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-dark-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-dark-800 dark:border-dark-700 dark:text-white dark:placeholder-gray-400"
+                  className="h-11 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-100 hover:border-zinc-700 focus:border-emerald-400/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/10"
                 />
               </div>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
               <button
                 type="submit"
-                className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                className="inline-flex h-11 items-center justify-center rounded-full bg-emerald-500 px-6 text-sm font-semibold text-zinc-950 hover:bg-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/60"
               >
-{t('add-transaction')}
+                {t('add-transaction')}
               </button>
               <button
                 type="button"
                 onClick={() => setShowAddForm(false)}
-                className="px-6 py-2 border border-gray-200 dark:border-dark-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-800 transition-colors"
+                className="inline-flex h-11 items-center justify-center rounded-full border border-zinc-700 px-6 text-sm font-semibold text-zinc-300 hover:bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-500/40"
               >
-{t('cancel')}
+                {t('cancel')}
               </button>
             </div>
           </form>
@@ -277,62 +275,56 @@ export default function Transactions() {
 
       {/* Error Message */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-600">{error}</p>
+        <div className="rounded-2xl border border-red-400/20 bg-red-400/10 p-4">
+          <p className="text-sm text-red-100">{error}</p>
         </div>
       )}
 
       {/* Transactions List */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 dark:border-dark-700 dark:bg-dark-900">
+      <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950/60">
         {loading ? (
-          <div className="p-6 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
-            <p className="text-gray-500 mt-2">{t('loading')}</p>
+          <div className="p-8 text-center">
+            <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-zinc-800 border-b-emerald-400"></div>
+            <p className="mt-3 text-sm text-zinc-500">{t('loading')}</p>
           </div>
         ) : filteredTransactions.length === 0 ? (
-          <div className="p-6 text-center">
-            <p className="text-gray-500">{t('no-data')}</p>
+          <div className="p-8 text-center sm:p-10">
+            <p className="text-base font-semibold text-zinc-200">No transactions yet</p>
+            <p className="mt-2 text-sm text-zinc-500">Start by logging your first transaction.</p>
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-emerald-500 px-5 text-sm font-semibold text-zinc-950 hover:bg-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/60 sm:w-auto"
+            >
+              <Plus className="h-4 w-4" />
+              Add transaction
+            </button>
           </div>
         ) : (
-          <div className="divide-y divide-gray-200">
+          <div>
             {filteredTransactions.map((transaction) => (
-              <div key={transaction.id} className="p-6 hover:bg-gray-50 dark:hover:bg-dark-800 transition-colors">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex min-w-0 items-center space-x-4">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      transaction.type === 'INCOME' ? 'bg-green-100' :
-                      transaction.type === 'EXPENSE' ? 'bg-red-100' : 'bg-blue-100'
-                    }`}>
-                      {transaction.type === 'INCOME' ? (
-                        <TrendingUp className="w-5 h-5 text-green-600" />
-                      ) : transaction.type === 'EXPENSE' ? (
-                        <TrendingDown className="w-5 h-5 text-red-600" />
-                      ) : (
-                        <Edit3 className="w-5 h-5 text-blue-600" />
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <h3 className="truncate font-medium text-gray-900 dark:text-white">{transaction.description}</h3>
-                      <p className="truncate text-sm text-gray-500 dark:text-gray-400">{transaction.category}</p>
+              <div key={transaction.id} className="border-b border-zinc-800/80 px-4 py-4 last:border-b-0 hover:bg-white/[0.03] sm:px-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="truncate text-base font-semibold text-zinc-100">{transaction.description}</h3>
+                    <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-zinc-500">
+                      <span className="min-w-0 max-w-full truncate">{transaction.category}</span>
+                      <span aria-hidden="true">·</span>
+                      <time>{new Date(transaction.date).toLocaleDateString()}</time>
                     </div>
                   </div>
-                  <div className="flex shrink-0 items-center space-x-3 sm:space-x-4">
-                    <div className="text-right">
-                      <p className={`font-semibold ${
-                        transaction.type === 'INCOME' ? 'text-green-600' :
-                        transaction.type === 'EXPENSE' ? 'text-red-600' : 'text-blue-600'
-                      }`}>
-                        {transaction.type === 'EXPENSE' ? '-' : '+'}₹{Number(transaction.amount).toLocaleString()}
-                      </p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {new Date(transaction.date).toLocaleDateString()}
-                      </p>
-                    </div>
+                  <div className="flex max-w-[42%] shrink-0 flex-col items-end gap-2 sm:max-w-none sm:flex-row sm:items-center sm:gap-4">
+                    <p className={`max-w-full truncate whitespace-nowrap text-right text-base font-semibold tabular-nums ${
+                      transaction.type === 'INCOME' ? 'text-emerald-300' :
+                      transaction.type === 'EXPENSE' ? 'text-red-300' : 'text-zinc-300'
+                    }`}>
+                      {transaction.type === 'EXPENSE' ? '-' : '+'}₹{Number(transaction.amount).toLocaleString()}
+                    </p>
                     <button
                       onClick={() => handleDeleteTransaction(transaction.id)}
-                      className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                      aria-label={`Delete ${transaction.description}`}
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-transparent text-zinc-500 hover:border-red-400/20 hover:bg-red-500/10 hover:text-red-300 focus:outline-none focus:ring-2 focus:ring-red-300/40 focus-visible:border-red-300/40 focus-visible:bg-red-500/10"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
                 </div>
