@@ -17,7 +17,7 @@ export function HeroSection() {
             <span>AI financial copilot for everyday money</span>
           </div>
 
-          <h1 data-testid="hero-headline" className="font-display mt-8 text-balance text-5xl font-semibold leading-[1.02] tracking-tighter text-white sm:text-6xl lg:text-7xl">
+          <h1 data-testid="hero-headline" className="font-display mt-8 text-balance text-4xl font-semibold leading-[1.02] tracking-tighter text-white sm:text-6xl lg:text-7xl">
             Know where your money is going <span className="text-zinc-400">before it becomes a problem.</span>
           </h1>
 

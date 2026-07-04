@@ -196,7 +196,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      <section className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-950/60 p-8">
+      <section className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-950/60 p-5 sm:p-8">
         <div className="flex flex-col gap-8 lg:flex-row lg:items-stretch">
           <div className="min-w-0 lg:w-[64%]">
             <div className="flex flex-wrap items-center gap-3">
@@ -269,7 +269,7 @@ export default function Dashboard() {
       </section>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <section className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-8">
+        <section className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5 sm:p-8">
           <div>
             <h2 className="font-display text-[28px] font-semibold tracking-tight text-white">Why this happened</h2>
             <p className="mt-2 text-base text-zinc-400">Recorded spending drivers for the last {data.period}.</p>
@@ -314,7 +314,7 @@ export default function Dashboard() {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-8">
+        <section className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5 sm:p-8">
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="font-display text-[28px] font-semibold tracking-tight text-white">Recent activity</h2>

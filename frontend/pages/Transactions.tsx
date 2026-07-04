@@ -113,16 +113,16 @@ export default function Transactions() {
   });
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6 p-4 sm:p-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{t('transactions')}</h1>
           <p className="text-gray-600 mt-1">Manage your income and expenses</p>
         </div>
         <button
           onClick={() => setShowAddForm(true)}
-          className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-medium rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+          className="inline-flex w-full items-center justify-center px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-medium rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-200 shadow-lg hover:shadow-xl sm:w-auto"
         >
           <Plus className="w-5 h-5 mr-2" />
           {t('add-transaction')}
@@ -130,7 +130,7 @@ export default function Transactions() {
       </div>
 
       {/* Search and Filter */}
-      <div className="flex space-x-4">
+      <div className="flex flex-col gap-3 sm:flex-row">
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <input
@@ -141,10 +141,10 @@ export default function Transactions() {
             className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-dark-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
           />
         </div>
-        <div className="relative filter-dropdown">
+        <div className="relative filter-dropdown sm:shrink-0">
           <button 
             onClick={() => setShowFilterDropdown(!showFilterDropdown)}
-            className="px-4 py-2 border border-gray-200 dark:border-dark-700 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-800 flex items-center bg-white dark:bg-dark-900"
+            className="flex w-full items-center justify-center px-4 py-2 border border-gray-200 dark:border-dark-700 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-800 bg-white dark:bg-dark-900 sm:w-auto"
           >
             <Filter className="w-4 h-4 mr-2" />
             {t('filter')} {filterType !== 'ALL' && `(${filterType})`}
@@ -256,7 +256,7 @@ export default function Transactions() {
                 />
               </div>
             </div>
-            <div className="flex space-x-3">
+            <div className="flex flex-col gap-3 sm:flex-row">
               <button
                 type="submit"
                 className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
@@ -297,8 +297,8 @@ export default function Transactions() {
           <div className="divide-y divide-gray-200">
             {filteredTransactions.map((transaction) => (
               <div key={transaction.id} className="p-6 hover:bg-gray-50 dark:hover:bg-dark-800 transition-colors">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center space-x-4">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
                       transaction.type === 'INCOME' ? 'bg-green-100' :
                       transaction.type === 'EXPENSE' ? 'bg-red-100' : 'bg-blue-100'
@@ -311,12 +311,12 @@ export default function Transactions() {
                         <Edit3 className="w-5 h-5 text-blue-600" />
                       )}
                     </div>
-                    <div>
-                      <h3 className="font-medium text-gray-900 dark:text-white">{transaction.description}</h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">{transaction.category}</p>
+                    <div className="min-w-0">
+                      <h3 className="truncate font-medium text-gray-900 dark:text-white">{transaction.description}</h3>
+                      <p className="truncate text-sm text-gray-500 dark:text-gray-400">{transaction.category}</p>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-4">
+                  <div className="flex shrink-0 items-center space-x-3 sm:space-x-4">
                     <div className="text-right">
                       <p className={`font-semibold ${
                         transaction.type === 'INCOME' ? 'text-green-600' :
@@ -330,7 +330,7 @@ export default function Transactions() {
                     </div>
                     <button
                       onClick={() => handleDeleteTransaction(transaction.id)}
-                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

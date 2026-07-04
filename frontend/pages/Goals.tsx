@@ -134,7 +134,7 @@ export default function Goals() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{t('financial-goals')}</h1>
           <p className="text-gray-600 mt-1">{t('track-progress')}</p>
@@ -144,7 +144,7 @@ export default function Goals() {
             setEditingGoal(null);
             setShowAddForm(true);
           }}
-          className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-medium rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+          className="inline-flex w-full items-center justify-center px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-medium rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-200 shadow-lg hover:shadow-xl sm:w-auto"
         >
           <Plus className="w-5 h-5 mr-2" />
           {t('add-new-goal')}
@@ -227,7 +227,7 @@ export default function Goals() {
                 placeholder={t('describe-goal')}
               />
             </div>
-            <div className="flex space-x-3">
+            <div className="flex flex-col gap-3 sm:flex-row">
               <button
                 type="submit"
                 className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
@@ -282,13 +282,13 @@ export default function Goals() {
                   <div className="flex space-x-2">
                     <button
                       onClick={() => handleEdit(goal)}
-                      className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                     >
                       <Edit3 className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleDelete(goal.id)}
-                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

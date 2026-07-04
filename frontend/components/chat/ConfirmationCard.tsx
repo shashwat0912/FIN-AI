@@ -66,7 +66,7 @@ export default function ConfirmationCard({ card, onConfirm, onEdit, onCancel, di
         </div>
       )}
 
-      <div className="flex gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row">
         <button
           type="button"
           onClick={onConfirm}

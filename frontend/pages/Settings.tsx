@@ -565,13 +565,13 @@ export default function Settings() {
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 dark:border-dark-700 dark:bg-dark-900">
         {/* Tab Navigation */}
-        <div className="border-b border-gray-200 dark:border-dark-700">
-          <nav className="flex space-x-8 px-6">
+        <div className="overflow-x-auto border-b border-gray-200 dark:border-dark-700">
+          <nav className="flex gap-4 px-4 sm:gap-8 sm:px-6">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
+                className={`flex whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm items-center space-x-2 ${
                   activeTab === tab.id
                     ? 'border-purple-500 text-purple-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -594,22 +594,22 @@ export default function Settings() {
 
         {/* Action Buttons */}
         <div className="px-6 py-4 bg-gray-50 dark:bg-dark-800 border-t border-gray-200 dark:border-dark-700 rounded-b-xl">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <button
               onClick={handleLogout}
-              className="flex items-center px-4 py-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+              className="flex items-center justify-center px-4 py-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors sm:justify-start"
             >
               <LogOut className="w-4 h-4 mr-2" />
               {t('logout')}
             </button>
             
-            <div className="flex space-x-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
               {/* Only show save button for tabs that need it (not preferences) */}
               {activeTab !== 'preferences' && (
                 <button
                   onClick={() => handleSave(activeTab)}
                   disabled={loading}
-                  className="flex items-center px-6 py-2 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center justify-center px-6 py-2 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? (
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
@@ -621,7 +621,7 @@ export default function Settings() {
               )}
               {/* Show auto-save indicator for preferences */}
               {activeTab === 'preferences' && (
-                <div className="flex items-center text-sm text-green-600 dark:text-green-400">
+                <div className="flex items-center justify-center text-sm text-green-600 dark:text-green-400 sm:justify-start">
                   <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
                   {t('auto-saved')}
                 </div>

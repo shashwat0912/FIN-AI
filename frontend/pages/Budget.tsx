@@ -128,13 +128,13 @@ export default function Budget() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{t('budget-overview')}</h1>
           <p className="text-gray-600 mt-1">{t('monitor-spending')}</p>
         </div>
-        <div className="flex space-x-3">
-          <button className="inline-flex items-center px-4 py-2 bg-white dark:bg-dark-900 text-gray-700 dark:text-gray-300 font-medium rounded-xl border border-gray-200 dark:border-dark-700 hover:bg-gray-50 dark:hover:bg-dark-800 hover:border-gray-300 transition-all duration-200 shadow-sm hover:shadow-md">
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <button className="inline-flex w-full items-center justify-center px-4 py-2 bg-white dark:bg-dark-900 text-gray-700 dark:text-gray-300 font-medium rounded-xl border border-gray-200 dark:border-dark-700 hover:bg-gray-50 dark:hover:bg-dark-800 hover:border-gray-300 transition-all duration-200 shadow-sm hover:shadow-md sm:w-auto">
             <Filter className="w-4 h-4 mr-2" />
             {t('filter')}
           </button>
@@ -143,7 +143,7 @@ export default function Budget() {
               setEditingBudget(null);
               setShowAddForm(true);
             }}
-            className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-medium rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+            className="inline-flex w-full items-center justify-center px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-medium rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-200 shadow-lg hover:shadow-xl sm:w-auto"
           >
             <Plus className="w-5 h-5 mr-2" />
             {t('add-budget')}
@@ -260,7 +260,7 @@ export default function Budget() {
                 {t('active-budget')}
               </label>
             </div>
-            <div className="flex space-x-3">
+            <div className="flex flex-col gap-3 sm:flex-row">
               <button
                 type="submit"
                 className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
@@ -315,13 +315,13 @@ export default function Budget() {
                   <div className="flex space-x-2">
                     <button
                       onClick={() => handleEdit(budget)}
-                      className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                     >
                       <Edit3 className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleDelete(budget.id)}
-                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
