@@ -13,7 +13,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-zinc-950">
       {/* Sidebar with staggered animation */}
       <ThemeSlide stagger={1}>
         <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
@@ -27,7 +27,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
         </ThemeSlide>
         
         {/* Page content with staggered animation */}
-        <main className="flex-1 overflow-auto bg-gray-50 dark:bg-dark-950 theme-transition-smooth">
+        <main className="flex-1 overflow-auto bg-zinc-950 theme-transition-smooth">
           <ThemeFade stagger={3}>
             <div className="container mx-auto px-4 py-6">
               {children || <Outlet />}
