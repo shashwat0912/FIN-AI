@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { User, Bell, Palette, Shield, LogOut, Save, Edit3, Camera } from 'lucide-react';
+import { User, Bell, Palette, Shield, LogOut, Save, Camera } from 'lucide-react';
 import { apiClient } from '../lib/api';
 import { useDarkMode } from '../context/DarkModeContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -290,22 +290,22 @@ export default function Settings() {
   const renderProfileSettings = useMemo(() => (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('profile-information')}</h3>
+        <h3 className="mb-4 text-lg font-semibold text-white">{t('profile-information')}</h3>
         
         {/* Avatar */}
-        <div className="flex items-center space-x-6 mb-6">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
           <div className="relative">
-            <div className="w-20 h-20 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full flex items-center justify-center text-white text-2xl font-bold">
+            <div className="flex h-20 w-20 items-center justify-center rounded-full border border-emerald-400/20 bg-emerald-500/10 text-2xl font-bold text-emerald-200">
               {profile.name.charAt(0)}
             </div>
-            <button className="absolute bottom-0 right-0 p-2 bg-white dark:bg-dark-900 rounded-full shadow-md hover:shadow-lg transition-shadow">
-              <Camera className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+            <button className="absolute bottom-0 right-0 rounded-full border border-zinc-800 bg-zinc-950 p-2 text-zinc-400 transition-colors hover:border-zinc-700 hover:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-zinc-500/40">
+              <Camera className="h-4 w-4" />
             </button>
           </div>
           <div>
-            <h4 className="text-lg font-medium text-gray-900 dark:text-white">{profile.name}</h4>
-            <p className="text-gray-500">{profile.email}</p>
-            <button className="text-sm text-purple-600 hover:text-purple-700 font-medium">
+            <h4 className="text-lg font-medium text-white">{profile.name}</h4>
+            <p className="text-sm text-zinc-400">{profile.email}</p>
+            <button className="mt-2 text-sm font-medium text-emerald-300 transition-colors hover:text-emerald-200">
               {t('change-avatar')}
             </button>
           </div>
@@ -314,30 +314,30 @@ export default function Settings() {
         {/* Form Fields */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('full-name')}</label>
+            <label className="mb-1.5 block text-sm font-medium text-zinc-300">{t('full-name')}</label>
             <input
               type="text"
               value={profile.name}
               onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-200 dark:border-dark-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-dark-800 dark:border-dark-700 dark:text-white dark:placeholder-gray-400"
+              className="h-11 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-100 placeholder:text-zinc-500 hover:border-zinc-700 focus:border-emerald-400/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/10"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('email')}</label>
+            <label className="mb-1.5 block text-sm font-medium text-zinc-300">{t('email')}</label>
             <input
               type="email"
               value={profile.email}
               onChange={(e) => setProfile({ ...profile, email: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-200 dark:border-dark-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-dark-800 dark:border-dark-700 dark:text-white dark:placeholder-gray-400"
+              className="h-11 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-100 placeholder:text-zinc-500 hover:border-zinc-700 focus:border-emerald-400/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/10"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('phone')}</label>
+            <label className="mb-1.5 block text-sm font-medium text-zinc-300">{t('phone')}</label>
             <input
               type="tel"
               value={profile.phone}
               onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-200 dark:border-dark-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-dark-800 dark:border-dark-700 dark:text-white dark:placeholder-gray-400"
+              className="h-11 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-100 placeholder:text-zinc-500 hover:border-zinc-700 focus:border-emerald-400/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/10"
             />
           </div>
         </div>
@@ -348,7 +348,7 @@ export default function Settings() {
   const renderNotificationSettings = useMemo(() => (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('notification-preferences')}</h3>
+        <h3 className="mb-4 text-lg font-semibold text-white">{t('notification-preferences')}</h3>
         
         <div className="space-y-4">
           {[
@@ -359,10 +359,10 @@ export default function Settings() {
             { key: 'budgetAlerts', label: t('budget-alerts'), description: t('notify-budget-limits') },
             { key: 'goalReminders', label: t('goal-reminders'), description: t('remind-financial-goals') },
           ].map((item) => (
-            <div key={item.key} className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-dark-700 last:border-b-0">
-              <div>
-                <h4 className="text-sm font-medium text-gray-900 dark:text-white">{item.label}</h4>
-                <p className="text-sm text-gray-500 dark:text-gray-400">{item.description}</p>
+            <div key={item.key} className="flex items-start justify-between gap-4 border-b border-zinc-800 py-4 last:border-b-0">
+              <div className="min-w-0">
+                <h4 className="text-sm font-medium text-zinc-100">{item.label}</h4>
+                <p className="mt-1 text-sm text-zinc-500">{item.description}</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -371,7 +371,7 @@ export default function Settings() {
                   onChange={(e) => setNotifications({ ...notifications, [item.key]: e.target.checked })}
                   className="sr-only peer"
                 />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600 dark:bg-dark-900"></div>
+                <div className="peer h-6 w-11 rounded-full bg-zinc-800 transition-colors after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-zinc-700 after:bg-zinc-300 after:transition-all after:content-[''] peer-checked:bg-emerald-500 peer-checked:after:translate-x-full peer-checked:after:border-emerald-200 peer-checked:after:bg-zinc-950 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-emerald-400/20"></div>
               </label>
             </div>
           ))}
@@ -383,15 +383,15 @@ export default function Settings() {
   const renderPreferenceSettings = useMemo(() => (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('app-preferences')}</h3>
+        <h3 className="mb-4 text-lg font-semibold text-white">{t('app-preferences')}</h3>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('currency')}</label>
+            <label className="mb-1.5 block text-sm font-medium text-zinc-300">{t('currency')}</label>
             <select
               value={preferences.currency}
               onChange={(e) => setPreferences({ ...preferences, currency: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-200 dark:border-dark-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-dark-800 dark:border-dark-700 dark:text-white dark:placeholder-gray-400"
+              className="h-11 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-100 hover:border-zinc-700 focus:border-emerald-400/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/10"
             >
               <option value="INR">Indian Rupee (₹)</option>
               <option value="USD">US Dollar ($)</option>
@@ -401,7 +401,7 @@ export default function Settings() {
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('language')}</label>
+            <label className="mb-1.5 block text-sm font-medium text-zinc-300">{t('language')}</label>
             <select
               value={preferences.language}
               onChange={(e) => {
@@ -429,7 +429,7 @@ export default function Settings() {
                   logger.warn('Error saving language preference');
                 }
               }}
-              className="w-full px-3 py-2 border border-gray-200 dark:border-dark-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-dark-800 dark:border-dark-700 dark:text-white dark:placeholder-gray-400"
+              className="h-11 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-100 hover:border-zinc-700 focus:border-emerald-400/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/10"
             >
               <option value="en">English</option>
               <option value="hi">हिन्दी (Hindi)</option>
@@ -440,7 +440,7 @@ export default function Settings() {
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('theme')}</label>
+            <label className="mb-1.5 block text-sm font-medium text-zinc-300">{t('theme')}</label>
             <select
               value={preferences.theme}
               onChange={(e) => {
@@ -479,7 +479,7 @@ export default function Settings() {
                   logger.warn('Error saving theme preference');
                 }
               }}
-              className="w-full px-3 py-2 border border-gray-200 dark:border-dark-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-dark-800 dark:border-dark-700 dark:text-white dark:placeholder-gray-400"
+              className="h-11 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-100 hover:border-zinc-700 focus:border-emerald-400/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/10"
             >
               <option value="light">Light</option>
               <option value="dark">Dark</option>
@@ -488,11 +488,11 @@ export default function Settings() {
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('date-format')}</label>
+            <label className="mb-1.5 block text-sm font-medium text-zinc-300">{t('date-format')}</label>
             <select
               value={preferences.dateFormat}
               onChange={(e) => setPreferences({ ...preferences, dateFormat: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-200 dark:border-dark-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-dark-800 dark:border-dark-700 dark:text-white dark:placeholder-gray-400"
+              className="h-11 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-100 hover:border-zinc-700 focus:border-emerald-400/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/10"
             >
               <option value="DD/MM/YYYY">DD/MM/YYYY</option>
               <option value="MM/DD/YYYY">MM/DD/YYYY</option>
@@ -507,32 +507,32 @@ export default function Settings() {
   const renderSecuritySettings = useMemo(() => (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('security-privacy')}</h3>
+        <h3 className="mb-4 text-lg font-semibold text-white">{t('security-privacy')}</h3>
         
         <div className="space-y-4">
-          <div className="p-4 bg-gray-50 dark:bg-dark-800 rounded-lg">
-            <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">{t('change-password')}</h4>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">{t('update-password-secure')}</p>
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
+            <h4 className="mb-2 text-sm font-medium text-zinc-100">{t('change-password')}</h4>
+            <p className="mb-3 text-sm text-zinc-500">{t('update-password-secure')}</p>
             <button 
               onClick={() => setShowPasswordModal(true)}
-              className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition-colors"
+              className="inline-flex h-10 w-full items-center justify-center rounded-full bg-emerald-500 px-4 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/60 sm:w-auto"
             >
               {t('change-password')}
             </button>
           </div>
           
-          <div className="p-4 bg-gray-50 dark:bg-dark-800 rounded-lg">
-            <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">{t('two-factor-auth')}</h4>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">{t('add-extra-security')}</p>
-            <button className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition-colors">
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
+            <h4 className="mb-2 text-sm font-medium text-zinc-100">{t('two-factor-auth')}</h4>
+            <p className="mb-3 text-sm text-zinc-500">{t('add-extra-security')}</p>
+            <button className="inline-flex h-10 w-full items-center justify-center rounded-full bg-emerald-500 px-4 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/60 sm:w-auto">
               {t('enable-2fa')}
             </button>
           </div>
           
-          <div className="p-4 bg-gray-50 dark:bg-dark-800 rounded-lg">
-            <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">{t('data-export')}</h4>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">{t('download-financial-data')}</p>
-            <button className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition-colors">
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
+            <h4 className="mb-2 text-sm font-medium text-zinc-100">{t('data-export')}</h4>
+            <p className="mb-3 text-sm text-zinc-500">{t('download-financial-data')}</p>
+            <button className="inline-flex h-10 w-full items-center justify-center rounded-full bg-emerald-500 px-4 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/60 sm:w-auto">
               {t('export-data')}
             </button>
           </div>
@@ -544,40 +544,40 @@ export default function Settings() {
   // Settings load instantly from localStorage, no loading spinner needed
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{t('settings')}</h1>
-        <p className="text-gray-600 mt-1">{t('manage-account-settings')}</p>
+    <div className="mx-auto w-full max-w-[1440px] space-y-6 text-white">
+      <div>
+        <h1 className="font-display text-3xl font-bold tracking-tight text-white">Settings</h1>
+        <p className="mt-2 text-sm text-zinc-400 sm:text-base">Manage your account, preferences, and security.</p>
       </div>
 
       {/* Success/Error Messages */}
       {success && (
-        <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
-          <p className="text-green-600">{success}</p>
+        <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4">
+          <p className="text-sm text-emerald-200">{success}</p>
         </div>
       )}
       
       {error && (
-        <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-600">{error}</p>
+        <div className="rounded-2xl border border-red-400/20 bg-red-500/10 p-4">
+          <p className="text-sm text-red-200">{error}</p>
         </div>
       )}
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 dark:border-dark-700 dark:bg-dark-900">
+      <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950/60">
         {/* Tab Navigation */}
-        <div className="overflow-x-auto border-b border-gray-200 dark:border-dark-700">
-          <nav className="flex gap-4 px-4 sm:gap-8 sm:px-6">
+        <div className="overflow-x-auto border-b border-zinc-800">
+          <nav className="flex min-w-max gap-1 px-3 py-2 sm:min-w-0 sm:flex-wrap sm:px-4">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm items-center space-x-2 ${
+                className={`inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-full px-4 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-400/20 ${
                   activeTab === tab.id
-                    ? 'border-purple-500 text-purple-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? 'bg-emerald-500/10 text-emerald-200'
+                    : 'text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200'
                 }`}
               >
-                <tab.icon className="w-4 h-4" />
+                <tab.icon className="h-4 w-4" />
                 <span>{tab.label}</span>
               </button>
             ))}
@@ -585,7 +585,7 @@ export default function Settings() {
         </div>
 
         {/* Tab Content */}
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           {activeTab === 'profile' && renderProfileSettings}
           {activeTab === 'notifications' && renderNotificationSettings}
           {activeTab === 'preferences' && renderPreferenceSettings}
@@ -593,13 +593,13 @@ export default function Settings() {
         </div>
 
         {/* Action Buttons */}
-        <div className="px-6 py-4 bg-gray-50 dark:bg-dark-800 border-t border-gray-200 dark:border-dark-700 rounded-b-xl">
+        <div className="border-t border-zinc-800 bg-zinc-900/60 px-4 py-4 sm:px-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <button
               onClick={handleLogout}
-              className="flex items-center justify-center px-4 py-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors sm:justify-start"
+              className="inline-flex h-11 items-center justify-center rounded-full px-4 text-sm font-medium text-red-300 transition-colors hover:bg-red-500/10 hover:text-red-200 focus:outline-none focus:ring-2 focus:ring-red-400/20 sm:justify-start"
             >
-              <LogOut className="w-4 h-4 mr-2" />
+              <LogOut className="mr-2 h-4 w-4" />
               {t('logout')}
             </button>
             
@@ -609,20 +609,20 @@ export default function Settings() {
                 <button
                   onClick={() => handleSave(activeTab)}
                   disabled={loading}
-                  className="flex items-center justify-center px-6 py-2 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex h-11 items-center justify-center rounded-full bg-emerald-500 px-6 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/60 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {loading ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-zinc-950"></div>
                   ) : (
-                    <Save className="w-4 h-4 mr-2" />
+                    <Save className="mr-2 h-4 w-4" />
                   )}
                   {t('save-changes')}
                 </button>
               )}
               {/* Show auto-save indicator for preferences */}
               {activeTab === 'preferences' && (
-                <div className="flex items-center justify-center text-sm text-green-600 dark:text-green-400 sm:justify-start">
-                  <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                <div className="flex h-11 items-center justify-center text-sm text-emerald-300 sm:justify-start">
+                  <div className="mr-2 h-2 w-2 rounded-full bg-emerald-400"></div>
                   {t('auto-saved')}
                 </div>
               )}
@@ -633,66 +633,66 @@ export default function Settings() {
 
       {/* Password Change Modal */}
       {showPasswordModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-dark-800 rounded-lg p-6 w-full max-w-md mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-950 p-5 sm:p-6">
+            <h3 className="mb-4 text-lg font-semibold text-white">
               {t('change-password')}
             </h3>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="mb-1.5 block text-sm font-medium text-zinc-300">
                   {t('current-password')}
                 </label>
                 <input
                   type="password"
                   value={passwordForm.current}
                   onChange={(e) => setPasswordForm(prev => ({ ...prev, current: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-dark-700 dark:text-white"
+                  className="h-11 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-100 placeholder:text-zinc-500 hover:border-zinc-700 focus:border-emerald-400/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/10"
                   placeholder={t('current-password')}
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="mb-1.5 block text-sm font-medium text-zinc-300">
                   {t('new-password')}
                 </label>
                 <input
                   type="password"
                   value={passwordForm.new}
                   onChange={(e) => setPasswordForm(prev => ({ ...prev, new: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-dark-700 dark:text-white"
+                  className="h-11 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-100 placeholder:text-zinc-500 hover:border-zinc-700 focus:border-emerald-400/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/10"
                   placeholder={t('new-password')}
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="mb-1.5 block text-sm font-medium text-zinc-300">
                   {t('confirm-password')}
                 </label>
                 <input
                   type="password"
                   value={passwordForm.confirm}
                   onChange={(e) => setPasswordForm(prev => ({ ...prev, confirm: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-dark-700 dark:text-white"
+                  className="h-11 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-100 placeholder:text-zinc-500 hover:border-zinc-700 focus:border-emerald-400/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/10"
                   placeholder={t('confirm-password')}
                 />
               </div>
             </div>
 
             {passwordError && (
-              <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                <p className="text-sm text-red-600 dark:text-red-400">{passwordError}</p>
+              <div className="mt-4 rounded-xl border border-red-400/20 bg-red-500/10 p-3">
+                <p className="text-sm text-red-200">{passwordError}</p>
               </div>
             )}
 
             {passwordSuccess && (
-              <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                <p className="text-sm text-green-600 dark:text-green-400">{passwordSuccess}</p>
+              <div className="mt-4 rounded-xl border border-emerald-400/20 bg-emerald-500/10 p-3">
+                <p className="text-sm text-emerald-200">{passwordSuccess}</p>
               </div>
             )}
 
-            <div className="flex justify-end space-x-3 mt-6">
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <button
                 onClick={() => {
                   setShowPasswordModal(false);
@@ -700,13 +700,13 @@ export default function Settings() {
                   setPasswordError('');
                   setPasswordSuccess('');
                 }}
-                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
+                className="inline-flex h-11 items-center justify-center rounded-full border border-zinc-800 bg-zinc-900 px-4 text-sm font-medium text-zinc-300 transition-colors hover:border-zinc-700 hover:bg-zinc-800 hover:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-500/40"
               >
                 {t('cancel')}
               </button>
               <button
                 onClick={handleChangePassword}
-                className="px-4 py-2 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 transition-colors"
+                className="inline-flex h-11 items-center justify-center rounded-full bg-emerald-500 px-4 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/60"
               >
                 {t('change-password')}
               </button>

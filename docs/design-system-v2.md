@@ -248,7 +248,7 @@ Confirmation cards:
 3. Dashboard stat hierarchy
 4. Header simplification
 5. Chart redesign
-6. Chat panel redesign
+6. Chat panel redesignnpm run dev:frontend
 7. Action cleanup
 8. Sidebar cleanup
 
