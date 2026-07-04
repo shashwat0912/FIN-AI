@@ -1,162 +1,362 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import StatsCards from '../components/dashboard/StatsCards';
-import BalanceChart from '../components/dashboard/BalanceChart';
-import AiAdvisor from '../components/dashboard/AiAdvisor';
+import { AlertCircle, ArrowRight } from 'lucide-react';
 import { apiClient } from '../lib/api';
-import { colors, components, layout } from '../styles/tokens';
-import { useLanguage } from '../context/LanguageContext';
+import { Transaction } from '../types';
 import { logger } from '../utils/logger';
+
+interface TransactionAnalytics {
+  totalIncome: number;
+  totalExpenses: number;
+  netAmount: number;
+  topCategories: Array<{ category: string; amount: number }>;
+  transactionCount: number;
+  period: string;
+}
+
+const emptyAnalytics: TransactionAnalytics = {
+  totalIncome: 0,
+  totalExpenses: 0,
+  netAmount: 0,
+  topCategories: [],
+  transactionCount: 0,
+  period: '30 days',
+};
+
+const formatCurrency = (value: number) =>
+  new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0,
+  }).format(value || 0);
+
+const formatPercent = (value: number) =>
+  `${Math.round(value).toLocaleString('en-IN')}%`;
+
+const formatDate = (date: string) =>
+  new Intl.DateTimeFormat('en-IN', {
+    day: 'numeric',
+    month: 'short',
+  }).format(new Date(date));
+
+const formatPeriodRange = (endDate: Date, period: string) => {
+  const days = Number.parseInt(period, 10) || 30;
+  const startDate = new Date(endDate);
+  startDate.setDate(startDate.getDate() - days + 1);
+
+  return `${formatDate(startDate.toISOString())} - ${formatDate(endDate.toISOString())}`;
+};
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { t } = useLanguage();
-  const [analytics, setAnalytics] = useState<any>(null);
+  const [analytics, setAnalytics] = useState<TransactionAnalytics | null>(null);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadAnalytics();
+    loadDashboard();
   }, []);
 
-  const loadAnalytics = async () => {
+  const loadDashboard = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.getTransactionAnalytics('30');
-      setAnalytics(response);
+      setError(null);
+
+      const [analyticsResponse, transactionsResponse] = await Promise.all([
+        apiClient.getTransactionAnalytics('30'),
+        apiClient.getTransactions(1, 6),
+      ]);
+
+      setAnalytics({ ...emptyAnalytics, ...analyticsResponse });
+      setTransactions(transactionsResponse.data || []);
     } catch (error) {
-      logger.error('Failed to load analytics', error instanceof Error ? error : undefined);
+      logger.error('Failed to load dashboard', error instanceof Error ? error : undefined);
+      setError('Could not load your financial brief. Try again in a moment.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleQuickAction = (action: string) => {
-    switch (action) {
-      case 'transactions':
-        navigate('/dashboard/transactions');
-        break;
-      case 'goals':
-        navigate('/dashboard/goals');
-        break;
-      case 'budget':
-        navigate('/dashboard/budget');
-        break;
-      case 'ai':
-        navigate('/dashboard/ai-advisor');
-        break;
-      default:
-        break;
-    }
-  };
+  const data = analytics || emptyAnalytics;
+  const hasTransactions = data.transactionCount > 0 || transactions.length > 0;
+  const topCategory = data.topCategories[0];
+  const topCategoryShare = topCategory && data.totalExpenses > 0
+    ? (topCategory.amount / data.totalExpenses) * 100
+    : 0;
+  const isCashflowPositive = data.netAmount >= 0;
 
+  const statusLabel = !hasTransactions
+    ? 'No activity recorded'
+    : isCashflowPositive
+      ? 'Cashflow positive'
+      : 'Cashflow negative';
+  const statusClass = !hasTransactions
+    ? 'border-zinc-700 bg-zinc-800/60 text-zinc-300'
+    : isCashflowPositive
+      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+      : 'border-red-400/20 bg-red-400/10 text-red-300';
+
+  const heroLine = useMemo(() => {
+    if (loading) {
+      return {
+        first: 'Preparing your financial brief',
+        second: '',
+      };
+    }
+
+    if (!hasTransactions) {
+      return {
+        first: 'No transactions recorded',
+        second: `over the last ${data.period}`,
+      };
+    }
+
+    return {
+      first: `${formatCurrency(Math.abs(data.netAmount))} ${isCashflowPositive ? 'net cashflow' : 'net outflow'}`,
+      second: `over the last ${data.period}`,
+    };
+  }, [data.netAmount, data.period, hasTransactions, isCashflowPositive, loading]);
+
+  const cashflowFact = useMemo(() => {
+    if (!hasTransactions) {
+      return 'Add transactions to generate a financial brief.';
+    }
+
+    if (data.totalIncome > 0 && data.totalExpenses > 0) {
+      if (data.totalIncome >= data.totalExpenses) {
+        const percent = ((data.totalIncome - data.totalExpenses) / data.totalExpenses) * 100;
+        return `Income exceeded expenses by ${formatPercent(percent)}.`;
+      }
+
+      const percent = ((data.totalExpenses - data.totalIncome) / data.totalIncome) * 100;
+      return `Expenses exceeded income by ${formatPercent(percent)}.`;
+    }
+
+    if (data.totalIncome > 0) {
+      return `${formatCurrency(data.totalIncome)} income was recorded with no expenses.`;
+    }
+
+    if (data.totalExpenses > 0) {
+      return `${formatCurrency(data.totalExpenses)} expenses were recorded with no income.`;
+    }
+
+    return 'No income or expense records are available yet.';
+  }, [data.totalExpenses, data.totalIncome, hasTransactions]);
+
+  const driverFact = topCategory
+    ? `${topCategory.category} accounted for ${formatPercent(topCategoryShare)} of recorded spending.`
+    : 'No spending driver is available yet.';
+
+  const nextAction = useMemo(() => {
+    if (topCategory) {
+      return {
+        title: `Review ${topCategory.category} spending`,
+        detail: `${topCategory.category} is the largest recorded expense category this month.`,
+        cta: `Ask why ${topCategory.category} is highest`,
+        action: () => navigate('/dashboard/ai-advisor'),
+      };
+    }
+
+    return {
+      title: 'Review recent transactions',
+      detail: 'Start by reviewing your latest recorded activity.',
+      cta: 'Review transactions',
+      action: () => navigate('/dashboard/transactions'),
+    };
+  }, [navigate, topCategory]);
+
+  const metricItems = [
+    { label: 'Income', value: formatCurrency(data.totalIncome), tone: 'text-emerald-300' },
+    { label: 'Expenses', value: formatCurrency(data.totalExpenses), tone: 'text-red-300' },
+    {
+      label: 'Net cashflow',
+      value: `${data.netAmount >= 0 ? '+' : '-'}${formatCurrency(Math.abs(data.netAmount))}`,
+      tone: data.netAmount >= 0 ? 'text-emerald-300' : 'text-red-300',
+      featured: true,
+    },
+    { label: 'Transactions', value: data.transactionCount.toLocaleString('en-IN'), tone: 'text-zinc-100' },
+  ];
+
+  const categoryItems = data.topCategories.slice(0, 3);
+  const recentItems = transactions.slice(0, 6);
+  const showConcentrationNote = Boolean(topCategory && topCategoryShare >= 40);
+  const latestTransactionDate = transactions.reduce<Date | null>((latest, transaction) => {
+    const date = new Date(transaction.date);
+    return !latest || date > latest ? date : latest;
+  }, null);
+  const periodRange = formatPeriodRange(latestTransactionDate || new Date(), data.period);
 
   return (
-    <div className={layout.spacing.section + ' w-full'}>
-      {/* Greeting Row */}
-      <div className="mb-4 flex flex-col gap-1 border-b border-border bg-background pb-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-body text-text-primary">Good evening, {t('user')}</p>
-        <p className="text-body text-text-secondary">
-          {new Intl.DateTimeFormat('en-IN', {
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric',
-          }).format(new Date())}
-        </p>
-      </div>
-
-
-      {/* Stats Cards */}
-      <StatsCards />
-
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2">
-          <div className={`${components.card.base} premium-card-hover`}>
-            <BalanceChart />
-          </div>
-        </div>
-        <div>
-          <div className={`${components.card.base} premium-card-hover`}>
-            <AiAdvisor />
-          </div>
-        </div>
-      </div>
-
-      {/* Financial Summary */}
-      {analytics && (
-        <div className={layout.grid.responsive}>
-          <div className={`${components.card.base} ${layout.spacing.card}`}>
-            <h3 className={`text-lg font-semibold ${colors.text.primary} mb-2`}>{t('total-income')}</h3>
-            <p className={`text-3xl font-bold ${colors.state.positive}`}>₹{analytics.totalIncome?.toLocaleString() || '0'}</p>
-            <p className={`text-sm ${colors.text.secondary}`}>{t('last-30-days')}</p>
-          </div>
-          <div className={`${components.card.base} ${layout.spacing.card}`}>
-            <h3 className={`text-lg font-semibold ${colors.text.primary} mb-2`}>{t('total-expenses')}</h3>
-            <p className={`text-3xl font-bold ${colors.state.negative}`}>₹{analytics.totalExpenses?.toLocaleString() || '0'}</p>
-            <p className={`text-sm ${colors.text.secondary}`}>{t('last-30-days')}</p>
-          </div>
-          <div className={`${components.card.base} ${layout.spacing.card}`}>
-            <h3 className={`text-lg font-semibold ${colors.text.primary} mb-2`}>{t('net-amount')}</h3>
-            <p className={`text-3xl font-bold ${analytics.netAmount >= 0 ? colors.state.positive : colors.state.negative}`}>
-              ₹{analytics.netAmount?.toLocaleString() || '0'}
-            </p>
-            <p className={`text-sm ${colors.text.secondary}`}>{t('last-30-days')}</p>
-          </div>
+    <div className="mx-auto w-full max-w-[1440px] text-white">
+      {error && (
+        <div className="mb-6 flex items-start gap-3 rounded-2xl border border-red-400/20 bg-red-400/10 p-4 text-sm text-red-100">
+          <AlertCircle size={18} className="mt-0.5 shrink-0" />
+          <p>{error}</p>
         </div>
       )}
 
-      {/* Quick Actions */}
-      <div className={layout.grid.responsive}>
-        <div 
-          onClick={() => handleQuickAction('transactions')}
-          className={`${components.card.interactive} ${layout.spacing.card} premium-card-hover ${components.premiumBg.warm}`}
-        >
-          <div className="flex items-center space-x-4">
-            <div className={`p-3 ${colors.iconBg.purple} rounded-lg`}>
-              <svg className={`w-6 h-6 ${colors.icon.purple}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
+      <section className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-950/60 p-8">
+        <div className="flex flex-col gap-8 lg:flex-row lg:items-stretch">
+          <div className="min-w-0 lg:w-[64%]">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className={`rounded-full border px-4 py-2 text-sm font-semibold ${statusClass}`}>
+                <span className="mr-2 inline-block h-2 w-2 rounded-full bg-current align-middle" />
+                {statusLabel}
+              </span>
+              <span className="text-sm text-zinc-500">{periodRange}</span>
             </div>
-            <div>
-              <h3 className={`text-lg font-semibold ${colors.text.primary}`}>{t('add-transaction')}</h3>
-              <p className={`${colors.text.secondary} text-sm`}>Record new income or expense</p>
-            </div>
-          </div>
-        </div>
 
-        <div 
-          onClick={() => handleQuickAction('goals')}
-          className={`${components.card.interactive} ${layout.spacing.card} premium-card-hover ${components.premiumBg.cool}`}
-        >
-          <div className="flex items-center space-x-4">
-            <div className={`p-3 ${colors.iconBg.green} rounded-lg`}>
-              <svg className={`w-6 h-6 ${colors.icon.green}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+            <div className="mt-7 max-w-4xl">
+              <p className="font-display text-4xl font-bold leading-tight tracking-tight text-white tabular-nums md:text-5xl">
+                {heroLine.first}
+                {heroLine.second && (
+                  <>
+                    <br />
+                    {heroLine.second}
+                  </>
+                )}
+              </p>
+              <p className="mt-6 max-w-4xl text-base leading-relaxed text-zinc-400">
+                {loading ? 'Loading recorded cashflow and spending drivers.' : `${cashflowFact} ${driverFact}`}
+              </p>
             </div>
-            <div>
-              <h3 className={`text-lg font-semibold ${colors.text.primary}`}>Set {t('goals')}</h3>
-              <p className={`${colors.text.secondary} text-sm`}>Create new financial target</p>
-            </div>
-          </div>
-        </div>
 
-        <div 
-          onClick={() => handleQuickAction('budget')}
-          className={`${components.card.interactive} ${layout.spacing.card} premium-card-hover ${components.premiumBg.subtle}`}
-        >
-          <div className="flex items-center space-x-4">
-            <div className={`p-3 ${colors.iconBg.pink} rounded-lg`}>
-              <svg className={`w-6 h-6 ${colors.icon.pink}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </div>
-            <div>
-              <h3 className={`text-lg font-semibold ${colors.text.primary}`}>{t('budget')}</h3>
-              <p className={`${colors.text.secondary} text-sm`}>Manage your spending</p>
+            <div className="mt-9 grid grid-cols-2 gap-3 lg:grid-cols-4">
+              {metricItems.map((item) => (
+                <div
+                  key={item.label}
+                  className={`rounded-2xl border px-5 py-4 ${item.featured ? 'border-emerald-500/30 bg-emerald-500/[0.07]' : 'border-zinc-800 bg-zinc-950/45'}`}
+                >
+                  <p className="text-sm text-zinc-400">{item.label}</p>
+                  <p className={`mt-2 text-xl font-semibold tabular-nums ${item.tone}`}>
+                    {loading ? '...' : item.value}
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
+
+          <aside className="flex h-full min-w-0 rounded-2xl border border-zinc-800 bg-zinc-950 p-7 lg:w-[36%] lg:p-8">
+            <div className="flex h-full flex-col justify-between gap-8">
+              <div>
+                <p className="text-base font-semibold text-emerald-300">Next action</p>
+                <h2 className="mt-5 font-display text-[28px] font-semibold leading-tight tracking-tight text-white">
+                  {loading ? 'Preparing recommendation' : nextAction.title}
+                </h2>
+                <p className="mt-6 text-lg leading-relaxed text-zinc-400">
+                  {loading ? 'FinanceAI will use recorded transaction data.' : nextAction.detail}
+                </p>
+              </div>
+
+              <div>
+                <button
+                  type="button"
+                  onClick={nextAction.action}
+                  disabled={loading}
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-emerald-500 px-6 text-base font-semibold text-zinc-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {loading ? 'Loading' : nextAction.cta}
+                  {!loading && <ArrowRight size={15} />}
+                </button>
+                <p className="mt-5 text-sm leading-relaxed text-zinc-500">
+                  Based on recorded transactions only.
+                </p>
+              </div>
+            </div>
+          </aside>
         </div>
+      </section>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <section className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-8">
+          <div>
+            <h2 className="font-display text-[28px] font-semibold tracking-tight text-white">Why this happened</h2>
+            <p className="mt-2 text-base text-zinc-400">Recorded spending drivers for the last {data.period}.</p>
+          </div>
+
+          <div className="mt-8 space-y-6">
+            {loading ? (
+              <p className="text-sm text-zinc-500">Loading spending drivers.</p>
+            ) : categoryItems.length > 0 ? (
+              categoryItems.map((item, index) => {
+                const share = data.totalExpenses > 0 ? (item.amount / data.totalExpenses) * 100 : 0;
+                return (
+                  <div key={item.category}>
+                    <div className="mb-2 flex items-baseline justify-between gap-4">
+                      <span className="text-lg font-semibold text-zinc-100">{item.category}</span>
+                      <span className="text-base font-semibold tabular-nums text-zinc-200">
+                        {formatPercent(share)} · {formatCurrency(item.amount)}
+                      </span>
+                    </div>
+                    <div className="h-2.5 overflow-hidden rounded-full bg-zinc-800">
+                      <div
+                        className={`h-full rounded-full ${index === 0 ? 'bg-emerald-400' : 'bg-zinc-500'}`}
+                        style={{ width: `${Math.max(4, share)}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <p className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-4 text-sm leading-relaxed text-zinc-500">
+                No expense categories were recorded in the last {data.period}.
+              </p>
+            )}
+
+            {showConcentrationNote && topCategory && (
+              <div className="rounded-2xl border border-amber-500/25 bg-amber-500/[0.07] p-5">
+                <p className="text-base leading-relaxed text-amber-100/90">
+                  {topCategory.category} concentration is high this month. Review {topCategory.category} transactions before changing budgets.
+                </p>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-8">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="font-display text-[28px] font-semibold tracking-tight text-white">Recent activity</h2>
+              <p className="mt-2 text-base text-zinc-400">Latest recorded transactions</p>
+            </div>
+            <p className="mt-2 text-sm font-medium text-zinc-600">{data.transactionCount.toLocaleString('en-IN')} total</p>
+          </div>
+
+          <div className="mt-7">
+            {loading ? (
+              <p className="text-sm text-zinc-500">Loading recent activity.</p>
+            ) : recentItems.length > 0 ? (
+              recentItems.map((transaction) => {
+                const isIncome = transaction.type === 'INCOME';
+                return (
+                  <div
+                    key={transaction.id}
+                    className="border-b border-zinc-800 py-5 last:border-b-0 last:pb-0"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <p className="truncate text-lg font-semibold text-zinc-100">{transaction.description}</p>
+                        <p className="mt-1 text-sm text-zinc-600">
+                          {transaction.category} · {formatDate(transaction.date)}
+                        </p>
+                      </div>
+                      <p className={`shrink-0 text-lg font-semibold tabular-nums ${isIncome ? 'text-emerald-300' : 'text-red-300'}`}>
+                        {isIncome ? '+' : '-'}
+                        {formatCurrency(Number(transaction.amount))}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-4">
+                <p className="text-sm font-medium text-zinc-300">No transactions yet</p>
+                <p className="mt-1 text-sm text-zinc-500">Start by logging your first transaction.</p>
+              </div>
+            )}
+          </div>
+        </section>
       </div>
     </div>
   );
