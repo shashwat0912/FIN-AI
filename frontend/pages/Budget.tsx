@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { PieChart, DollarSign, TrendingUp, Plus, BarChart3, Calendar, Filter, Edit3, Trash2 } from 'lucide-react';
+import { Plus, Filter, Edit3, Trash2 } from 'lucide-react';
 import { apiClient } from '../lib/api';
 import { useLanguage } from '../context/LanguageContext';
 import { logger } from '../utils/logger';
@@ -116,9 +116,9 @@ export default function Budget() {
 
   const getStatusColor = (spent: number, amount: number) => {
     const percentage = getSpendingPercentage(spent, amount);
-    if (percentage >= 100) return 'text-red-600 bg-red-100';
-    if (percentage >= 80) return 'text-yellow-600 bg-yellow-100';
-    return 'text-green-600 bg-green-100';
+    if (percentage >= 100) return 'border-red-400/20 bg-red-500/10 text-red-300';
+    if (percentage >= 80) return 'border-amber-400/20 bg-amber-500/10 text-amber-300';
+    return 'border-emerald-400/20 bg-emerald-500/10 text-emerald-300';
   };
 
   const totalBudget = budgets.reduce((sum, budget) => sum + budget.amount, 0);
@@ -126,97 +126,78 @@ export default function Budget() {
   const remainingBudget = totalBudget - totalSpent;
 
   return (
-    <div className="space-y-8">
+    <div className="mx-auto w-full max-w-[1440px] space-y-6 text-white">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{t('budget-overview')}</h1>
-          <p className="text-gray-600 mt-1">{t('monitor-spending')}</p>
+          <h1 className="font-display text-3xl font-bold tracking-tight text-white">Budget</h1>
+          <p className="mt-2 text-sm text-zinc-400 sm:text-base">Track category limits and spending progress.</p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row">
-          <button className="inline-flex w-full items-center justify-center px-4 py-2 bg-white dark:bg-dark-900 text-gray-700 dark:text-gray-300 font-medium rounded-xl border border-gray-200 dark:border-dark-700 hover:bg-gray-50 dark:hover:bg-dark-800 hover:border-gray-300 transition-all duration-200 shadow-sm hover:shadow-md sm:w-auto">
-            <Filter className="w-4 h-4 mr-2" />
-            {t('filter')}
-          </button>
+          {budgets.length > 0 && (
+            <button className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full border border-zinc-800 bg-zinc-950 px-4 text-sm font-medium text-zinc-300 hover:border-zinc-700 hover:bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-500/40 sm:w-auto">
+              <Filter className="h-4 w-4 text-zinc-500" />
+              {t('filter')}
+            </button>
+          )}
           <button
             onClick={() => {
               setEditingBudget(null);
               setShowAddForm(true);
             }}
-            className="inline-flex w-full items-center justify-center px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-medium rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-200 shadow-lg hover:shadow-xl sm:w-auto"
+            className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-emerald-500 px-6 text-sm font-semibold text-zinc-950 hover:bg-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/60 sm:w-auto"
           >
-            <Plus className="w-5 h-5 mr-2" />
+            <Plus className="h-4 w-4" />
             {t('add-budget')}
           </button>
         </div>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 dark:border-dark-700 p-6 dark:bg-dark-900">
-          <div className="flex items-center">
-            <div className="p-3 bg-blue-100 rounded-lg">
-              <DollarSign className="w-6 h-6 text-blue-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('total-budget')}</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">₹{totalBudget.toLocaleString()}</p>
-            </div>
-          </div>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-5">
+          <p className="text-sm font-medium text-zinc-500">{t('total-budget')}</p>
+          <p className="mt-2 text-2xl font-semibold tabular-nums text-zinc-100">₹{totalBudget.toLocaleString()}</p>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 dark:border-dark-700 p-6 dark:bg-dark-900">
-          <div className="flex items-center">
-            <div className="p-3 bg-green-100 rounded-lg">
-              <TrendingUp className="w-6 h-6 text-green-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('total-spent')}</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">₹{totalSpent.toLocaleString()}</p>
-            </div>
-          </div>
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-5">
+          <p className="text-sm font-medium text-zinc-500">{t('total-spent')}</p>
+          <p className="mt-2 text-2xl font-semibold tabular-nums text-zinc-100">₹{totalSpent.toLocaleString()}</p>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 dark:border-dark-700 p-6 dark:bg-dark-900">
-          <div className="flex items-center">
-            <div className="p-3 bg-purple-100 rounded-lg">
-              <BarChart3 className="w-6 h-6 text-purple-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('remaining')}</p>
-              <p className={`text-2xl font-bold ${remainingBudget >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                ₹{remainingBudget.toLocaleString()}
-              </p>
-            </div>
-          </div>
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-5">
+          <p className="text-sm font-medium text-zinc-500">{t('remaining')}</p>
+          <p className={`mt-2 text-2xl font-semibold tabular-nums ${remainingBudget >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+            ₹{remainingBudget.toLocaleString()}
+          </p>
         </div>
       </div>
 
       {/* Add/Edit Budget Form */}
       {showAddForm && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 dark:border-dark-700 p-6 dark:bg-dark-900">
-          <h3 className="text-lg font-semibold mb-4">
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-5 sm:p-6">
+          <h3 className="mb-4 text-lg font-semibold text-white">
             {editingBudget ? t('edit-budget') : t('add-new-budget')}
           </h3>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('budget-name')}</label>
+                <label className="mb-1.5 block text-sm font-medium text-zinc-300">{t('budget-name')}</label>
                 <input
                   type="text"
                   required
                   value={budgetForm.name}
                   onChange={(e) => setBudgetForm({ ...budgetForm, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-dark-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-dark-800 dark:border-dark-700 dark:text-white dark:placeholder-gray-400"
+                  className="h-11 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-100 placeholder:text-zinc-500 hover:border-zinc-700 focus:border-emerald-400/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/10"
                   placeholder={t('budget-name-placeholder')}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('period')}</label>
+                <label className="mb-1.5 block text-sm font-medium text-zinc-300">{t('period')}</label>
                 <select
                   value={budgetForm.period}
                   onChange={(e) => setBudgetForm({ ...budgetForm, period: e.target.value as any })}
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-dark-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-dark-800 dark:border-dark-700 dark:text-white dark:placeholder-gray-400"
+                  className="h-11 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-100 hover:border-zinc-700 focus:border-emerald-400/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/10"
                 >
                   <option value="WEEKLY">{t('weekly')}</option>
                   <option value="MONTHLY">{t('monthly')}</option>
@@ -224,26 +205,26 @@ export default function Budget() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('budget-amount')}</label>
+                <label className="mb-1.5 block text-sm font-medium text-zinc-300">{t('budget-amount')}</label>
                 <input
                   type="number"
                   step="0.01"
                   required
                   value={budgetForm.amount}
                   onChange={(e) => setBudgetForm({ ...budgetForm, amount: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-dark-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-dark-800 dark:border-dark-700 dark:text-white dark:placeholder-gray-400"
+                  className="h-11 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-100 placeholder:text-zinc-500 hover:border-zinc-700 focus:border-emerald-400/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/10"
                   placeholder="15000"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('spent-amount')}</label>
+                <label className="mb-1.5 block text-sm font-medium text-zinc-300">{t('spent-amount')}</label>
                 <input
                   type="number"
                   step="0.01"
                   required
                   value={budgetForm.spent}
                   onChange={(e) => setBudgetForm({ ...budgetForm, spent: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-dark-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-dark-800 dark:border-dark-700 dark:text-white dark:placeholder-gray-400"
+                  className="h-11 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-100 placeholder:text-zinc-500 hover:border-zinc-700 focus:border-emerald-400/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/10"
                   placeholder="12000"
                 />
               </div>
@@ -254,16 +235,16 @@ export default function Budget() {
                 id="isActive"
                 checked={budgetForm.isActive}
                 onChange={(e) => setBudgetForm({ ...budgetForm, isActive: e.target.checked })}
-                className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                className="h-4 w-4 rounded border-zinc-700 bg-zinc-900 text-emerald-500 focus:ring-emerald-400/30"
               />
-              <label htmlFor="isActive" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+              <label htmlFor="isActive" className="ml-2 block text-sm text-zinc-300">
                 {t('active-budget')}
               </label>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
               <button
                 type="submit"
-                className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                className="inline-flex h-11 items-center justify-center rounded-full bg-emerald-500 px-6 text-sm font-semibold text-zinc-950 hover:bg-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/60"
               >
                 {editingBudget ? t('update-budget') : t('create-budget')}
               </button>
@@ -273,7 +254,7 @@ export default function Budget() {
                   setShowAddForm(false);
                   setEditingBudget(null);
                 }}
-                className="px-6 py-2 border border-gray-200 dark:border-dark-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-800 transition-colors"
+                className="inline-flex h-11 items-center justify-center rounded-full border border-zinc-700 px-6 text-sm font-semibold text-zinc-300 hover:bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-500/40"
               >
                 {t('cancel')}
               </button>
@@ -284,83 +265,78 @@ export default function Budget() {
 
       {/* Error Message */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-600">{error}</p>
+        <div className="rounded-2xl border border-red-400/20 bg-red-400/10 p-4">
+          <p className="text-sm text-red-100">{error}</p>
         </div>
       )}
 
       {/* Budgets List */}
       {loading ? (
-        <div className="flex justify-center items-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+        <div className="flex items-center justify-center py-12">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-800 border-b-emerald-400"></div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {budgets.map((budget) => {
             const spendingPercentage = getSpendingPercentage(budget.spent, budget.amount);
             const remaining = budget.amount - budget.spent;
             
             return (
-              <div key={budget.id} className="bg-white rounded-xl shadow-sm border border-gray-200 dark:border-dark-700 p-6 hover:shadow-md transition-shadow duration-200 dark:bg-dark-900">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center space-x-3">
-                    <div className="p-2 bg-purple-100 rounded-lg">
-                      <PieChart className="w-6 h-6 text-purple-600" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{budget.name}</h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-400 capitalize">{budget.period.toLowerCase()}</p>
-                    </div>
+              <div key={budget.id} className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-5 hover:bg-zinc-900/60">
+                <div className="mb-5 flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <h3 className="truncate text-lg font-semibold text-zinc-100">{budget.name}</h3>
+                    <p className="mt-1 text-sm capitalize text-zinc-500">{budget.period.toLowerCase()}</p>
                   </div>
-                  <div className="flex space-x-2">
+                  <div className="flex shrink-0 gap-2">
                     <button
                       onClick={() => handleEdit(budget)}
-                      className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                      className="flex h-10 w-10 items-center justify-center rounded-xl border border-transparent text-zinc-500 hover:border-zinc-700 hover:bg-zinc-900 hover:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-zinc-500/40"
                     >
-                      <Edit3 className="w-4 h-4" />
+                      <Edit3 className="h-4 w-4" />
                     </button>
                     <button
                       onClick={() => handleDelete(budget.id)}
-                      className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                      className="flex h-10 w-10 items-center justify-center rounded-xl border border-transparent text-zinc-500 hover:border-red-400/20 hover:bg-red-500/10 hover:text-red-300 focus:outline-none focus:ring-2 focus:ring-red-300/40"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
                 </div>
 
                 <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-500 dark:text-gray-400">{t('spent')}</span>
-                    <span className={`text-sm font-medium px-2 py-1 rounded-full ${getStatusColor(budget.spent, budget.amount)}`}>
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-sm text-zinc-500">{t('spent')}</span>
+                    <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${getStatusColor(budget.spent, budget.amount)}`}>
                       {spendingPercentage.toFixed(1)}%
                     </span>
                   </div>
 
-                  <div className="w-full bg-gray-200 rounded-full h-3 dark:bg-dark-700">
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-800">
                     <div
-                      className={`h-3 rounded-full transition-all duration-300 ${
+                      className={`h-full rounded-full ${
                         spendingPercentage >= 100 ? 'bg-red-500' :
-                        spendingPercentage >= 80 ? 'bg-yellow-500' : 'bg-green-500'
+                        spendingPercentage >= 80 ? 'bg-amber-400' : 'bg-emerald-400'
                       }`}
                       style={{ width: `${spendingPercentage}%` }}
                     ></div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p className="text-gray-500">{t('budget')}</p>
-                      <p className="font-semibold text-gray-900 dark:text-white">₹{budget.amount.toLocaleString()}</p>
+                    <div className="min-w-0">
+                      <p className="text-zinc-500">{t('budget')}</p>
+                      <p className="truncate font-semibold tabular-nums text-zinc-100">₹{budget.amount.toLocaleString()}</p>
                     </div>
-                    <div>
-                      <p className="text-gray-500">{t('spent')}</p>
-                      <p className="font-semibold text-gray-900 dark:text-white">₹{budget.spent.toLocaleString()}</p>
+                    <div className="min-w-0 text-right">
+                      <p className="text-zinc-500">{t('spent')}</p>
+                      <p className="truncate font-semibold tabular-nums text-zinc-100">₹{budget.spent.toLocaleString()}</p>
                     </div>
                   </div>
 
-                  <div className="pt-4 border-t border-gray-100 dark:border-dark-700">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-500 dark:text-gray-400">{t('remaining')}</span>
-                      <span className={`font-semibold ${remaining >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  <div className="border-t border-zinc-800 pt-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-sm text-zinc-500">{t('remaining')}</span>
+                      <span className={`truncate text-right font-semibold tabular-nums ${remaining >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
                         ₹{remaining.toLocaleString()}
                       </span>
                     </div>
@@ -368,7 +344,7 @@ export default function Budget() {
 
                   {!budget.isActive && (
                     <div className="pt-2">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-dark-800 text-gray-800">
+                      <span className="inline-flex items-center rounded-full border border-zinc-700 bg-zinc-900 px-2.5 py-1 text-xs font-medium text-zinc-400">
                         {t('inactive')}
                       </span>
                     </div>
@@ -382,15 +358,14 @@ export default function Budget() {
 
       {/* Empty State */}
       {!loading && budgets.length === 0 && (
-        <div className="text-center py-12">
-          <PieChart className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">{t('no-budgets-yet')}</h3>
-          <p className="text-gray-500 mb-6">{t('create-first-budget')}</p>
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-8 text-center sm:p-10">
+          <h3 className="text-base font-semibold text-zinc-200">No budgets yet</h3>
+          <p className="mt-2 text-sm text-zinc-500">Create a category budget to start tracking spending.</p>
           <button
             onClick={() => setShowAddForm(true)}
-            className="inline-flex items-center px-6 py-3 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 transition-colors"
+            className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-emerald-500 px-5 text-sm font-semibold text-zinc-950 hover:bg-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/60 sm:w-auto"
           >
-            <Plus className="w-5 h-5 mr-2" />
+            <Plus className="h-4 w-4" />
             {t('create-first-budget-button')}
           </button>
         </div>
