@@ -211,19 +211,16 @@ function applyPayload(
   get: () => ChatState,
   payload: ChatResponsePayload
 ) {
-  const shouldAppendAssistantMessage = !payload.confirmationCard;
-  const assistantMsg: ChatMessage | null = shouldAppendAssistantMessage
-    ? {
-        id: `asst-${Date.now()}`,
-        role: 'ASSISTANT',
-        content: payload.message,
-        metadata: undefined,
-        createdAt: new Date().toISOString(),
-      }
-    : null;
+  const assistantMsg: ChatMessage = {
+    id: `asst-${Date.now()}`,
+    role: 'ASSISTANT',
+    content: payload.message,
+    metadata: undefined,
+    createdAt: new Date().toISOString(),
+  };
 
   set({
-    messages: assistantMsg ? [...get().messages, assistantMsg] : get().messages,
+    messages: [...get().messages, assistantMsg],
     isLoading: false,
     pendingConfirmation: payload.confirmationCard,
     suggestedChips: payload.suggestedChips || [],

@@ -202,10 +202,19 @@ export class ChatService {
       await this.fsm.transition(userId, 'CONFIRMED');
 
       const emoji = txnData.type === 'income' ? '💰' : '💸';
-      return this.makeResponse(
-        `${emoji} Done! ₹${txnData.amount.toLocaleString('en-IN')} — ${txnData.category || 'Uncategorized'} (${txnData.description}) has been logged.`,
-        { suggestedChips: ['Log another', 'Check budget', 'Monthly summary'] }
-      );
+      const message = `${emoji} Done! ₹${txnData.amount.toLocaleString('en-IN')} — ${txnData.category || 'Uncategorized'} (${txnData.description}) has been logged.`;
+      await prisma.chatMessage.create({
+        data: {
+          userId,
+          role: 'ASSISTANT',
+          content: message,
+          intent: txnData.type === 'income' ? ChatIntentType.LOG_INCOME : ChatIntentType.LOG_EXPENSE,
+          metadata: null,
+          tokenCount: Math.ceil(message.split(/\s+/).length / 0.75),
+        },
+      });
+
+      return this.makeResponse(message, { suggestedChips: ['Log another', 'Check budget', 'Monthly summary'] });
     }
 
     if (pending.type === 'budget') {
@@ -226,9 +235,19 @@ export class ChatService {
 
       await this.fsm.transition(userId, 'CONFIRMED');
 
-      return this.makeResponse(
-        `✅ Budget set! ${budgetData.category}: ₹${budgetData.amount.toLocaleString('en-IN')} per ${budgetData.period}.`
-      );
+      const message = `✅ Budget set! ${budgetData.category}: ₹${budgetData.amount.toLocaleString('en-IN')} per ${budgetData.period}.`;
+      await prisma.chatMessage.create({
+        data: {
+          userId,
+          role: 'ASSISTANT',
+          content: message,
+          intent: ChatIntentType.SET_BUDGET,
+          metadata: null,
+          tokenCount: Math.ceil(message.split(/\s+/).length / 0.75),
+        },
+      });
+
+      return this.makeResponse(message);
     }
 
     return this.makeResponse('Unknown confirmation type.');
@@ -296,9 +315,9 @@ export class ChatService {
   }
 
   async getHistory(userId: string, limit: number = 50, offset: number = 0) {
-    return prisma.chatMessage.findMany({
+    const messages = await prisma.chatMessage.findMany({
       where: { userId, role: { not: 'SYSTEM' } },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: 'desc' },
       take: limit,
       skip: offset,
       select: {
@@ -310,6 +329,7 @@ export class ChatService {
         createdAt: true,
       },
     });
+    return messages.reverse();
   }
 
   // --- Private handlers ---

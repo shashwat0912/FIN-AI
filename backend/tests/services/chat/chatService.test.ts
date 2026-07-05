@@ -10,6 +10,7 @@ vi.mock('../../../src/config/database', () => ({
   default: {
     chatMessage: {
       create: vi.fn(),
+      findMany: vi.fn(),
     },
     user: {
       findUnique: vi.fn(),
@@ -591,5 +592,58 @@ describe('ChatService monthly summary flow', () => {
     expect(result.message).toBe('You already have a pending transaction. Please Confirm, Cancel, or Edit it first.');
     expect(result.suggestedChips).toEqual([]);
     expect(prisma.pendingConfirmation.create).not.toHaveBeenCalled();
+  });
+
+  it('persists assistant success message when confirming a transaction', async () => {
+    vi.mocked(prisma.pendingConfirmation.findFirst).mockResolvedValue({
+      id: 'pending-1',
+      userId: 'user-1',
+      type: 'transaction',
+      data: JSON.stringify({
+        amount: 500,
+        description: 'chai',
+        category: 'Food',
+        type: 'expense',
+        date: null,
+      }),
+      status: 'PENDING',
+    } as any);
+    vi.mocked(prisma.pendingConfirmation.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.transaction.create).mockResolvedValue({} as any);
+    vi.mocked(prisma.chatMessage.create).mockResolvedValue({
+      id: 'm14',
+      role: 'ASSISTANT',
+      content: 'ok',
+      createdAt: new Date(),
+    } as any);
+
+    const result = await service.confirmAction('user-1', 'pending-1');
+
+    expect(result.message).toContain('has been logged');
+    expect(prisma.chatMessage.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        userId: 'user-1',
+        role: 'ASSISTANT',
+        content: result.message,
+        intent: 'LOG_EXPENSE',
+      }),
+    });
+  });
+
+  it('returns latest chat history in chronological display order', async () => {
+    const newest = { id: 'm3', role: 'ASSISTANT', content: 'newest', createdAt: new Date('2026-01-03') };
+    const middle = { id: 'm2', role: 'USER', content: 'middle', createdAt: new Date('2026-01-02') };
+    const oldestOfPage = { id: 'm1', role: 'ASSISTANT', content: 'oldest of page', createdAt: new Date('2026-01-01') };
+    vi.mocked(prisma.chatMessage.findMany).mockResolvedValue([newest, middle, oldestOfPage] as any);
+
+    const result = await service.getHistory('user-1', 3, 0);
+
+    expect(prisma.chatMessage.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { userId: 'user-1', role: { not: 'SYSTEM' } },
+      orderBy: { createdAt: 'desc' },
+      take: 3,
+      skip: 0,
+    }));
+    expect(result.map((message) => message.id)).toEqual(['m1', 'm2', 'm3']);
   });
 });

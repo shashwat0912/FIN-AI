@@ -148,6 +148,77 @@ describe('ChatDrawer integration', () => {
     );
   });
 
+  it('keeps the original command and confirmation prompt after confirming', async () => {
+    mockApiClient.post
+      .mockResolvedValueOnce({
+        success: true,
+        message: 'ok',
+        data: {
+          message: 'Confirm 500 Food (food)?',
+          confirmationCard: {
+            id: 'pending-500',
+            type: 'transaction',
+            data: {
+              amount: 500,
+              description: 'food',
+              category: 'Food',
+              type: 'expense',
+              date: null,
+            },
+            status: 'PENDING',
+          },
+          chartData: null,
+          suggestedChips: [],
+          conversationState: 'AWAITING_CONFIRMATION',
+          rateLimitInfo: null,
+          isFallbackMode: false,
+        },
+        timestamp: new Date().toISOString(),
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        message: 'ok',
+        data: {
+          message: 'Done 500 Food (food) has been logged.',
+          confirmationCard: null,
+          chartData: null,
+          suggestedChips: [],
+          conversationState: 'IDLE',
+          rateLimitInfo: null,
+          isFallbackMode: false,
+        },
+        timestamp: new Date().toISOString(),
+      });
+
+    const user = userEvent.setup();
+    render(<ChatFAB />);
+
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /open chat/i }));
+    });
+    await waitFor(() => expect(mockApiClient.get).toHaveBeenCalled());
+    await act(async () => {
+      await sendChatMessage(user, 'spent 500 on food');
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('spent 500 on food')).toBeInTheDocument();
+      expect(screen.getByText('Confirm 500 Food (food)?')).toBeInTheDocument();
+    });
+    expect(screen.getByPlaceholderText('Type a message...')).toHaveValue('');
+    expect(screen.getAllByText('Confirm 500 Food (food)?')).toHaveLength(1);
+
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('spent 500 on food')).toBeInTheDocument();
+      expect(screen.getByText('Confirm 500 Food (food)?')).toBeInTheDocument();
+      expect(screen.getByText('Done 500 Food (food) has been logged.')).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('button', { name: 'Confirm' })).not.toBeInTheDocument();
+    expect(screen.getAllByText('Confirm 500 Food (food)?')).toHaveLength(1);
+  });
+
   it('opens confirmation edit modal and saves without chat edit bubbles', async () => {
     useChatStore.setState({
       isOpen: true,
