@@ -29,25 +29,25 @@ export default function ChatDrawer() {
     <div className="fixed inset-0 z-50 flex justify-end pointer-events-none">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/30 dark:bg-black/50 pointer-events-auto"
+        className="absolute inset-0 bg-black/60 pointer-events-auto"
         onClick={closeChat}
       />
 
       {/* Drawer panel */}
-      <div className="relative w-full max-w-md h-full flex flex-col bg-white dark:bg-dark-900 shadow-2xl pointer-events-auto animate-slide-in-right">
+      <div className="relative flex h-full w-full max-w-md flex-col border-l border-zinc-800 bg-zinc-950 shadow-2xl shadow-black/50 pointer-events-auto animate-slide-in-right">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-dark-700">
+        <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-3">
           <div>
-            <h2 className="text-base font-semibold text-gray-900 dark:text-white">Finance Chat</h2>
+            <h2 className="text-base font-semibold text-white">FinanceAI</h2>
             {isFallbackMode && (
-              <p className="text-[10px] text-yellow-600 dark:text-yellow-400">Running in local mode (deterministic parser)</p>
+              <p className="text-[10px] text-zinc-500">Limited local responses</p>
             )}
           </div>
           <button
             onClick={closeChat}
-            className="flex h-10 w-10 items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-dark-800 transition-colors"
+            className="flex h-10 w-10 items-center justify-center rounded-xl text-zinc-400 hover:bg-zinc-900 hover:text-white"
           >
-            <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
@@ -80,11 +80,11 @@ export default function ChatDrawer() {
 
         {/* Loading indicator */}
         {isLoading && (
-          <div className="flex items-center gap-2 px-4 py-2 text-xs text-gray-400">
+          <div className="flex items-center gap-2 px-4 py-2 text-xs text-zinc-500">
             <div className="flex gap-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-bounce" style={{ animationDelay: '0ms' }} />
-              <div className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-bounce" style={{ animationDelay: '150ms' }} />
-              <div className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '300ms' }} />
             </div>
             Thinking...
           </div>

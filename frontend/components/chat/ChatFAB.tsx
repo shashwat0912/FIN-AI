@@ -11,7 +11,7 @@ export default function ChatFAB() {
       {!isOpen && (
         <button
           onClick={toggleChat}
-          className="fixed bottom-6 right-6 z-40 flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all"
+          className="fixed bottom-4 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-emerald-400/30 bg-emerald-500 text-zinc-950 shadow-lg shadow-black/30 hover:bg-emerald-400 sm:bottom-6 sm:right-6 sm:h-14 sm:w-14"
           aria-label="Open chat"
         >
           <MessageCircle className="w-6 h-6" />
