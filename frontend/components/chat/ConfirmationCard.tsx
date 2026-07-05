@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Check, X, Pencil } from 'lucide-react';
-import { ConfirmationCard as ConfirmationCardType, ChatTransactionEntities, ChatBudgetEntities } from '../../types';
+import { ConfirmationCard as ConfirmationCardType, ChatTransactionEntities, ChatBudgetEntities, ChatBulkTransactionEntities } from '../../types';
 
 interface ConfirmationCardProps {
   card: ConfirmationCardType;
@@ -12,8 +12,11 @@ interface ConfirmationCardProps {
 
 export default function ConfirmationCard({ card, onConfirm, onEdit, onCancel, disabled }: ConfirmationCardProps) {
   const isTransaction = card.type === 'transaction';
+  const isBulkTransaction = card.type === 'bulk_transaction';
   const txn = card.data as ChatTransactionEntities;
   const budget = card.data as ChatBudgetEntities;
+  const bulk = card.data as ChatBulkTransactionEntities;
+  const bulkTotal = isBulkTransaction ? bulk.items.reduce((sum, item) => sum + item.amount, 0) : 0;
   const [isEditing, setIsEditing] = useState(false);
   const [amount, setAmount] = useState(String((isTransaction ? txn.amount : budget.amount) || ''));
   const [description, setDescription] = useState(isTransaction ? txn.description || '' : '');
@@ -54,6 +57,27 @@ export default function ConfirmationCard({ card, onConfirm, onEdit, onCancel, di
           </div>
           <p className="mb-3 text-sm text-zinc-500">{txn.description}</p>
         </div>
+      ) : isBulkTransaction ? (
+        <div>
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <span className="font-semibold text-white">{bulk.items.length} items</span>
+            <span className="text-zinc-600">-</span>
+            <span className="text-zinc-300">₹{bulkTotal.toLocaleString('en-IN')} total</span>
+          </div>
+          <div className="mb-3 space-y-1 text-sm text-zinc-400">
+            {bulk.items.slice(0, 5).map((item, index) => (
+              <p key={`${item.description}-${index}`} className="flex justify-between gap-3">
+                <span className="truncate">{index + 1}. {item.description}</span>
+                <span className="shrink-0 text-zinc-300">
+                  ₹{item.amount.toLocaleString('en-IN')} · {item.category || 'Uncategorized'}
+                </span>
+              </p>
+            ))}
+            {bulk.items.length > 5 && (
+              <p className="text-xs text-zinc-500">+{bulk.items.length - 5} more</p>
+            )}
+          </div>
+        </div>
       ) : (
         <div>
           <div className="mb-2 flex items-center gap-2">
@@ -73,16 +97,18 @@ export default function ConfirmationCard({ card, onConfirm, onEdit, onCancel, di
           disabled={disabled}
           className="flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-500 px-3 py-2 text-sm font-semibold text-zinc-950 hover:bg-emerald-400 disabled:opacity-50"
         >
-          <Check className="w-3.5 h-3.5" /> Confirm
+          <Check className="w-3.5 h-3.5" /> {isBulkTransaction ? 'Confirm all' : 'Confirm'}
         </button>
-        <button
-          type="button"
-          onClick={openEditor}
-          disabled={disabled}
-          className="flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm font-medium text-zinc-200 hover:bg-zinc-700 disabled:opacity-50"
-        >
-          <Pencil className="w-3.5 h-3.5" /> Edit
-        </button>
+        {!isBulkTransaction && (
+          <button
+            type="button"
+            onClick={openEditor}
+            disabled={disabled}
+            className="flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm font-medium text-zinc-200 hover:bg-zinc-700 disabled:opacity-50"
+          >
+            <Pencil className="w-3.5 h-3.5" /> Edit
+          </button>
+        )}
         <button
           type="button"
           onClick={onCancel}

@@ -148,7 +148,7 @@ describe('ChatDrawer integration', () => {
     );
   });
 
-  it('keeps the original command and confirmation prompt after confirming', async () => {
+  it('keeps the original command and removes the confirmation card after confirming', async () => {
     mockApiClient.post
       .mockResolvedValueOnce({
         success: true,
@@ -179,7 +179,7 @@ describe('ChatDrawer integration', () => {
         success: true,
         message: 'ok',
         data: {
-          message: 'Done 500 Food (food) has been logged.',
+          message: 'Logged ₹500 as Food\nfood · Today',
           confirmationCard: null,
           chartData: null,
           suggestedChips: [],
@@ -203,20 +203,93 @@ describe('ChatDrawer integration', () => {
 
     await waitFor(() => {
       expect(screen.getByText('spent 500 on food')).toBeInTheDocument();
-      expect(screen.getByText('Confirm 500 Food (food)?')).toBeInTheDocument();
+      expect(screen.getByText('₹500')).toBeInTheDocument();
+      expect(screen.getByText('Food')).toBeInTheDocument();
     });
     expect(screen.getByPlaceholderText('Type a message...')).toHaveValue('');
-    expect(screen.getAllByText('Confirm 500 Food (food)?')).toHaveLength(1);
+    expect(screen.queryByText('Confirm 500 Food (food)?')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Confirm' }));
 
     await waitFor(() => {
       expect(screen.getByText('spent 500 on food')).toBeInTheDocument();
-      expect(screen.getByText('Confirm 500 Food (food)?')).toBeInTheDocument();
-      expect(screen.getByText('Done 500 Food (food) has been logged.')).toBeInTheDocument();
+      expect(screen.getByText(/Logged ₹500 as Food/)).toBeInTheDocument();
+      expect(screen.getByText(/food · Today/)).toBeInTheDocument();
     });
     expect(screen.queryByRole('button', { name: 'Confirm' })).not.toBeInTheDocument();
-    expect(screen.getAllByText('Confirm 500 Food (food)?')).toHaveLength(1);
+    expect(screen.queryByText('Confirm 500 Food (food)?')).not.toBeInTheDocument();
+  });
+
+  it('shows a bulk confirmation card and keeps only the success summary after confirm all', async () => {
+    mockApiClient.post
+      .mockResolvedValueOnce({
+        success: true,
+        message: 'ok',
+        data: {
+          message: 'Review 3 transaction item(s), total ₹1,300. Confirm all?',
+          confirmationCard: {
+            id: 'pending-bulk',
+            type: 'bulk_transaction',
+            data: {
+              items: [
+                { amount: 500, description: 'chai', category: 'Food', type: 'expense', date: null },
+                { amount: 300, description: 'coffee', category: 'Food', type: 'expense', date: null },
+                { amount: 500, description: 'uber', category: 'Transport', type: 'expense', date: null },
+              ],
+              skippedLines: [],
+            },
+            status: 'PENDING',
+          },
+          chartData: null,
+          suggestedChips: [],
+          conversationState: 'AWAITING_CONFIRMATION',
+          rateLimitInfo: null,
+          isFallbackMode: false,
+        },
+        timestamp: new Date().toISOString(),
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        message: 'ok',
+        data: {
+          message: 'Logged 3 expense item(s), total ₹1,300. Added in order: 1. chai ₹500 (Food), 2. coffee ₹300 (Food), 3. uber ₹500 (Transport).',
+          confirmationCard: null,
+          chartData: null,
+          suggestedChips: [],
+          conversationState: 'IDLE',
+          rateLimitInfo: null,
+          isFallbackMode: false,
+        },
+        timestamp: new Date().toISOString(),
+      });
+
+    const user = userEvent.setup();
+    render(<ChatFAB />);
+
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /open chat/i }));
+    });
+    await waitFor(() => expect(mockApiClient.get).toHaveBeenCalled());
+    await act(async () => {
+      await sendChatMessage(user, '500 chai 300 coffee 500 uber');
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('500 chai 300 coffee 500 uber')).toBeInTheDocument();
+      expect(screen.getByText('3 items')).toBeInTheDocument();
+      expect(screen.getByText('₹1,300 total')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Review 3 transaction item(s), total ₹1,300. Confirm all?')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Confirm all' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('500 chai 300 coffee 500 uber')).toBeInTheDocument();
+      expect(screen.getByText(/Logged 3 expense item/)).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('button', { name: 'Confirm all' })).not.toBeInTheDocument();
+    expect(screen.queryByText('3 items')).not.toBeInTheDocument();
   });
 
   it('opens confirmation edit modal and saves without chat edit bubbles', async () => {

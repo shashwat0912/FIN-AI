@@ -6,6 +6,7 @@ import {
   TransactionEntities,
   QueryEntities,
   BudgetEntities,
+  BulkTransactionEntities,
   ConfirmationCard,
   ConversationStateType,
 } from '../../types';
@@ -95,23 +96,7 @@ export class ChatService {
     // youtube 300
     const bulkParse = this.tryParseBulkTransactionList(content);
     if (bulkParse && bulkParse.items.length >= 2) {
-      const response = await this.handleBulkTransactions(userId, bulkParse);
-      const dominantIntent = bulkParse.items.every((item) => item.type === 'income')
-        ? ChatIntentType.LOG_INCOME
-        : ChatIntentType.LOG_EXPENSE;
-
-      await prisma.chatMessage.create({
-        data: {
-          userId,
-          role: 'ASSISTANT',
-          content: response.message,
-          intent: dominantIntent,
-          metadata: null,
-          tokenCount: Math.ceil(response.message.split(/\s+/).length / 0.75),
-        },
-      });
-
-      return response;
+      return this.handleBulkTransactionConfirmation(userId, bulkParse);
     }
 
     // Normalize so "50   dosa" parses like "50 dosa"
@@ -201,8 +186,7 @@ export class ChatService {
 
       await this.fsm.transition(userId, 'CONFIRMED');
 
-      const emoji = txnData.type === 'income' ? '💰' : '💸';
-      const message = `${emoji} Done! ₹${txnData.amount.toLocaleString('en-IN')} — ${txnData.category || 'Uncategorized'} (${txnData.description}) has been logged.`;
+      const message = `Logged ₹${txnData.amount.toLocaleString('en-IN')} as ${txnData.category || 'Uncategorized'}\n${txnData.description} · Today`;
       await prisma.chatMessage.create({
         data: {
           userId,
@@ -250,6 +234,34 @@ export class ChatService {
       return this.makeResponse(message);
     }
 
+    if (pending.type === 'bulk_transaction') {
+      const bulkData = data as BulkTransactionEntities;
+      await this.saveBulkTransactions(userId, bulkData.items);
+
+      await prisma.pendingConfirmation.update({
+        where: { id: confirmationId },
+        data: { status: 'CONFIRMED', resolvedAt: new Date() },
+      });
+
+      await this.fsm.transition(userId, 'CONFIRMED');
+
+      const message = this.buildBulkLogSuccessMessage(bulkData.items, bulkData.skippedLines || []);
+      await prisma.chatMessage.create({
+        data: {
+          userId,
+          role: 'ASSISTANT',
+          content: message,
+          intent: bulkData.items.every((item) => item.type === 'income') ? ChatIntentType.LOG_INCOME : ChatIntentType.LOG_EXPENSE,
+          metadata: null,
+          tokenCount: Math.ceil(message.split(/\s+/).length / 0.75),
+        },
+      });
+
+      return this.makeResponse(message, {
+        suggestedChips: ['Monthly summary', 'Check budget', 'Log more'],
+      });
+    }
+
     return this.makeResponse('Unknown confirmation type.');
   }
 
@@ -260,6 +272,20 @@ export class ChatService {
 
     if (!pending) {
       return this.makeResponse('No pending action found to edit.');
+    }
+
+    if (pending.type === 'bulk_transaction') {
+      const card: ConfirmationCard = {
+        id: confirmationId,
+        type: 'bulk_transaction',
+        data: JSON.parse(pending.data) as BulkTransactionEntities,
+        status: 'PENDING',
+      };
+
+      return this.makeResponse('Bulk editing is not available. Cancel and send a corrected list.', {
+        confirmationCard: card,
+        conversationState: 'AWAITING_CONFIRMATION',
+      });
     }
 
     const currentData = JSON.parse(pending.data);
@@ -316,7 +342,7 @@ export class ChatService {
 
   async getHistory(userId: string, limit: number = 50, offset: number = 0) {
     const messages = await prisma.chatMessage.findMany({
-      where: { userId, role: { not: 'SYSTEM' } },
+      where: { userId, role: { not: 'SYSTEM' }, pendingConfirmation: null },
       orderBy: { createdAt: 'desc' },
       take: limit,
       skip: offset,
@@ -354,36 +380,14 @@ export class ChatService {
     const emoji = entities.type === 'income' ? '💰' : '💸';
     const confirmationMessage = `${emoji} ₹${entities.amount.toLocaleString('en-IN')} — ${entities.category} (${entities.description}). Confirm?`;
 
-    // Create pending confirmation
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
-    const assistantMsg = await prisma.chatMessage.create({
-      data: {
-        userId,
-        role: 'ASSISTANT',
-        content: confirmationMessage,
-        intent: entities.type === 'income' ? ChatIntentType.LOG_INCOME : ChatIntentType.LOG_EXPENSE,
-        tokenCount: 20,
-      },
-    });
-
-    const pending = await prisma.pendingConfirmation.create({
-      data: {
-        userId,
-        chatMessageId: assistantMsg.id,
-        type: 'transaction',
-        data: JSON.stringify(entities),
-        expiresAt,
-      },
-    });
-
-    await this.fsm.transition(userId, 'INTENT_PARSED', { pendingConfirmationId: pending.id });
-
-    const card: ConfirmationCard = {
-      id: pending.id,
-      type: 'transaction',
-      data: entities,
-      status: 'PENDING',
-    };
+    const card = await this.createPendingConfirmation(
+      userId,
+      confirmationMessage,
+      entities.type === 'income' ? ChatIntentType.LOG_INCOME : ChatIntentType.LOG_EXPENSE,
+      'transaction',
+      entities,
+      20
+    );
 
     return this.makeResponse(
       confirmationMessage,
@@ -1085,12 +1089,78 @@ export class ChatService {
       .join(' ');
   }
 
-  private async handleBulkTransactions(
+  private async handleBulkTransactionConfirmation(
     userId: string,
     parsed: BulkTransactionParseResult
   ): Promise<ChatResponsePayload> {
-    const normalizedTransactions: TransactionEntities[] = [];
+    const normalizedTransactions = await this.normalizeBulkTransactions(userId, parsed);
+    const total = normalizedTransactions.reduce((sum, item) => sum + item.amount, 0);
+    const confirmationMessage = `Review ${normalizedTransactions.length} transaction item(s), total ₹${total.toLocaleString('en-IN')}. Confirm all?`;
+    const dominantIntent = normalizedTransactions.every((item) => item.type === 'income')
+      ? ChatIntentType.LOG_INCOME
+      : ChatIntentType.LOG_EXPENSE;
+    const data: BulkTransactionEntities = {
+      items: normalizedTransactions,
+      skippedLines: parsed.skippedLines,
+    };
+    const card = await this.createPendingConfirmation(
+      userId,
+      confirmationMessage,
+      dominantIntent,
+      'bulk_transaction',
+      data,
+      Math.ceil(confirmationMessage.split(/\s+/).length / 0.75)
+    );
 
+    return this.makeResponse(confirmationMessage, {
+      confirmationCard: card,
+      conversationState: 'AWAITING_CONFIRMATION',
+    });
+  }
+
+  private async createPendingConfirmation(
+    userId: string,
+    message: string,
+    intent: ChatIntentType,
+    type: ConfirmationCard['type'],
+    data: ConfirmationCard['data'],
+    tokenCount: number
+  ): Promise<ConfirmationCard> {
+    const assistantMsg = await prisma.chatMessage.create({
+      data: {
+        userId,
+        role: 'ASSISTANT',
+        content: message,
+        intent,
+        tokenCount,
+      },
+    });
+
+    const pending = await prisma.pendingConfirmation.create({
+      data: {
+        userId,
+        chatMessageId: assistantMsg.id,
+        type,
+        data: JSON.stringify(data),
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      },
+    });
+
+    await this.fsm.transition(userId, 'INTENT_PARSED', { pendingConfirmationId: pending.id });
+
+    return {
+      id: pending.id,
+      type,
+      data,
+      status: 'PENDING',
+    };
+  }
+
+  private async normalizeBulkTransactions(
+    userId: string,
+    parsed: BulkTransactionParseResult
+  ): Promise<TransactionEntities[]> {
+    const normalizedTransactions: TransactionEntities[] = [];
     for (const item of parsed.items) {
       const normalizedDescription = this.normalizeTransactionDescription(item.description, item.type);
       const txEntities: TransactionEntities = {
@@ -1108,9 +1178,13 @@ export class ChatService {
       normalizedTransactions.push(txEntities);
     }
 
+    return normalizedTransactions;
+  }
+
+  private async saveBulkTransactions(userId: string, transactions: TransactionEntities[]): Promise<void> {
     // Insert in reverse so default "createdAt desc" listing appears in the same order
     // as the user typed in chat.
-    const transactionsForInsert = [...normalizedTransactions].reverse();
+    const transactionsForInsert = [...transactions].reverse();
 
     await prisma.$transaction(async (tx) => {
       for (const txItem of transactionsForInsert) {
@@ -1128,16 +1202,9 @@ export class ChatService {
       }
     });
 
-    for (const txItem of normalizedTransactions) {
+    for (const txItem of transactions) {
       await this.learnCategoryMapping(userId, txItem.description, txItem.category || 'Miscellaneous');
     }
-
-    await this.fsm.transition(userId, 'RESPONSE_SENT');
-
-    const responseMessage = this.buildBulkLogSuccessMessage(normalizedTransactions, parsed.skippedLines);
-    return this.makeResponse(responseMessage, {
-      suggestedChips: ['Monthly summary', 'Check budget', 'Log more'],
-    });
   }
 
   private buildBulkLogSuccessMessage(

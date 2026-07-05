@@ -152,6 +152,11 @@ export interface BudgetEntities {
   period: 'monthly' | 'weekly';
 }
 
+export interface BulkTransactionEntities {
+  items: TransactionEntities[];
+  skippedLines: string[];
+}
+
 export interface ParsedIntent {
   intent: ChatIntentType;
   confidence: number;
@@ -162,8 +167,8 @@ export interface ParsedIntent {
 
 export interface ConfirmationCard {
   id: string;
-  type: 'transaction' | 'budget';
-  data: TransactionEntities | BudgetEntities;
+  type: 'transaction' | 'budget' | 'bulk_transaction';
+  data: TransactionEntities | BudgetEntities | BulkTransactionEntities;
   status: 'PENDING' | 'CONFIRMED' | 'EDITED' | 'CANCELLED' | 'EXPIRED';
 }
 

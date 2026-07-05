@@ -211,16 +211,21 @@ function applyPayload(
   get: () => ChatState,
   payload: ChatResponsePayload
 ) {
-  const assistantMsg: ChatMessage = {
-    id: `asst-${Date.now()}`,
-    role: 'ASSISTANT',
-    content: payload.message,
-    metadata: undefined,
-    createdAt: new Date().toISOString(),
-  };
+  const messages = payload.confirmationCard
+    ? get().messages
+    : [
+        ...get().messages,
+        {
+          id: `asst-${Date.now()}`,
+          role: 'ASSISTANT' as const,
+          content: payload.message,
+          metadata: undefined,
+          createdAt: new Date().toISOString(),
+        },
+      ];
 
   set({
-    messages: [...get().messages, assistantMsg],
+    messages,
     isLoading: false,
     pendingConfirmation: payload.confirmationCard,
     suggestedChips: payload.suggestedChips || [],

@@ -210,8 +210,8 @@ export interface ChatMessage {
 
 export interface ConfirmationCard {
   id: string;
-  type: 'transaction' | 'budget';
-  data: ChatTransactionEntities | ChatBudgetEntities;
+  type: 'transaction' | 'budget' | 'bulk_transaction';
+  data: ChatTransactionEntities | ChatBudgetEntities | ChatBulkTransactionEntities;
   status: 'PENDING' | 'CONFIRMED' | 'EDITED' | 'CANCELLED' | 'EXPIRED';
 }
 
@@ -227,6 +227,11 @@ export interface ChatBudgetEntities {
   category: string;
   amount: number;
   period: 'monthly' | 'weekly';
+}
+
+export interface ChatBulkTransactionEntities {
+  items: ChatTransactionEntities[];
+  skippedLines: string[];
 }
 
 export interface ChatChartData {

@@ -155,7 +155,7 @@ describe('ChatService monthly summary flow', () => {
     expect(result.suggestedChips).toEqual([]);
   });
 
-  it('parses multi-line expense lists and logs them as separate transactions', async () => {
+  it('parses multi-line expense lists into a pending bulk confirmation', async () => {
     vi.mocked(prisma.chatMessage.create).mockResolvedValue({
       id: 'm1',
       role: 'ASSISTANT',
@@ -168,14 +168,15 @@ describe('ChatService monthly summary flow', () => {
       'netflix 500\nhotstar 300\nyoutube 300'
     );
 
-    expect(prisma.$transaction).toHaveBeenCalled();
-    expect(result.message).toContain('Logged 3 expense item(s)');
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(result.confirmationCard?.type).toBe('bulk_transaction');
+    expect((result.confirmationCard?.data as any).items).toHaveLength(3);
     expect(result.message).toContain('₹1,100');
-    expect(result.message.toLowerCase()).toContain('netflix');
+    expect(result.message).toContain('Confirm all');
     expect(result.suggestedChips).toEqual([]);
   });
 
-  it('parses single-line amount-first bulk entries and logs them as separate transactions', async () => {
+  it('parses single-line amount-first bulk entries into a pending bulk confirmation', async () => {
     vi.mocked(prisma.chatMessage.create).mockResolvedValue({
       id: 'm1b',
       role: 'ASSISTANT',
@@ -188,17 +189,16 @@ describe('ChatService monthly summary flow', () => {
       '500 dosa 30 chai 400 coffee 20 auto'
     );
 
-    expect(prisma.$transaction).toHaveBeenCalled();
-    expect(result.message).toContain('Logged 4 expense item(s)');
+    const items = (result.confirmationCard?.data as any).items;
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(result.confirmationCard?.type).toBe('bulk_transaction');
+    expect(items).toHaveLength(4);
     expect(result.message).toContain('₹950');
-    expect(result.message).toContain('dosa ₹500');
-    expect(result.message).toContain('chai ₹30');
-    expect(result.message).toContain('coffee ₹400');
-    expect(result.message).toContain('auto ₹20');
+    expect(items.map((item: any) => item.description)).toEqual(['dosa', 'chai', 'coffee', 'auto']);
     expect(result.suggestedChips).toEqual([]);
   });
 
-  it('parses income list header and logs multiple income entries', async () => {
+  it('parses income list header into a pending bulk confirmation', async () => {
     vi.mocked(prisma.chatMessage.create).mockResolvedValue({
       id: 'm2',
       role: 'ASSISTANT',
@@ -211,8 +211,9 @@ describe('ChatService monthly summary flow', () => {
       'income:\nsalary 60000\nfreelance 15000'
     );
 
-    expect(prisma.$transaction).toHaveBeenCalled();
-    expect(result.message).toContain('Logged 2 income item(s)');
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(result.confirmationCard?.type).toBe('bulk_transaction');
+    expect((result.confirmationCard?.data as any).items).toHaveLength(2);
     expect(result.message).toContain('₹75,000');
   });
 
@@ -229,12 +230,10 @@ describe('ChatService monthly summary flow', () => {
       'Income:\nsalary 70000\nfreelance 15000\nmubasha 2000\n\nExpense:\n500 coffee\n400 book\n300 sandwich'
     );
 
-    expect(prisma.$transaction).toHaveBeenCalled();
-    expect(result.message).toContain('Logged 6 transaction(s)');
-    expect(result.message).toContain('income ₹87,000');
-    expect(result.message).toContain('expense ₹1,200');
-    expect(result.message).not.toContain('Skipped');
-    expect(result.message).toContain('Added in order');
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(result.confirmationCard?.type).toBe('bulk_transaction');
+    expect((result.confirmationCard?.data as any).items).toHaveLength(6);
+    expect((result.confirmationCard?.data as any).skippedLines).toEqual([]);
   });
 
   it('supports third header blocks like Investment without skipping header lines', async () => {
@@ -250,13 +249,13 @@ describe('ChatService monthly summary flow', () => {
       'Income:\nsalary 70000\nfreelance 15000\nmubasha 2000\n\nExpense:\n500 coffee\n400 book\n300 sandwich\n\nInvestment:\n5000 SIP'
     );
 
-    expect(prisma.$transaction).toHaveBeenCalled();
-    expect(result.message).toContain('Logged 7 transaction(s)');
-    expect(result.message).toContain('income ₹87,000');
-    expect(result.message).toContain('expense ₹6,200');
-    expect(result.message).not.toContain('"Investment:"');
-    expect(result.message).not.toContain('Skipped');
-    expect(result.message).toContain('SIP ₹5,000 (Investment)');
+    const items = (result.confirmationCard?.data as any).items;
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(result.confirmationCard?.type).toBe('bulk_transaction');
+    expect(items).toHaveLength(7);
+    expect((result.confirmationCard?.data as any).skippedLines).toEqual([]);
+    expect(items[6].description).toBe('SIP');
+    expect(items[6].category).toBe('Investment');
   });
 
   it('categorizes single-line SIP entries as Investment instead of Miscellaneous', async () => {
@@ -619,7 +618,44 @@ describe('ChatService monthly summary flow', () => {
 
     const result = await service.confirmAction('user-1', 'pending-1');
 
-    expect(result.message).toContain('has been logged');
+    expect(result.message).toContain('Logged ₹500 as Food');
+    expect(result.message).toContain('chai · Today');
+    expect(prisma.chatMessage.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        userId: 'user-1',
+        role: 'ASSISTANT',
+        content: result.message,
+        intent: 'LOG_EXPENSE',
+      }),
+    });
+  });
+
+  it('confirms pending bulk transactions and persists the success summary', async () => {
+    vi.mocked(prisma.pendingConfirmation.findFirst).mockResolvedValue({
+      id: 'pending-bulk',
+      userId: 'user-1',
+      type: 'bulk_transaction',
+      data: JSON.stringify({
+        items: [
+          { amount: 500, description: 'chai', category: 'Food', type: 'expense', date: null },
+          { amount: 300, description: 'coffee', category: 'Food', type: 'expense', date: null },
+        ],
+        skippedLines: [],
+      }),
+      status: 'PENDING',
+    } as any);
+    vi.mocked(prisma.pendingConfirmation.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.chatMessage.create).mockResolvedValue({
+      id: 'm15',
+      role: 'ASSISTANT',
+      content: 'ok',
+      createdAt: new Date(),
+    } as any);
+
+    const result = await service.confirmAction('user-1', 'pending-bulk');
+
+    expect(prisma.$transaction).toHaveBeenCalled();
+    expect(result.message).toContain('Logged 2 expense item(s)');
     expect(prisma.chatMessage.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         userId: 'user-1',
@@ -639,7 +675,7 @@ describe('ChatService monthly summary flow', () => {
     const result = await service.getHistory('user-1', 3, 0);
 
     expect(prisma.chatMessage.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { userId: 'user-1', role: { not: 'SYSTEM' } },
+      where: { userId: 'user-1', role: { not: 'SYSTEM' }, pendingConfirmation: null },
       orderBy: { createdAt: 'desc' },
       take: 3,
       skip: 0,
