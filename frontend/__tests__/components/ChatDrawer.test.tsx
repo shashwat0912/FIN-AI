@@ -220,6 +220,84 @@ describe('ChatDrawer integration', () => {
     expect(screen.queryByText('Confirm 500 Food (food)?')).not.toBeInTheDocument();
   });
 
+  it('cancels a pending confirmation and removes the original command quietly', async () => {
+    mockApiClient.post
+      .mockResolvedValueOnce({
+        success: true,
+        message: 'ok',
+        data: {
+          message: 'Confirm 400 Food (coffee)?',
+          confirmationCard: {
+            id: 'pending-cancel',
+            type: 'transaction',
+            data: {
+              amount: 400,
+              description: 'coffee',
+              category: 'Food',
+              type: 'expense',
+              date: null,
+              sourceUserMessageId: 'user-msg-400',
+            },
+            status: 'PENDING',
+          },
+          chartData: null,
+          suggestedChips: [],
+          conversationState: 'AWAITING_CONFIRMATION',
+          rateLimitInfo: null,
+          isFallbackMode: false,
+        },
+        timestamp: new Date().toISOString(),
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        message: 'ok',
+        data: {
+          message: '',
+          confirmationCard: null,
+          chartData: null,
+          suggestedChips: [],
+          conversationState: 'IDLE',
+          rateLimitInfo: null,
+          isFallbackMode: false,
+          metadata: JSON.stringify({ hiddenMessageId: 'user-msg-400' }),
+        },
+        timestamp: new Date().toISOString(),
+      });
+
+    const user = userEvent.setup();
+    render(<ChatFAB />);
+
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /open chat/i }));
+    });
+    await waitFor(() => expect(mockApiClient.get).toHaveBeenCalled());
+    await act(async () => {
+      await sendChatMessage(user, 'coffee 400');
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('coffee 400')).toBeInTheDocument();
+      expect(screen.getByText('₹400')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    await waitFor(() => {
+      expect(screen.queryByText('coffee 400')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
+    });
+    expect(screen.queryByText('Cancelled.')).not.toBeInTheDocument();
+    expect(mockApiClient.post).toHaveBeenLastCalledWith(
+      '/chat/message',
+      { content: 'Cancel' },
+      {
+        headers: {
+          'X-Idempotency-Key': 'idem-key-123',
+        },
+      }
+    );
+  });
+
   it('shows a bulk confirmation card and keeps only the success summary after confirm all', async () => {
     mockApiClient.post
       .mockResolvedValueOnce({

@@ -11,6 +11,7 @@ vi.mock('../../../src/config/database', () => ({
     chatMessage: {
       create: vi.fn(),
       findMany: vi.fn(),
+      updateMany: vi.fn(),
     },
     user: {
       findUnique: vi.fn(),
@@ -196,6 +197,57 @@ describe('ChatService monthly summary flow', () => {
     expect(result.message).toContain('₹950');
     expect(items.map((item: any) => item.description)).toEqual(['dosa', 'chai', 'coffee', 'auto']);
     expect(result.suggestedChips).toEqual([]);
+  });
+
+  it.each([
+    ['coffee 400', 'coffee', 400],
+    ['chai 60', 'chai', 60],
+    ['lunch 500', 'lunch', 500],
+    ['500 lunch', 'lunch', 500],
+  ])('parses single shorthand "%s" into a pending transaction confirmation', async (message, description, amount) => {
+    vi.mocked(prisma.chatMessage.create).mockResolvedValue({
+      id: 'm1c',
+      role: 'ASSISTANT',
+      content: 'ok',
+      createdAt: new Date(),
+    } as any);
+
+    const result = await service.processMessage('user-1', message);
+
+    expect(result.confirmationCard?.type).toBe('transaction');
+    expect((result.confirmationCard?.data as any).description).toBe(description);
+    expect((result.confirmationCard?.data as any).amount).toBe(amount);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('keeps natural expense commands as pending transaction confirmations', async () => {
+    vi.mocked(prisma.chatMessage.create).mockResolvedValue({
+      id: 'm1d',
+      role: 'ASSISTANT',
+      content: 'ok',
+      createdAt: new Date(),
+    } as any);
+
+    const result = await service.processMessage('user-1', 'spent 400 on burger');
+
+    expect(result.confirmationCard?.type).toBe('transaction');
+    expect((result.confirmationCard?.data as any).description).toBe('burger');
+    expect((result.confirmationCard?.data as any).amount).toBe(400);
+  });
+
+  it('keeps multi-item amount-first commands on the bulk confirmation path', async () => {
+    vi.mocked(prisma.chatMessage.create).mockResolvedValue({
+      id: 'm1e',
+      role: 'ASSISTANT',
+      content: 'ok',
+      createdAt: new Date(),
+    } as any);
+
+    const result = await service.processMessage('user-1', '500 coffee 300 chai 800 burger');
+
+    expect(result.confirmationCard?.type).toBe('bulk_transaction');
+    expect((result.confirmationCard?.data as any).items).toHaveLength(3);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
   it('parses income list header into a pending bulk confirmation', async () => {
@@ -666,6 +718,70 @@ describe('ChatService monthly summary flow', () => {
     });
   });
 
+  it('cancels a single pending confirmation and hides the original user command', async () => {
+    vi.mocked(prisma.pendingConfirmation.findFirst).mockResolvedValue({
+      id: 'pending-1',
+      userId: 'user-1',
+      type: 'transaction',
+      data: JSON.stringify({
+        amount: 400,
+        description: 'coffee',
+        category: 'Food',
+        type: 'expense',
+        date: null,
+        sourceUserMessageId: 'user-msg-1',
+      }),
+      status: 'PENDING',
+    } as any);
+    vi.mocked(prisma.pendingConfirmation.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.chatMessage.updateMany).mockResolvedValue({ count: 1 } as any);
+
+    const result = await service.cancelAction('user-1', 'pending-1');
+
+    expect(result.message).toBe('');
+    expect(result.metadata).toBe(JSON.stringify({ hiddenMessageId: 'user-msg-1' }));
+    expect(prisma.chatMessage.updateMany).toHaveBeenCalledWith({
+      where: { id: 'user-msg-1', userId: 'user-1', role: 'USER' },
+      data: {
+        metadata: JSON.stringify({
+          hiddenFromChat: true,
+          hiddenReason: 'cancelled_confirmation',
+        }),
+      },
+    });
+    expect(prisma.pendingConfirmation.update).toHaveBeenCalledWith({
+      where: { id: 'pending-1' },
+      data: { status: 'CANCELLED', resolvedAt: expect.any(Date) },
+    });
+  });
+
+  it('cancels a bulk pending confirmation and hides the original user command', async () => {
+    vi.mocked(prisma.pendingConfirmation.findFirst).mockResolvedValue({
+      id: 'pending-bulk',
+      userId: 'user-1',
+      type: 'bulk_transaction',
+      data: JSON.stringify({
+        items: [
+          { amount: 500, description: 'coffee', category: 'Food', type: 'expense', date: null },
+          { amount: 300, description: 'chai', category: 'Food', type: 'expense', date: null },
+        ],
+        skippedLines: [],
+        sourceUserMessageId: 'bulk-user-msg',
+      }),
+      status: 'PENDING',
+    } as any);
+    vi.mocked(prisma.pendingConfirmation.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.chatMessage.updateMany).mockResolvedValue({ count: 1 } as any);
+
+    const result = await service.cancelAction('user-1', 'pending-bulk');
+
+    expect(result.message).toBe('');
+    expect(result.metadata).toBe(JSON.stringify({ hiddenMessageId: 'bulk-user-msg' }));
+    expect(prisma.chatMessage.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'bulk-user-msg', userId: 'user-1', role: 'USER' },
+    }));
+  });
+
   it('returns latest chat history in chronological display order', async () => {
     const newest = { id: 'm3', role: 'ASSISTANT', content: 'newest', createdAt: new Date('2026-01-03') };
     const middle = { id: 'm2', role: 'USER', content: 'middle', createdAt: new Date('2026-01-02') };
@@ -681,5 +797,21 @@ describe('ChatService monthly summary flow', () => {
       skip: 0,
     }));
     expect(result.map((message) => message.id)).toEqual(['m1', 'm2', 'm3']);
+  });
+
+  it('excludes hidden cancelled-command messages from chat history', async () => {
+    const visible = { id: 'm2', role: 'ASSISTANT', content: 'visible', metadata: null, createdAt: new Date('2026-01-02') };
+    const hidden = {
+      id: 'm1',
+      role: 'USER',
+      content: 'coffee 400',
+      metadata: JSON.stringify({ hiddenFromChat: true, hiddenReason: 'cancelled_confirmation' }),
+      createdAt: new Date('2026-01-01'),
+    };
+    vi.mocked(prisma.chatMessage.findMany).mockResolvedValue([visible, hidden] as any);
+
+    const result = await service.getHistory('user-1', 50, 0);
+
+    expect(result.map((message) => message.id)).toEqual(['m2']);
   });
 });

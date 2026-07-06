@@ -35,7 +35,7 @@ interface ChatState {
   sendMessage: (content: string) => Promise<void>;
   confirm: (cardId: string) => Promise<void>;
   edit: (cardId: string, data: Record<string, unknown>) => Promise<void>;
-  cancel: () => void;
+  cancel: () => Promise<void>;
   clearToast: () => void;
   retryLastAction: () => Promise<void>;
 }
@@ -135,9 +135,7 @@ export const useChatStore = create<ChatState>((set, get) => {
 
     edit: async (cardId: string, data: Record<string, unknown>) => executeEdit(cardId, data),
 
-    cancel: () => {
-      set({ pendingConfirmation: null, conversationState: 'IDLE' });
-    },
+    cancel: async () => executeSendMessage('Cancel', false),
 
     clearToast: () => set({ toast: null }),
 
@@ -211,18 +209,35 @@ function applyPayload(
   get: () => ChatState,
   payload: ChatResponsePayload
 ) {
-  const messages = payload.confirmationCard
-    ? get().messages
-    : [
-        ...get().messages,
-        {
-          id: `asst-${Date.now()}`,
-          role: 'ASSISTANT' as const,
-          content: payload.message,
-          metadata: undefined,
-          createdAt: new Date().toISOString(),
-        },
-      ];
+  const hiddenMessageId = getHiddenMessageId(payload.metadata);
+  const sourceUserMessageId = getSourceUserMessageId(payload.confirmationCard);
+  let messages = get().messages;
+
+  if (sourceUserMessageId) {
+    const lastUserIndex = findLastUserMessageIndex(messages);
+    if (lastUserIndex >= 0) {
+      messages = messages.map((message, index) =>
+        index === lastUserIndex ? { ...message, id: sourceUserMessageId } : message
+      );
+    }
+  }
+
+  if (hiddenMessageId) {
+    messages = messages.filter((message) => message.id !== hiddenMessageId);
+  }
+
+  if (!payload.confirmationCard && payload.message.trim().length > 0) {
+    messages = [
+      ...messages,
+      {
+        id: `asst-${Date.now()}`,
+        role: 'ASSISTANT' as const,
+        content: payload.message,
+        metadata: undefined,
+        createdAt: new Date().toISOString(),
+      },
+    ];
+  }
 
   set({
     messages,
@@ -234,4 +249,26 @@ function applyPayload(
     isFallbackMode: payload.isFallbackMode,
     toast: null,
   });
+}
+
+function findLastUserMessageIndex(messages: ChatMessage[]): number {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index].role === 'USER') return index;
+  }
+  return -1;
+}
+
+function getSourceUserMessageId(card: ConfirmationCard | null): string | null {
+  const data = card?.data as { sourceUserMessageId?: unknown } | undefined;
+  return typeof data?.sourceUserMessageId === 'string' ? data.sourceUserMessageId : null;
+}
+
+function getHiddenMessageId(metadata?: string | null): string | null {
+  if (!metadata) return null;
+  try {
+    const parsed = JSON.parse(metadata);
+    return typeof parsed?.hiddenMessageId === 'string' ? parsed.hiddenMessageId : null;
+  } catch {
+    return null;
+  }
 }

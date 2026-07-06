@@ -152,6 +152,10 @@ export interface BudgetEntities {
   period: 'monthly' | 'weekly';
 }
 
+export interface PendingConfirmationMetadata {
+  sourceUserMessageId?: string;
+}
+
 export interface BulkTransactionEntities {
   items: TransactionEntities[];
   skippedLines: string[];
@@ -168,7 +172,7 @@ export interface ParsedIntent {
 export interface ConfirmationCard {
   id: string;
   type: 'transaction' | 'budget' | 'bulk_transaction';
-  data: TransactionEntities | BudgetEntities | BulkTransactionEntities;
+  data: (TransactionEntities | BudgetEntities | BulkTransactionEntities) & PendingConfirmationMetadata;
   status: 'PENDING' | 'CONFIRMED' | 'EDITED' | 'CANCELLED' | 'EXPIRED';
 }
 
@@ -195,6 +199,7 @@ export interface ChatResponsePayload {
   conversationState: ConversationStateType;
   rateLimitInfo: RateLimitInfo | null;
   isFallbackMode: boolean;
+  metadata?: string | null;
 }
 
 export interface ConversationState {

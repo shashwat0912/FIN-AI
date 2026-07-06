@@ -66,7 +66,7 @@ export class ChatService {
     }
 
     // Persist user message
-    await prisma.chatMessage.create({
+    const userMessage = await prisma.chatMessage.create({
       data: { userId, role: 'USER', content, tokenCount: Math.ceil(content.split(/\s+/).length / 0.75) },
     });
 
@@ -96,7 +96,23 @@ export class ChatService {
     // youtube 300
     const bulkParse = this.tryParseBulkTransactionList(content);
     if (bulkParse && bulkParse.items.length >= 2) {
-      return this.handleBulkTransactionConfirmation(userId, bulkParse);
+      return this.handleBulkTransactionConfirmation(userId, bulkParse, userMessage.id);
+    }
+
+    const singleParsedLine = this.parseBulkTransactionLine(content, 'expense', null);
+    if (singleParsedLine) {
+      return this.handleLogTransaction(
+        userId,
+        {
+          amount: singleParsedLine.amount,
+          description: singleParsedLine.description,
+          category: singleParsedLine.categoryHint || null,
+          type: singleParsedLine.type,
+          date: null,
+        },
+        { isFallback: true },
+        userMessage.id
+      );
     }
 
     // Normalize so "50   dosa" parses like "50 dosa"
@@ -108,7 +124,7 @@ export class ChatService {
     switch (parsed.intent) {
       case ChatIntentType.LOG_EXPENSE:
       case ChatIntentType.LOG_INCOME:
-        response = await this.handleLogTransaction(userId, parsed.entities as TransactionEntities, parsed);
+        response = await this.handleLogTransaction(userId, parsed.entities as TransactionEntities, parsed, userMessage.id);
         break;
       case ChatIntentType.QUERY_SPENDING:
       case ChatIntentType.QUERY_INCOME:
@@ -328,15 +344,35 @@ export class ChatService {
   }
 
   async cancelAction(userId: string, confirmationId: string): Promise<ChatResponsePayload> {
-    await prisma.pendingConfirmation.updateMany({
+    const pending = await prisma.pendingConfirmation.findFirst({
       where: { id: confirmationId, userId, status: 'PENDING' },
-      data: { status: 'CANCELLED', resolvedAt: new Date() },
     });
+
+    const sourceUserMessageId = pending ? this.getSourceUserMessageId(pending.data) : null;
+
+    if (sourceUserMessageId) {
+      await prisma.chatMessage.updateMany({
+        where: { id: sourceUserMessageId, userId, role: 'USER' },
+        data: {
+          metadata: JSON.stringify({
+            hiddenFromChat: true,
+            hiddenReason: 'cancelled_confirmation',
+          }),
+        },
+      });
+    }
+
+    if (pending) {
+      await prisma.pendingConfirmation.update({
+        where: { id: confirmationId },
+        data: { status: 'CANCELLED', resolvedAt: new Date() },
+      });
+    }
 
     await this.fsm.transition(userId, 'CANCELLED');
 
-    return this.makeResponse('Cancelled.', {
-      suggestedChips: ['Log expense', 'Log income', 'Check budget'],
+    return this.makeResponse('', {
+      metadata: sourceUserMessageId ? JSON.stringify({ hiddenMessageId: sourceUserMessageId }) : null,
     });
   }
 
@@ -355,7 +391,25 @@ export class ChatService {
         createdAt: true,
       },
     });
-    return messages.reverse();
+    return messages.reverse().filter((message) => !this.isHiddenFromChat(message.metadata));
+  }
+
+  private getSourceUserMessageId(rawData: string): string | null {
+    try {
+      const data = JSON.parse(rawData);
+      return typeof data?.sourceUserMessageId === 'string' ? data.sourceUserMessageId : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private isHiddenFromChat(metadata: string | null): boolean {
+    if (!metadata) return false;
+    try {
+      return JSON.parse(metadata)?.hiddenFromChat === true;
+    } catch {
+      return false;
+    }
   }
 
   // --- Private handlers ---
@@ -363,7 +417,8 @@ export class ChatService {
   private async handleLogTransaction(
     userId: string,
     entities: TransactionEntities,
-    _parsed: { isFallback?: boolean }
+    _parsed: { isFallback?: boolean },
+    sourceUserMessageId?: string
   ): Promise<ChatResponsePayload> {
     entities.description = this.normalizeTransactionDescription(entities.description, entities.type);
     entities.category = this.normalizeCategoryLabel(entities.category, entities.type, entities.description);
@@ -386,7 +441,8 @@ export class ChatService {
       entities.type === 'income' ? ChatIntentType.LOG_INCOME : ChatIntentType.LOG_EXPENSE,
       'transaction',
       entities,
-      20
+      20,
+      sourceUserMessageId
     );
 
     return this.makeResponse(
@@ -1091,7 +1147,8 @@ export class ChatService {
 
   private async handleBulkTransactionConfirmation(
     userId: string,
-    parsed: BulkTransactionParseResult
+    parsed: BulkTransactionParseResult,
+    sourceUserMessageId?: string
   ): Promise<ChatResponsePayload> {
     const normalizedTransactions = await this.normalizeBulkTransactions(userId, parsed);
     const total = normalizedTransactions.reduce((sum, item) => sum + item.amount, 0);
@@ -1109,7 +1166,8 @@ export class ChatService {
       dominantIntent,
       'bulk_transaction',
       data,
-      Math.ceil(confirmationMessage.split(/\s+/).length / 0.75)
+      Math.ceil(confirmationMessage.split(/\s+/).length / 0.75),
+      sourceUserMessageId
     );
 
     return this.makeResponse(confirmationMessage, {
@@ -1124,8 +1182,13 @@ export class ChatService {
     intent: ChatIntentType,
     type: ConfirmationCard['type'],
     data: ConfirmationCard['data'],
-    tokenCount: number
+    tokenCount: number,
+    sourceUserMessageId?: string
   ): Promise<ConfirmationCard> {
+    const pendingData = sourceUserMessageId
+      ? { ...data, sourceUserMessageId }
+      : data;
+
     const assistantMsg = await prisma.chatMessage.create({
       data: {
         userId,
@@ -1141,7 +1204,7 @@ export class ChatService {
         userId,
         chatMessageId: assistantMsg.id,
         type,
-        data: JSON.stringify(data),
+        data: JSON.stringify(pendingData),
         expiresAt: new Date(Date.now() + 5 * 60 * 1000),
       },
     });
@@ -1151,7 +1214,7 @@ export class ChatService {
     return {
       id: pending.id,
       type,
-      data,
+      data: pendingData,
       status: 'PENDING',
     };
   }

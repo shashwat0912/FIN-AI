@@ -266,4 +266,5 @@ export interface ChatResponsePayload {
   conversationState: string;
   rateLimitInfo: ChatRateLimitInfo | null;
   isFallbackMode: boolean;
+  metadata?: string | null;
 }
