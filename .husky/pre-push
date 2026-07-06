@@ -1,13 +1,7 @@
-#!/usr/bin/env sh
-. "$(dirname "$0")/_/husky.sh"
-
 npm run -s typecheck || exit 1
-( cd server && npm run -s build >/dev/null 2>&1 || npm run -s typecheck ) || exit 1
+npm --prefix backend run -s build >/dev/null || exit 1
 
 npm run -s test:run || exit 1
-( cd server && npm run -s test ) || exit 1
-
-
 
 
 

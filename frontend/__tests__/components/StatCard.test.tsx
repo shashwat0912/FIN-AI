@@ -27,7 +27,7 @@ describe('StatCard Component', () => {
     render(<StatCard {...mockStatData} />);
 
     const changeElement = screen.getByText('+5.2%');
-    expect(changeElement).toHaveClass('text-green-600');
+    expect(changeElement).toHaveClass('text-accent');
   });
 
   it('should render with downward trend styling', () => {
@@ -41,7 +41,7 @@ describe('StatCard Component', () => {
     render(<StatCard {...downwardStat} />);
 
     const changeElement = screen.getByText('-2.1%');
-    expect(changeElement).toHaveClass('text-red-600');
+    expect(changeElement).toHaveClass('text-danger');
   });
 
   it('should render without optional props', () => {
@@ -114,7 +114,6 @@ describe('StatCard Component', () => {
     });
   });
 });
-
 
 
 
