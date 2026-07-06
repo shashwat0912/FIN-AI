@@ -136,8 +136,8 @@ describe('ChatService monthly summary flow', () => {
     } as any);
 
     vi.mocked(prisma.transaction.findMany).mockResolvedValue([
-      { amount: 400, category: 'Food', type: 'EXPENSE' },
-      { amount: 600, category: 'Transport', type: 'EXPENSE' },
+      { amount: 400, category: 'Food & Dining', type: 'EXPENSE' },
+      { amount: 600, category: 'Transportation', type: 'EXPENSE' },
     ] as any);
 
     vi.mocked(prisma.chatMessage.create).mockResolvedValue({
@@ -199,6 +199,54 @@ describe('ChatService monthly summary flow', () => {
     expect(result.suggestedChips).toEqual([]);
   });
 
+  it('fuzzy-matches known item keywords in single-line bulk entries', async () => {
+    vi.mocked(prisma.chatMessage.create).mockResolvedValue({
+      id: 'm1b-typos',
+      role: 'ASSISTANT',
+      content: 'ok',
+      createdAt: new Date(),
+    } as any);
+
+    const result = await service.processMessage(
+      'user-1',
+      '50 dosa 60 idli 80 samosa 90 lynch'
+    );
+
+    const items = (result.confirmationCard?.data as any).items;
+    expect(result.confirmationCard?.type).toBe('bulk_transaction');
+    expect(items).toHaveLength(4);
+    expect(items.map((item: any) => item.category)).toEqual([
+      'Food & Dining',
+      'Food & Dining',
+      'Food & Dining',
+      'Food & Dining',
+    ]);
+  });
+
+  it('fuzzy-matches known item keywords in description-first bulk entries', async () => {
+    vi.mocked(prisma.chatMessage.create).mockResolvedValue({
+      id: 'm1b-description-typos',
+      role: 'ASSISTANT',
+      content: 'ok',
+      createdAt: new Date(),
+    } as any);
+
+    const result = await service.processMessage(
+      'user-1',
+      'dosa 50 idli 60 samosa 80 lynch 90'
+    );
+
+    const items = (result.confirmationCard?.data as any).items;
+    expect(result.confirmationCard?.type).toBe('bulk_transaction');
+    expect(items.map((item: any) => item.description)).toEqual(['dosa', 'idli', 'samosa', 'lynch']);
+    expect(items.map((item: any) => item.category)).toEqual([
+      'Food & Dining',
+      'Food & Dining',
+      'Food & Dining',
+      'Food & Dining',
+    ]);
+  });
+
   it.each([
     ['coffee 400', 'coffee', 400],
     ['chai 60', 'chai', 60],
@@ -218,6 +266,54 @@ describe('ChatService monthly summary flow', () => {
     expect((result.confirmationCard?.data as any).description).toBe(description);
     expect((result.confirmationCard?.data as any).amount).toBe(amount);
     expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['food 400', 'Food & Dining'],
+    ['fod 400', 'Food & Dining'],
+    ['foood 400', 'Food & Dining'],
+    ['coffee 400', 'Food & Dining'],
+    ['burger 400', 'Food & Dining'],
+    ['lynch 90', 'Food & Dining'],
+    ['cofee 40', 'Food & Dining'],
+    ['burgar 120', 'Food & Dining'],
+    ['sandwitch 100', 'Food & Dining'],
+    ['transport 80', 'Transportation'],
+    ['transprt 80', 'Transportation'],
+    ['uber 500', 'Transportation'],
+    ['ubbr 200', 'Transportation'],
+    ['grocery 500', 'Groceries & Household'],
+    ['groceries 500', 'Groceries & Household'],
+    ['shopping 500', 'Shopping & Clothing'],
+    ['shoping 500', 'Shopping & Clothing'],
+    ['misc 100', 'Miscellaneous'],
+  ])('uses canonical selector category for "%s"', async (message, category) => {
+    vi.mocked(prisma.chatMessage.create).mockResolvedValue({
+      id: 'm-category',
+      role: 'ASSISTANT',
+      content: 'ok',
+      createdAt: new Date(),
+    } as any);
+
+    const result = await service.processMessage('user-1', message);
+
+    expect(result.confirmationCard?.type).toBe('transaction');
+    expect((result.confirmationCard?.data as any).category).toBe(category);
+  });
+
+  it('keeps salary shorthand as income', async () => {
+    vi.mocked(prisma.chatMessage.create).mockResolvedValue({
+      id: 'm-salary',
+      role: 'ASSISTANT',
+      content: 'ok',
+      createdAt: new Date(),
+    } as any);
+
+    const result = await service.processMessage('user-1', 'salary 60000');
+
+    expect(result.confirmationCard?.type).toBe('transaction');
+    expect((result.confirmationCard?.data as any).type).toBe('income');
+    expect((result.confirmationCard?.data as any).category).toBe('Salary/Wages');
   });
 
   it('keeps natural expense commands as pending transaction confirmations', async () => {
@@ -307,10 +403,10 @@ describe('ChatService monthly summary flow', () => {
     expect(items).toHaveLength(7);
     expect((result.confirmationCard?.data as any).skippedLines).toEqual([]);
     expect(items[6].description).toBe('SIP');
-    expect(items[6].category).toBe('Investment');
+    expect(items[6].category).toBe('Mutual Fund SIP');
   });
 
-  it('categorizes single-line SIP entries as Investment instead of Miscellaneous', async () => {
+  it('categorizes single-line SIP entries as Mutual Fund SIP instead of Miscellaneous', async () => {
     vi.mocked(prisma.chatMessage.create).mockResolvedValue({
       id: 'm5',
       role: 'ASSISTANT',
@@ -322,11 +418,11 @@ describe('ChatService monthly summary flow', () => {
 
     expect(result.confirmationCard).not.toBeNull();
     expect(result.confirmationCard?.type).toBe('transaction');
-    expect((result.confirmationCard?.data as any).category).toBe('Investment');
-    expect(result.message).toContain('Investment');
+    expect((result.confirmationCard?.data as any).category).toBe('Mutual Fund SIP');
+    expect(result.message).toContain('Mutual Fund SIP');
   });
 
-  it('treats dividend-style entries as income and categorizes them as Investment', async () => {
+  it('treats dividend-style entries as income and categorizes them as Dividend Income', async () => {
     vi.mocked(prisma.chatMessage.create).mockResolvedValue({
       id: 'm6',
       role: 'ASSISTANT',
@@ -338,8 +434,8 @@ describe('ChatService monthly summary flow', () => {
 
     expect(result.confirmationCard).not.toBeNull();
     expect((result.confirmationCard?.data as any).type).toBe('income');
-    expect((result.confirmationCard?.data as any).category).toBe('Investment');
-    expect(result.message).toContain('Investment');
+    expect((result.confirmationCard?.data as any).category).toBe('Dividend Income');
+    expect(result.message).toContain('Dividend Income');
   });
 
   it('starts expense capture mode instead of creating a fake quick-action transaction', async () => {
@@ -385,7 +481,7 @@ describe('ChatService monthly summary flow', () => {
     expect(result.conversationState).toBe('AWAITING_CONFIRMATION');
     expect((result.confirmationCard?.data as any).amount).toBe(400);
     expect((result.confirmationCard?.data as any).description).toBe('burger');
-    expect((result.confirmationCard?.data as any).category).toBe('Food');
+    expect((result.confirmationCard?.data as any).category).toBe('Food & Dining');
   });
 
   it('applies typed edits while awaiting confirmation and keeps confirmation state', async () => {
@@ -405,7 +501,7 @@ describe('ChatService monthly summary flow', () => {
       data: JSON.stringify({
         amount: 400,
         description: 'burger',
-        category: 'Food',
+        category: 'Food & Dining',
         type: 'expense',
         date: null,
       }),
@@ -424,7 +520,7 @@ describe('ChatService monthly summary flow', () => {
     expect(result.conversationState).toBe('AWAITING_CONFIRMATION');
     expect(result.confirmationCard).not.toBeNull();
     expect((result.confirmationCard?.data as any).amount).toBe(500);
-    expect((result.confirmationCard?.data as any).category).toBe('Transport');
+    expect((result.confirmationCard?.data as any).category).toBe('Transportation');
     expect(fsmMocks.resetToIdle).not.toHaveBeenCalled();
     expect(fsmMocks.transition).toHaveBeenCalledWith(
       'user-1',
@@ -480,7 +576,7 @@ describe('ChatService monthly summary flow', () => {
       data: JSON.stringify({
         amount: 400,
         description: 'burger',
-        category: 'Food',
+        category: 'Food & Dining',
         type: 'expense',
         date: null,
       }),
@@ -545,7 +641,7 @@ describe('ChatService monthly summary flow', () => {
     expect(result.confirmationCard).not.toBeNull();
     expect((result.confirmationCard?.data as any).amount).toBe(400);
     expect((result.confirmationCard?.data as any).description).toBe('burger');
-    expect((result.confirmationCard?.data as any).category).toBe('Food');
+    expect((result.confirmationCard?.data as any).category).toBe('Food & Dining');
   });
 
   it('recalculates category when edited description changes without explicit category', async () => {
@@ -556,7 +652,7 @@ describe('ChatService monthly summary flow', () => {
       data: JSON.stringify({
         amount: 200,
         description: 'autp',
-        category: 'Food',
+        category: 'Food & Dining',
         type: 'expense',
         date: null,
       }),
@@ -568,7 +664,7 @@ describe('ChatService monthly summary flow', () => {
 
     expect(result.confirmationCard).not.toBeNull();
     expect((result.confirmationCard?.data as any).description).toBe('auto');
-    expect((result.confirmationCard?.data as any).category).toBe('Transport');
+    expect((result.confirmationCard?.data as any).category).toBe('Transportation');
   });
 
   it('recalculates category to Transport when edited description changes to Cab', async () => {
@@ -579,7 +675,7 @@ describe('ChatService monthly summary flow', () => {
       data: JSON.stringify({
         amount: 200,
         description: 'misc',
-        category: 'Food',
+        category: 'Food & Dining',
         type: 'expense',
         date: null,
       }),
@@ -591,7 +687,7 @@ describe('ChatService monthly summary flow', () => {
 
     expect(result.confirmationCard).not.toBeNull();
     expect((result.confirmationCard?.data as any).description).toBe('Cab');
-    expect((result.confirmationCard?.data as any).category).toBe('Transport');
+    expect((result.confirmationCard?.data as any).category).toBe('Transportation');
   });
 
   it('does not recalculate category when category is explicitly edited', async () => {
@@ -617,7 +713,7 @@ describe('ChatService monthly summary flow', () => {
 
     expect(result.confirmationCard).not.toBeNull();
     expect((result.confirmationCard?.data as any).description).toBe('auto');
-    expect((result.confirmationCard?.data as any).category).toBe('Food');
+    expect((result.confirmationCard?.data as any).category).toBe('Food & Dining');
   });
 
   it('blocks unrelated messages while a confirmation is pending', async () => {
@@ -653,7 +749,7 @@ describe('ChatService monthly summary flow', () => {
       data: JSON.stringify({
         amount: 500,
         description: 'chai',
-        category: 'Food',
+        category: 'Food & Dining',
         type: 'expense',
         date: null,
       }),
@@ -670,7 +766,7 @@ describe('ChatService monthly summary flow', () => {
 
     const result = await service.confirmAction('user-1', 'pending-1');
 
-    expect(result.message).toContain('Logged ₹500 as Food');
+    expect(result.message).toContain('Logged ₹500 as Food & Dining');
     expect(result.message).toContain('chai · Today');
     expect(prisma.chatMessage.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -689,8 +785,8 @@ describe('ChatService monthly summary flow', () => {
       type: 'bulk_transaction',
       data: JSON.stringify({
         items: [
-          { amount: 500, description: 'chai', category: 'Food', type: 'expense', date: null },
-          { amount: 300, description: 'coffee', category: 'Food', type: 'expense', date: null },
+          { amount: 500, description: 'chai', category: 'Food & Dining', type: 'expense', date: null },
+          { amount: 300, description: 'coffee', category: 'Food & Dining', type: 'expense', date: null },
         ],
         skippedLines: [],
       }),
@@ -726,7 +822,7 @@ describe('ChatService monthly summary flow', () => {
       data: JSON.stringify({
         amount: 400,
         description: 'coffee',
-        category: 'Food',
+        category: 'Food & Dining',
         type: 'expense',
         date: null,
         sourceUserMessageId: 'user-msg-1',
@@ -762,8 +858,8 @@ describe('ChatService monthly summary flow', () => {
       type: 'bulk_transaction',
       data: JSON.stringify({
         items: [
-          { amount: 500, description: 'coffee', category: 'Food', type: 'expense', date: null },
-          { amount: 300, description: 'chai', category: 'Food', type: 'expense', date: null },
+          { amount: 500, description: 'coffee', category: 'Food & Dining', type: 'expense', date: null },
+          { amount: 300, description: 'chai', category: 'Food & Dining', type: 'expense', date: null },
         ],
         skippedLines: [],
         sourceUserMessageId: 'bulk-user-msg',

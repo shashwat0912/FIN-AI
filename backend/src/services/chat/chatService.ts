@@ -477,6 +477,9 @@ export class ChatService {
       }
     }
 
+    const explicitCategory = this.matchCanonicalCategory(description, entities.type);
+    if (explicitCategory) return explicitCategory;
+
     const staticCategory = this.getStaticCategoryFromDescription(description, entities.type);
     return staticCategory || defaultCategory;
   }
@@ -489,6 +492,22 @@ export class ChatService {
     if (normalizedKeyword.length >= 3 && normalizedText.includes(normalizedKeyword)) return true;
     const keywordParts = normalizedKeyword.split(/\s+/).filter((p) => p.length >= 4);
     return keywordParts.some((p) => normalizedText.includes(p));
+  }
+
+  private fuzzyKeywordMatches(text: string, keyword: string): boolean {
+    const normalizedKeyword = this.normalizeCategoryText(keyword);
+    if (normalizedKeyword.length < 4) return false;
+
+    const words = this.normalizeCategoryText(text).split(/\s+/).filter((word) => word.length >= 4);
+    const candidates = normalizedKeyword.includes(' ')
+      ? [this.normalizeCategoryText(text)]
+      : words;
+    const maxDistance = normalizedKeyword.length <= 6 ? 1 : 2;
+
+    return candidates.some((candidate) =>
+      Math.abs(candidate.length - normalizedKeyword.length) <= maxDistance &&
+      this.levenshteinDistance(candidate, normalizedKeyword) <= maxDistance
+    );
   }
 
   private getStaticCategoryFromDescription(description: string, type: 'income' | 'expense'): string | null {
@@ -534,6 +553,9 @@ export class ChatService {
     for (const [category, keywords] of Object.entries(keywordMap)) {
       if (keywords.some((kw) => this.keywordMatches(description, kw))) return category;
     }
+    for (const [category, keywords] of Object.entries(keywordMap)) {
+      if (keywords.some((kw) => this.fuzzyKeywordMatches(description, kw))) return category;
+    }
     return null;
   }
 
@@ -572,9 +594,13 @@ export class ChatService {
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { timezone: true } });
     const tz = user?.timezone || 'Asia/Kolkata';
     const { startDate, endDate } = this.dateResolver.resolveTimeRange(entities.timeRange, tz);
+    const category = this.normalizeCategoryLabel(
+      entities.category,
+      entities.type === 'income' ? 'income' : 'expense'
+    );
 
     const where: any = { userId, date: { gte: startDate, lte: endDate } };
-    if (entities.category) where.category = entities.category;
+    if (category) where.category = category;
     if (entities.type !== 'both') where.type = entities.type === 'income' ? 'INCOME' : 'EXPENSE';
 
     const transactions = await prisma.transaction.findMany({ where });
@@ -593,7 +619,7 @@ export class ChatService {
       : null;
 
     const typeLabel = entities.type === 'income' ? 'earned' : 'spent';
-    const catLabel = entities.category ? ` on ${entities.category}` : '';
+    const catLabel = category ? ` on ${category}` : '';
     const message = `You ${typeLabel} ₹${total.toLocaleString('en-IN')}${catLabel} (${entities.timeRange.replace('_', ' ')}) across ${count} transaction(s).`;
 
     await this.fsm.transition(userId, 'RESPONSE_SENT');
@@ -1099,43 +1125,13 @@ export class ChatService {
     const normalized = (category || '').trim();
     if (!normalized) return null;
 
-    const normalizedLower = normalized.toLowerCase();
-    const aliasMap: Record<'income' | 'expense', Record<string, string[]>> = {
-      income: {
-        Salary: ['salary', 'salary/wages', 'wages', 'payroll'],
-        Freelance: ['freelance', 'freelancing', 'consulting', 'consultancy'],
-        Business: ['business', 'business income'],
-        Investment: ['investment', 'investment returns', 'dividend income', 'capital gains', 'capital gain'],
-        Interest: ['interest', 'interest income'],
-        Refund: ['refund', 'cashback', 'reimbursement'],
-        Gift: ['gift', 'cash gift'],
-      },
-      expense: {
-        Food: ['food', 'dining', 'groceries', 'grocery'],
-        Transport: ['transport', 'travel', 'fuel'],
-        Shopping: ['shopping', 'shopping & clothing', 'clothing'],
-        Rent: ['rent', 'housing'],
-        Health: ['health', 'healthcare', 'medical'],
-        Entertainment: ['entertainment', 'entertainment & movies', 'movies', 'subscription', 'subscriptions', 'ott'],
-        Utilities: ['utilities', 'bills', 'bills & utilities'],
-        Education: ['education', 'education & courses', 'courses'],
-        Investment: ['investment', 'investments', 'mutual fund sip', 'mutual funds', 'stocks', 'shares', 'etf', 'ppf', 'nps', 'fixed deposits'],
-        Savings: ['savings', 'saving', 'emergency fund'],
-        Insurance: ['insurance', 'premium'],
-        Loan: ['loan', 'emi', 'debt'],
-      },
-    };
-
-    for (const [canonical, aliases] of Object.entries(aliasMap[type])) {
-      if (aliases.some((alias) => this.keywordMatches(normalizedLower, alias))) {
-        return canonical;
-      }
-    }
+    const canonical = this.matchCanonicalCategory(normalized, type);
+    if (canonical) return canonical;
 
     if (type === 'expense' && description) {
       const descriptionLower = description.toLowerCase();
       if (this.keywordMatches(descriptionLower, 'sip') || this.keywordMatches(descriptionLower, 'mutual fund')) {
-        return 'Investment';
+        return 'Mutual Fund SIP';
       }
     }
 
@@ -1143,6 +1139,105 @@ export class ChatService {
       .split(/\s+/)
       .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
       .join(' ');
+  }
+
+  private matchCanonicalCategory(
+    raw: string | null | undefined,
+    type: 'income' | 'expense'
+  ): string | null {
+    const input = this.normalizeCategoryText(raw);
+    if (!input) return null;
+
+    // ponytail: mirrored from frontend/data/categories.ts until categories are shared.
+    const aliasMap: Record<'income' | 'expense', Record<string, string[]>> = {
+      income: {
+        'Salary/Wages': ['salary', 'wages', 'payroll'],
+        'Business Income': ['business'],
+        'Freelancing/Consulting': ['freelance', 'freelancing', 'consulting', 'consultancy'],
+        'Investment Returns': ['investment', 'investment returns'],
+        'Rental Income': ['rental income', 'rent income'],
+        'Interest Income': ['interest'],
+        'Dividend Income': ['dividend'],
+        'Capital Gains': ['capital gain', 'capital gains'],
+      },
+      expense: {
+        'Food & Dining': ['food', 'dining'],
+        'Groceries & Household': ['grocery', 'groceries', 'household'],
+        Transportation: ['transport', 'transportation', 'travel'],
+        'Fuel & Vehicle Maintenance': ['fuel', 'petrol', 'diesel'],
+        'Mobile & Internet Bills': ['mobile', 'internet', 'phone'],
+        Utilities: ['utilities', 'utility', 'electricity', 'water', 'gas'],
+        'EMI Payments': ['emi'],
+        'Insurance Premiums': ['insurance', 'premium'],
+        'House Rent/Maintenance': ['rent', 'housing', 'maintenance'],
+        'Domestic Help': ['domestic help', 'maid', 'cook'],
+        'Medical & Healthcare': ['health', 'healthcare', 'medical'],
+        'Education & Courses': ['education', 'course', 'courses'],
+        'Religious & Donations': ['religious', 'donation', 'donations'],
+        'Mutual Fund SIP': ['investment', 'investments', 'mutual fund sip', 'mutual funds', 'sip'],
+        'Fixed Deposits': ['fixed deposit', 'fixed deposits', 'fd'],
+        'Gold/Jewelry': ['gold', 'jewelry', 'jewellery'],
+        'Real Estate': ['real estate', 'property'],
+        'Entertainment & Movies': ['entertainment', 'movies', 'movie'],
+        'Shopping & Clothing': ['shopping', 'clothing', 'clothes'],
+        'Travel & Vacation': ['vacation', 'hotel', 'flight'],
+        'Gifts & Celebrations': ['gift', 'gifts', 'celebration', 'celebrations'],
+        'Personal Care & Beauty': ['personal care', 'beauty', 'grooming'],
+        'Haircut & Salon Services': ['haircut', 'salon'],
+        'Spa & Beauty Treatments': ['spa', 'facial', 'massage'],
+        'Personal Care Products': ['shampoo', 'soap', 'deodorant', 'hygiene'],
+        'Sexual Wellness & Contraceptives': ['sexual wellness', 'contraceptives'],
+        'Cosmetics & Skincare': ['cosmetics', 'skincare', 'makeup'],
+        'Gym & Fitness': ['gym', 'fitness', 'workout', 'exercise'],
+        Miscellaneous: ['misc', 'miscellaneous'],
+      },
+    };
+
+    for (const [canonical, aliases] of Object.entries(aliasMap[type])) {
+      if (input === this.normalizeCategoryText(canonical)) return canonical;
+      if (aliases.some((alias) => input === this.normalizeCategoryText(alias))) return canonical;
+    }
+
+    let fuzzyMatch: string | null = null;
+    for (const [canonical, aliases] of Object.entries(aliasMap[type])) {
+      for (const candidate of [canonical, ...aliases]) {
+        const normalizedCandidate = this.normalizeCategoryText(candidate);
+        if (normalizedCandidate.length < 4) continue;
+        const maxDistance = input.length <= 5 ? 1 : 2;
+        if (
+          Math.abs(input.length - normalizedCandidate.length) <= maxDistance &&
+          this.levenshteinDistance(input, normalizedCandidate) <= maxDistance
+        ) {
+          if (fuzzyMatch && fuzzyMatch !== canonical) return null;
+          fuzzyMatch = canonical;
+        }
+      }
+    }
+    return fuzzyMatch;
+  }
+
+  private normalizeCategoryText(raw: string | null | undefined): string {
+    return (raw || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim()
+      .replace(/\s+/g, ' ');
+  }
+
+  private levenshteinDistance(a: string, b: string): number {
+    const previous = Array.from({ length: b.length + 1 }, (_, i) => i);
+    for (let i = 0; i < a.length; i += 1) {
+      let last = previous[0];
+      previous[0] = i + 1;
+      for (let j = 0; j < b.length; j += 1) {
+        const next = previous[j + 1];
+        previous[j + 1] = a[i] === b[j]
+          ? last
+          : Math.min(last, previous[j], previous[j + 1]) + 1;
+        last = next;
+      }
+    }
+    return previous[b.length];
   }
 
   private async handleBulkTransactionConfirmation(
@@ -1320,7 +1415,9 @@ export class ChatService {
       .filter(Boolean);
 
     if (parts.length < 2) {
-      return this.tryParseSingleLineAmountFirstBulk(raw);
+      return /^[a-z]/i.test(raw.trim())
+        ? this.tryParseSingleLineDescriptionFirstBulk(raw) || this.tryParseSingleLineAmountFirstBulk(raw)
+        : this.tryParseSingleLineAmountFirstBulk(raw) || this.tryParseSingleLineDescriptionFirstBulk(raw);
     }
 
     const items: BulkTransactionItem[] = [];
@@ -1365,6 +1462,35 @@ export class ChatService {
         skippedLines.push(`${match[1]} ${match[2]}`.trim());
       }
     }
+
+    if (items.length < 2) return null;
+    return { items, skippedLines };
+  }
+
+  private tryParseSingleLineDescriptionFirstBulk(raw: string): BulkTransactionParseResult | null {
+    const normalized = raw.replace(/\s+/g, ' ').trim();
+    const tokens = normalized.split(/\s+/);
+    const items: BulkTransactionItem[] = [];
+    const skippedLines: string[] = [];
+    let descriptionParts: string[] = [];
+
+    for (const token of tokens) {
+      const amount = this.parseFlexibleAmount(token);
+      if (amount > 0 && descriptionParts.length > 0) {
+        const line = `${descriptionParts.join(' ')} ${token}`;
+        const parsed = this.parseBulkTransactionLine(line, 'expense', null);
+        if (parsed) {
+          items.push(parsed);
+        } else {
+          skippedLines.push(line);
+        }
+        descriptionParts = [];
+      } else {
+        descriptionParts.push(token);
+      }
+    }
+
+    if (descriptionParts.length > 0) skippedLines.push(descriptionParts.join(' '));
 
     if (items.length < 2) return null;
     return { items, skippedLines };
