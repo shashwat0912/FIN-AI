@@ -1,22 +1,24 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { Goal, Prisma, PrismaClient } from '@prisma/client';
 import { ApiResponse, PaginatedApiResponse } from '../types';
-import { Goal } from '@prisma/client';
 
 const prisma = new PrismaClient();
+type AuthenticatedRequest = Request & { user: { id: string } };
+const getUserId = (req: Request) => (req as AuthenticatedRequest).user.id;
+const getErrorMessage = (error: unknown) => error instanceof Error ? error.message : 'Something went wrong';
 
 export class GoalController {
   // Get all goals for a user
   async getGoals(req: Request, res: Response<ApiResponse>) {
     try {
-      const userId = (req as any).user.id;
+      const userId = getUserId(req);
       const { page = 1, limit = 10, status } = req.query;
 
       const skip = (Number(page) - 1) * Number(limit);
       const take = Number(limit);
 
-      const where: any = { userId };
-      if (status) {
+      const where: Prisma.GoalWhereInput = { userId };
+      if (typeof status === 'string') {
         where.status = status;
       }
 
@@ -43,11 +45,11 @@ export class GoalController {
         timestamp: new Date().toISOString(),
       } as PaginatedApiResponse<Goal>);
       return;
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         success: false,
         message: 'Failed to retrieve goals',
-        error: error.message,
+        error: getErrorMessage(error),
         timestamp: new Date().toISOString(),
       });
       return;
@@ -57,13 +59,12 @@ export class GoalController {
   // Get goal by ID
   async getGoalById(req: Request, res: Response<ApiResponse>) {
     try {
-      const userId = (req as any).user.id;
+      const userId = getUserId(req);
       const { id } = req.params;
 
       const goal = await prisma.goal.findFirst({
         where: { id, userId },
       });
-      return;
 
       if (!goal) {
         return res.status(404).json({
@@ -81,11 +82,11 @@ export class GoalController {
         timestamp: new Date().toISOString(),
       });
       return;
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         success: false,
         message: 'Failed to retrieve goal',
-        error: error.message,
+        error: getErrorMessage(error),
         timestamp: new Date().toISOString(),
       });
       return;
@@ -95,7 +96,7 @@ export class GoalController {
   // Create new goal
   async createGoal(req: Request, res: Response<ApiResponse>) {
     try {
-      const userId = (req as any).user.id;
+      const userId = getUserId(req);
       const { name, description, targetAmount, currentAmount = 0, targetDate, status = 'ACTIVE' } = req.body;
 
       const goal = await prisma.goal.create({
@@ -109,7 +110,6 @@ export class GoalController {
           userId,
         },
       });
-      return;
 
       res.status(201).json({
         success: true,
@@ -118,11 +118,11 @@ export class GoalController {
         timestamp: new Date().toISOString(),
       });
       return;
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         success: false,
         message: 'Failed to create goal',
-        error: error.message,
+        error: getErrorMessage(error),
         timestamp: new Date().toISOString(),
       });
       return;
@@ -132,7 +132,7 @@ export class GoalController {
   // Update goal
   async updateGoal(req: Request, res: Response<ApiResponse>) {
     try {
-      const userId = (req as any).user.id;
+      const userId = getUserId(req);
       const { id } = req.params;
       const updateData = req.body;
 
@@ -140,7 +140,6 @@ export class GoalController {
       const existingGoal = await prisma.goal.findFirst({
         where: { id, userId },
       });
-      return;
 
       if (!existingGoal) {
         return res.status(404).json({
@@ -160,7 +159,6 @@ export class GoalController {
         where: { id },
         data: updateData,
       });
-      return;
 
       res.json({
         success: true,
@@ -169,11 +167,11 @@ export class GoalController {
         timestamp: new Date().toISOString(),
       });
       return;
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         success: false,
         message: 'Failed to update goal',
-        error: error.message,
+        error: getErrorMessage(error),
         timestamp: new Date().toISOString(),
       });
       return;
@@ -183,14 +181,13 @@ export class GoalController {
   // Delete goal
   async deleteGoal(req: Request, res: Response<ApiResponse>) {
     try {
-      const userId = (req as any).user.id;
+      const userId = getUserId(req);
       const { id } = req.params;
 
       // Check if goal exists and belongs to user
       const existingGoal = await prisma.goal.findFirst({
         where: { id, userId },
       });
-      return;
 
       if (!existingGoal) {
         return res.status(404).json({
@@ -204,7 +201,6 @@ export class GoalController {
       await prisma.goal.delete({
         where: { id },
       });
-      return;
 
       res.json({
         success: true,
@@ -212,11 +208,11 @@ export class GoalController {
         timestamp: new Date().toISOString(),
       });
       return;
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         success: false,
         message: 'Failed to delete goal',
-        error: error.message,
+        error: getErrorMessage(error),
         timestamp: new Date().toISOString(),
       });
       return;
@@ -226,13 +222,12 @@ export class GoalController {
   // Get goal analytics
   async getGoalAnalytics(req: Request, res: Response<ApiResponse>) {
     try {
-      const userId = (req as any).user.id;
+      const userId = getUserId(req);
 
       const goals = await prisma.goal.findMany({
         where: { userId },
         orderBy: { createdAt: 'desc' },
       });
-      return;
 
       // Calculate analytics
       const totalGoals = goals.length;
@@ -252,7 +247,6 @@ export class GoalController {
           : 0;
         return progress >= 80 && goal.status === 'ACTIVE';
       });
-      return;
 
       // Goals with upcoming deadlines (within 30 days)
       const upcomingDeadlines = goals.filter(goal => {
@@ -262,7 +256,6 @@ export class GoalController {
         );
         return daysUntilDeadline <= 30 && daysUntilDeadline > 0;
       });
-      return;
 
       const analytics = {
         totalGoals,
@@ -301,16 +294,14 @@ export class GoalController {
         timestamp: new Date().toISOString(),
       });
       return;
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         success: false,
         message: 'Failed to retrieve goal analytics',
-        error: error.message,
+        error: getErrorMessage(error),
         timestamp: new Date().toISOString(),
       });
       return;
     }
   }
 }
-
-

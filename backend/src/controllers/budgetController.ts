@@ -1,22 +1,24 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { Budget, Prisma, PrismaClient } from '@prisma/client';
 import { ApiResponse, PaginatedApiResponse } from '../types';
-import { Budget } from '@prisma/client';
 
 const prisma = new PrismaClient();
+type AuthenticatedRequest = Request & { user: { id: string } };
+const getUserId = (req: Request) => (req as AuthenticatedRequest).user.id;
+const getErrorMessage = (error: unknown) => error instanceof Error ? error.message : 'Something went wrong';
 
 export class BudgetController {
   // Get all budgets for a user
   async getBudgets(req: Request, res: Response<ApiResponse>) {
     try {
-      const userId = (req as any).user.id;
+      const userId = getUserId(req);
       const { page = 1, limit = 10, status } = req.query;
 
       const skip = (Number(page) - 1) * Number(limit);
       const take = Number(limit);
 
-      const where: any = { userId };
-      if (status) {
+      const where: Prisma.BudgetWhereInput = { userId };
+      if (typeof status === 'string') {
         where.isActive = status === 'active';
       }
 
@@ -42,11 +44,11 @@ export class BudgetController {
         },
         timestamp: new Date().toISOString(),
       } as PaginatedApiResponse<Budget>);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         success: false,
         message: 'Failed to retrieve budgets',
-        error: error.message,
+        error: getErrorMessage(error),
         timestamp: new Date().toISOString(),
       });
       return;
@@ -57,13 +59,12 @@ export class BudgetController {
   // Get budget by ID
   async getBudgetById(req: Request, res: Response<ApiResponse>) {
     try {
-      const userId = (req as any).user.id;
+      const userId = getUserId(req);
       const { id } = req.params;
 
       const budget = await prisma.budget.findFirst({
         where: { id, userId },
       });
-      return;
 
       if (!budget) {
         return res.status(404).json({
@@ -81,11 +82,11 @@ export class BudgetController {
         timestamp: new Date().toISOString(),
       });
       return;
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         success: false,
         message: 'Failed to retrieve budget',
-        error: error.message,
+        error: getErrorMessage(error),
         timestamp: new Date().toISOString(),
       });
       return;
@@ -95,7 +96,7 @@ export class BudgetController {
   // Create new budget
   async createBudget(req: Request, res: Response<ApiResponse>) {
     try {
-      const userId = (req as any).user.id;
+      const userId = getUserId(req);
       const { name, amount, spent = 0, period, isActive = true } = req.body;
 
       const budget = await prisma.budget.create({
@@ -108,7 +109,6 @@ export class BudgetController {
           userId,
         },
       });
-      return;
 
       res.status(201).json({
         success: true,
@@ -117,11 +117,11 @@ export class BudgetController {
         timestamp: new Date().toISOString(),
       });
       return;
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         success: false,
         message: 'Failed to create budget',
-        error: error.message,
+        error: getErrorMessage(error),
         timestamp: new Date().toISOString(),
       });
       return;
@@ -131,7 +131,7 @@ export class BudgetController {
   // Update budget
   async updateBudget(req: Request, res: Response<ApiResponse>) {
     try {
-      const userId = (req as any).user.id;
+      const userId = getUserId(req);
       const { id } = req.params;
       const updateData = req.body;
 
@@ -139,7 +139,6 @@ export class BudgetController {
       const existingBudget = await prisma.budget.findFirst({
         where: { id, userId },
       });
-      return;
 
       if (!existingBudget) {
         return res.status(404).json({
@@ -154,7 +153,6 @@ export class BudgetController {
         where: { id },
         data: updateData,
       });
-      return;
 
       res.json({
         success: true,
@@ -163,11 +161,11 @@ export class BudgetController {
         timestamp: new Date().toISOString(),
       });
       return;
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         success: false,
         message: 'Failed to update budget',
-        error: error.message,
+        error: getErrorMessage(error),
         timestamp: new Date().toISOString(),
       });
       return;
@@ -177,14 +175,13 @@ export class BudgetController {
   // Delete budget
   async deleteBudget(req: Request, res: Response<ApiResponse>) {
     try {
-      const userId = (req as any).user.id;
+      const userId = getUserId(req);
       const { id } = req.params;
 
       // Check if budget exists and belongs to user
       const existingBudget = await prisma.budget.findFirst({
         where: { id, userId },
       });
-      return;
 
       if (!existingBudget) {
         return res.status(404).json({
@@ -198,7 +195,6 @@ export class BudgetController {
       await prisma.budget.delete({
         where: { id },
       });
-      return;
 
       res.json({
         success: true,
@@ -206,11 +202,11 @@ export class BudgetController {
         timestamp: new Date().toISOString(),
       });
       return;
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         success: false,
         message: 'Failed to delete budget',
-        error: error.message,
+        error: getErrorMessage(error),
         timestamp: new Date().toISOString(),
       });
       return;
@@ -220,7 +216,7 @@ export class BudgetController {
   // Get budget analytics
   async getBudgetAnalytics(req: Request, res: Response<ApiResponse>) {
     try {
-      const userId = (req as any).user.id;
+      const userId = getUserId(req);
       const { period = '30' } = req.query;
 
       const days = Number(period);
@@ -230,7 +226,6 @@ export class BudgetController {
       const budgets = await prisma.budget.findMany({
         where: { userId, isActive: true },
       });
-      return;
 
       // Calculate analytics
       const totalBudget = budgets.reduce((sum, budget) => sum + Number(budget.amount), 0);
@@ -247,7 +242,6 @@ export class BudgetController {
         },
         orderBy: { date: 'desc' },
       });
-      return;
 
       const analytics = {
         totalBudget,
@@ -273,16 +267,14 @@ export class BudgetController {
         timestamp: new Date().toISOString(),
       });
       return;
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         success: false,
         message: 'Failed to retrieve budget analytics',
-        error: error.message,
+        error: getErrorMessage(error),
         timestamp: new Date().toISOString(),
       });
       return;
     }
   }
 }
-
-
