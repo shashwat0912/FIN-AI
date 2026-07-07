@@ -13,7 +13,6 @@ import Goals from './pages/Goals';
 import AiAdvisor from './pages/AiAdvisor';
 import Settings from './pages/Settings';
 import MvpCoach from './pages/MvpCoach';
-import FinanceV1 from './pages/FinanceV1';
 import { sessionSyncService } from './services/sessionSyncService';
 import { tokenRefreshService } from './services/tokenRefreshService';
 import { isTokenExpired } from './utils/jwtUtils';
@@ -142,7 +141,6 @@ function App() {
                         <Route path="ai-advisor" element={<AiAdvisor />} />
                         <Route path="settings" element={<Settings />} />
                         <Route path="mvp" element={<MvpCoach />} />
-                        <Route path="v1" element={<FinanceV1 />} />
                         <Route path="*" element={<Navigate to="/dashboard" replace />} />
                       </Routes>
                     </MainLayout>
@@ -156,7 +154,6 @@ function App() {
               <Route path="/ai-advisor" element={<Navigate to="/dashboard/ai-advisor" replace />} />
               <Route path="/settings" element={<Navigate to="/dashboard/settings" replace />} />
               <Route path="/mvp" element={<Navigate to="/dashboard/mvp" replace />} />
-              <Route path="/v1" element={<Navigate to="/dashboard/v1" replace />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </LanguageProvider>

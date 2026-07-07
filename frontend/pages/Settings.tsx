@@ -1,42 +1,66 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { User, Bell, Palette, Shield, LogOut, Save, Camera } from 'lucide-react';
+import { User, Bell, Palette, Shield, LogOut, Save } from 'lucide-react';
 import { apiClient } from '../lib/api';
 import { useDarkMode } from '../context/DarkModeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { logger } from '../utils/logger';
+import { decodeToken } from '../utils/jwtUtils';
+import { dispatchProfileUpdated } from '../lib/appEvents';
+
+const isEmailLike = (value?: unknown) => typeof value === 'string' && value.includes('@');
+
+const isPhoneLike = (value?: unknown) => {
+  if (typeof value !== 'string') return false;
+  const digits = value.replace(/\D/g, '');
+  return digits.length >= 8 && (value.trim().startsWith('+') || digits.length >= value.replace(/\s/g, '').length * 0.7);
+};
+
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error ? error.message : fallback;
 
 export default function Settings() {
-  const { isDarkMode, toggleDarkMode, theme } = useDarkMode();
+  const { theme } = useDarkMode();
   const { currentLanguage, setLanguage, t } = useLanguage();
   const [activeTab, setActiveTab] = useState('profile');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // Get current user ID for user-specific storage
-  const getUserId = () => {
+  const getAuthIdentity = useCallback(() => {
     try {
       const token = localStorage.getItem('accessToken');
       if (token) {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        return payload.userId || payload.id || 'default';
+        const user = decodeToken(token);
+        const candidates = [user?.email, user?.phone, user?.identifier, user?.loginId, user?.username];
+        const email = candidates.find(isEmailLike) || '';
+        const phone = candidates.find(isPhoneLike) || '';
+        const id = user?.userId || email || phone || 'default';
+        return {
+          id,
+          email,
+          phone,
+        };
       }
     } catch (error) {
-      logger.warn('Error parsing user ID from token');
+      logger.warn('Error parsing user identity from token');
     }
-    return 'default';
-  };
+    return { id: 'default', email: '', phone: '' };
+  }, []);
 
   // Helper function to get user-specific localStorage key
-  const getUserKey = (key: string) => `${key}_${getUserId()}`;
+  const getUserKey = useCallback((key: string) => `${key}_${getAuthIdentity().id}`, [getAuthIdentity]);
 
   // Profile settings
   const [profile, setProfile] = useState({
-    name: 'Shashwat Shrivastava',
-    email: 'test@example.com',
-    phone: '+91 98765 43210',
+    name: 'User',
+    email: 'Email unavailable',
+    phone: '',
     avatar: '',
   });
+  const getProfileInitial = useCallback(() => {
+    const source = profile.name.trim() || profile.email.trim() || 'User';
+    return source.charAt(0).toUpperCase();
+  }, [profile.email, profile.name]);
 
   // Notification settings
   const [notifications, setNotifications] = useState({
@@ -81,14 +105,10 @@ export default function Settings() {
     { id: 'security', label: t('security'), icon: Shield },
   ];
 
-  useEffect(() => {
-    loadSettings();
-  }, []);
-
   // Note: Theme and language sync is handled in the onChange handlers
   // to prevent render loops and ensure immediate updates
 
-  const loadSettings = async () => {
+  const loadSettings = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -99,20 +119,22 @@ export default function Settings() {
       // This makes the settings page load instantly
       
       // Load profile data (user-specific)
+      const authIdentity = getAuthIdentity();
+      const authEmail = authIdentity.email || 'Email unavailable';
       const savedProfile = localStorage.getItem(getUserKey('userProfile'));
       if (savedProfile) {
         const profileData = JSON.parse(savedProfile);
         setProfile({
           name: profileData.name || 'User',
-          email: profileData.email || 'user@example.com',
-          phone: profileData.phone || '+91 98765 43210',
+          email: authEmail,
+          phone: typeof profileData.phone === 'string' ? profileData.phone : authIdentity.phone,
           avatar: profileData.avatar || '',
         });
       } else {
         setProfile({
           name: 'User',
-          email: 'user@example.com',
-          phone: '+91 98765 43210',
+          email: authEmail,
+          phone: authIdentity.phone,
           avatar: '',
         });
       }
@@ -178,21 +200,40 @@ export default function Settings() {
         });
       }
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Error loading settings', error);
-      setError(error?.message || 'Failed to load settings. Please try again.');
+      setError(getErrorMessage(error, 'Failed to load settings. Please try again.'));
       
       // Set default values on error to prevent UI crashes
       setProfile({
         name: 'User',
-        email: 'user@example.com',
-        phone: '+91 98765 43210',
+        email: getAuthIdentity().email || 'Email unavailable',
+        phone: getAuthIdentity().phone,
         avatar: '',
       });
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentLanguage, getAuthIdentity, getUserKey, theme]);
+
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
+
+  const savePreferences = useCallback((updatedPreferences: typeof preferences) => {
+    try {
+      localStorage.setItem(getUserKey('userPreferences'), JSON.stringify(updatedPreferences));
+      localStorage.setItem('userPreferences', JSON.stringify(updatedPreferences));
+      setPreferences(updatedPreferences);
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: 'userPreferences',
+        newValue: JSON.stringify(updatedPreferences),
+        oldValue: JSON.stringify(preferences)
+      }));
+    } catch (error) {
+      logger.warn('Error saving preferences');
+    }
+  }, [getUserKey, preferences]);
 
   const handleSave = useCallback(async (section: string) => {
     try {
@@ -206,10 +247,10 @@ export default function Settings() {
         // Save profile to localStorage (user-specific)
         localStorage.setItem(getUserKey('userProfile'), JSON.stringify({
           name: profile.name,
-          email: profile.email,
           phone: profile.phone,
           avatar: profile.avatar,
         }));
+        dispatchProfileUpdated();
       } else if (section === 'preferences') {
         // Preferences auto-save in onChange handlers, no need to save here
         // This section is kept for backward compatibility but shouldn't be reached
@@ -232,17 +273,18 @@ export default function Settings() {
         }));
       }
       
-      setSuccess(`${section.charAt(0).toUpperCase() + section.slice(1)} settings saved successfully!`);
+      const sectionLabel = section === 'profile' ? 'Profile display' : 'Notification preferences';
+      setSuccess(`${sectionLabel} saved on this device.`);
       
       // Clear success message after 3 seconds
       setTimeout(() => setSuccess(null), 3000);
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(`Error saving ${section} settings`, error);
       setError(`Failed to save ${section} settings. Please try again.`);
     } finally {
       setLoading(false);
     }
-  }, [profile, preferences, notifications, security, isDarkMode, toggleDarkMode, theme]);
+  }, [getUserKey, profile, notifications, security]);
 
   const handleLogout = async () => {
     if (window.confirm('Are you sure you want to logout?')) {
@@ -250,7 +292,7 @@ export default function Settings() {
         await apiClient.logout();
         localStorage.clear();
         window.location.assign('/');
-      } catch (error: any) {
+      } catch (error: unknown) {
         logger.error('Error logging out', error);
         // Force logout even if API fails
         localStorage.clear();
@@ -282,8 +324,8 @@ export default function Settings() {
         setShowPasswordModal(false);
         setPasswordSuccess('');
       }, 2000);
-    } catch (error: any) {
-      setPasswordError(error.message || 'Failed to change password');
+    } catch (error: unknown) {
+      setPasswordError(getErrorMessage(error, 'Failed to change password'));
     }
   };
 
@@ -296,18 +338,12 @@ export default function Settings() {
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
           <div className="relative">
             <div className="flex h-20 w-20 items-center justify-center rounded-full border border-emerald-400/20 bg-emerald-500/10 text-2xl font-bold text-emerald-200">
-              {profile.name.charAt(0)}
+              {getProfileInitial()}
             </div>
-            <button className="absolute bottom-0 right-0 rounded-full border border-zinc-800 bg-zinc-950 p-2 text-zinc-400 transition-colors hover:border-zinc-700 hover:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-zinc-500/40">
-              <Camera className="h-4 w-4" />
-            </button>
           </div>
           <div>
             <h4 className="text-lg font-medium text-white">{profile.name}</h4>
             <p className="text-sm text-zinc-400">{profile.email}</p>
-            <button className="mt-2 text-sm font-medium text-emerald-300 transition-colors hover:text-emerald-200">
-              {t('change-avatar')}
-            </button>
           </div>
         </div>
 
@@ -327,9 +363,10 @@ export default function Settings() {
             <input
               type="email"
               value={profile.email}
-              onChange={(e) => setProfile({ ...profile, email: e.target.value })}
-              className="h-11 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-100 placeholder:text-zinc-500 hover:border-zinc-700 focus:border-emerald-400/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/10"
+              readOnly
+              className="h-11 w-full cursor-not-allowed rounded-xl border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-400 placeholder:text-zinc-500"
             />
+            <p className="mt-1.5 text-xs text-zinc-500">Email is tied to your sign-in account.</p>
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-zinc-300">{t('phone')}</label>
@@ -343,7 +380,7 @@ export default function Settings() {
         </div>
       </div>
     </div>
-  ), [profile]);
+  ), [getProfileInitial, profile, t]);
 
   const renderNotificationSettings = useMemo(() => (
     <div className="space-y-6">
@@ -378,7 +415,7 @@ export default function Settings() {
         </div>
       </div>
     </div>
-  ), [notifications]);
+  ), [notifications, t]);
 
   const renderPreferenceSettings = useMemo(() => (
     <div className="space-y-6">
@@ -390,7 +427,7 @@ export default function Settings() {
             <label className="mb-1.5 block text-sm font-medium text-zinc-300">{t('currency')}</label>
             <select
               value={preferences.currency}
-              onChange={(e) => setPreferences({ ...preferences, currency: e.target.value })}
+              onChange={(e) => savePreferences({ ...preferences, currency: e.target.value })}
               className="h-11 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-100 hover:border-zinc-700 focus:border-emerald-400/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/10"
             >
               <option value="INR">Indian Rupee (₹)</option>
@@ -406,28 +443,8 @@ export default function Settings() {
               value={preferences.language}
               onChange={(e) => {
                 const newLanguage = e.target.value;
-                setPreferences({ ...preferences, language: newLanguage });
                 setLanguage(newLanguage); // Update language context immediately
-                
-                // Save language preference immediately with updated state
-                try {
-                  const updatedPreferences = {
-                    ...preferences,
-                    language: newLanguage,
-                  };
-                  localStorage.setItem(getUserKey('userPreferences'), JSON.stringify(updatedPreferences));
-                  // Update local state to match what we saved
-                  setPreferences(updatedPreferences);
-                  
-                  // Trigger storage event to notify other components
-                  window.dispatchEvent(new StorageEvent('storage', {
-                    key: 'userPreferences',
-                    newValue: JSON.stringify(updatedPreferences),
-                    oldValue: JSON.stringify(preferences)
-                  }));
-                } catch (error) {
-                  logger.warn('Error saving language preference');
-                }
+                savePreferences({ ...preferences, language: newLanguage });
               }}
               className="h-11 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-100 hover:border-zinc-700 focus:border-emerald-400/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/10"
             >
@@ -445,38 +462,14 @@ export default function Settings() {
               value={preferences.theme}
               onChange={(e) => {
                 const newTheme = e.target.value;
-                setPreferences({ ...preferences, theme: newTheme });
-                
-                // Apply theme change immediately and save to localStorage
-                try {
-                  const updatedPreferences = {
-                    ...preferences,
-                    theme: newTheme,
-                  };
-                  
-                  localStorage.setItem(getUserKey('userPreferences'), JSON.stringify(updatedPreferences));
-                  // Update local state to match what we saved
-                  setPreferences(updatedPreferences);
-                  
-                  // Trigger storage event to notify DarkModeContext
-                  window.dispatchEvent(new StorageEvent('storage', {
-                    key: 'userPreferences',
-                    newValue: JSON.stringify(updatedPreferences),
-                    oldValue: JSON.stringify(preferences)
-                  }));
-                  
-                  // Also update the old darkMode key for backward compatibility
-                  if (newTheme === 'auto') {
-                    // For auto, use system preference
-                    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                    localStorage.setItem('darkMode', systemPrefersDark.toString());
-                  } else {
-                    localStorage.setItem('darkMode', (newTheme === 'dark').toString());
-                  }
-                  
-                  // DarkModeContext will automatically pick up the theme change via storage event
-                } catch (error) {
-                  logger.warn('Error saving theme preference');
+                savePreferences({ ...preferences, theme: newTheme });
+
+                // Also update the old darkMode key for backward compatibility
+                if (newTheme === 'auto') {
+                  const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                  localStorage.setItem('darkMode', systemPrefersDark.toString());
+                } else {
+                  localStorage.setItem('darkMode', (newTheme === 'dark').toString());
                 }
               }}
               className="h-11 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-100 hover:border-zinc-700 focus:border-emerald-400/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/10"
@@ -491,7 +484,7 @@ export default function Settings() {
             <label className="mb-1.5 block text-sm font-medium text-zinc-300">{t('date-format')}</label>
             <select
               value={preferences.dateFormat}
-              onChange={(e) => setPreferences({ ...preferences, dateFormat: e.target.value })}
+              onChange={(e) => savePreferences({ ...preferences, dateFormat: e.target.value })}
               className="h-11 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-100 hover:border-zinc-700 focus:border-emerald-400/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/10"
             >
               <option value="DD/MM/YYYY">DD/MM/YYYY</option>
@@ -502,7 +495,7 @@ export default function Settings() {
         </div>
       </div>
     </div>
-  ), [preferences, isDarkMode, toggleDarkMode, theme, currentLanguage, setLanguage]);
+  ), [preferences, savePreferences, setLanguage, t]);
 
   const renderSecuritySettings = useMemo(() => (
     <div className="space-y-6">
@@ -520,26 +513,10 @@ export default function Settings() {
               {t('change-password')}
             </button>
           </div>
-          
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
-            <h4 className="mb-2 text-sm font-medium text-zinc-100">{t('two-factor-auth')}</h4>
-            <p className="mb-3 text-sm text-zinc-500">{t('add-extra-security')}</p>
-            <button className="inline-flex h-10 w-full items-center justify-center rounded-full bg-emerald-500 px-4 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/60 sm:w-auto">
-              {t('enable-2fa')}
-            </button>
-          </div>
-          
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
-            <h4 className="mb-2 text-sm font-medium text-zinc-100">{t('data-export')}</h4>
-            <p className="mb-3 text-sm text-zinc-500">{t('download-financial-data')}</p>
-            <button className="inline-flex h-10 w-full items-center justify-center rounded-full bg-emerald-500 px-4 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/60 sm:w-auto">
-              {t('export-data')}
-            </button>
-          </div>
         </div>
       </div>
     </div>
-  ), [security]);
+  ), [t]);
 
   // Settings load instantly from localStorage, no loading spinner needed
 
@@ -604,8 +581,8 @@ export default function Settings() {
             </button>
             
             <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-              {/* Only show save button for tabs that need it (not preferences) */}
-              {activeTab !== 'preferences' && (
+              {/* Only show save button for tabs with local settings to save. */}
+              {(activeTab === 'profile' || activeTab === 'notifications') && (
                 <button
                   onClick={() => handleSave(activeTab)}
                   disabled={loading}

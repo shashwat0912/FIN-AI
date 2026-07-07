@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { ChatMessage, ConfirmationCard, ChatResponsePayload, ChatRateLimitInfo, ChatToast } from '../types';
 import { chatApi } from '../lib/chatApi';
+import { dispatchTransactionsUpdated } from '../lib/appEvents';
 
 type ChatRetryAction =
   | { type: 'send'; content: string }
@@ -65,22 +66,26 @@ export const useChatStore = create<ChatState>((set, get) => {
   };
 
   const executeConfirm = async (cardId: string) => {
+    const confirmedCard = get().pendingConfirmation;
     set({ isLoading: true, toast: null, lastAction: { type: 'confirm', cardId } });
 
     try {
       const payload = await chatApi.confirmAction(cardId);
       applyPayload(set, get, payload);
+      if (isTransactionCard(confirmedCard)) dispatchTransactionsUpdated();
     } catch (err: unknown) {
       set({ toast: buildChatToast(err, 'Unable to confirm this action right now.'), isLoading: false });
     }
   };
 
   const executeEdit = async (cardId: string, data: Record<string, unknown>) => {
+    const editedCard = get().pendingConfirmation;
     set({ isLoading: true, toast: null, lastAction: { type: 'edit', cardId, data } });
 
     try {
       const payload = await chatApi.editAction(cardId, data);
       applyPayload(set, get, payload);
+      if (isTransactionCard(editedCard)) dispatchTransactionsUpdated();
     } catch (err: unknown) {
       set({ toast: buildChatToast(err, 'Unable to update this action right now.'), isLoading: false });
     }
@@ -202,6 +207,10 @@ function buildChatToast(error: unknown, fallback: string): ChatToast {
     title: 'Chat error',
     message,
   };
+}
+
+function isTransactionCard(card: ConfirmationCard | null): boolean {
+  return card?.type === 'transaction' || card?.type === 'bulk_transaction';
 }
 
 function applyPayload(

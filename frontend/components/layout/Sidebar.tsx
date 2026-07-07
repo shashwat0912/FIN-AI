@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { BrainCircuit, Goal, Layers, LayoutDashboard, PieChart, Settings, WalletCards, X } from 'lucide-react';
+import { BrainCircuit, Goal, LayoutDashboard, PieChart, Settings, WalletCards, X } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
+import { onProfileUpdated } from '../../lib/appEvents';
+import { readProfileIdentity } from '../../lib/profileIdentity';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -10,16 +12,18 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { t } = useLanguage();
+  const [identity, setIdentity] = useState(readProfileIdentity);
 
-  const navItems = [
+  useEffect(() => onProfileUpdated(() => setIdentity(readProfileIdentity())), []);
+
+  const navItems = useMemo(() => [
     { path: '/dashboard', label: t('dashboard'), icon: LayoutDashboard },
     { path: '/dashboard/transactions', label: t('transactions'), icon: WalletCards },
     { path: '/dashboard/budget', label: t('budget'), icon: PieChart },
     { path: '/dashboard/goals', label: t('goals'), icon: Goal },
     { path: '/dashboard/ai-advisor', label: t('ai-advisor'), icon: BrainCircuit },
-    { path: '/dashboard/v1', label: t('finance-v1'), icon: Layers },
     { path: '/dashboard/settings', label: t('settings'), icon: Settings },
-  ];
+  ], [t]);
 
   return (
     <>
@@ -80,11 +84,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         <div className="absolute bottom-0 left-0 right-0 border-t border-zinc-800 p-3">
           <div className="flex items-center gap-3 rounded-lg px-3 py-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-full border border-zinc-700 bg-zinc-900 text-xs font-semibold text-zinc-100">
-              SS
+              {identity.initials}
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-zinc-100">Shashwat</p>
-              <p className="truncate text-xs text-zinc-500">testuser@example.com</p>
+              <p className="truncate text-sm font-medium text-zinc-100">{identity.name}</p>
+              {identity.contact && <p className="truncate text-xs text-zinc-500">{identity.contact}</p>}
             </div>
           </div>
         </div>

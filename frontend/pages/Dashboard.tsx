@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertCircle, ArrowRight } from 'lucide-react';
 import { apiClient } from '../lib/api';
 import { Transaction } from '../types';
 import { logger } from '../utils/logger';
+import { onTransactionsUpdated } from '../lib/appEvents';
 
 interface TransactionAnalytics {
   totalIncome: number;
@@ -54,11 +55,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadDashboard();
-  }, []);
-
-  const loadDashboard = async () => {
+  const loadDashboard = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -76,7 +73,14 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadDashboard();
+    return onTransactionsUpdated(() => {
+      loadDashboard();
+    });
+  }, [loadDashboard]);
 
   const data = analytics || emptyAnalytics;
   const hasTransactions = data.transactionCount > 0 || transactions.length > 0;

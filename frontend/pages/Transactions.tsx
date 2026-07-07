@@ -5,6 +5,7 @@ import WorkingCategorySelector from '../components/transactions/WorkingCategoryS
 import { Category } from '../data/categories';
 import { useLanguage } from '../context/LanguageContext';
 import { logger } from '../utils/logger';
+import { dispatchTransactionsUpdated } from '../lib/appEvents';
 
 export default function Transactions() {
   const { t } = useLanguage();
@@ -30,7 +31,7 @@ export default function Transactions() {
 
   // Handle transaction type change - clear category if it doesn't match new type
   const handleTypeChange = (newType: string) => {
-    setNewTransaction({ ...newTransaction, type: newType as any });
+    setNewTransaction({ ...newTransaction, type: newType as 'INCOME' | 'EXPENSE' | 'TRANSFER' });
     // Clear selected category if it doesn't match the new type
     if (selectedCategory && selectedCategory.type !== (newType === 'INCOME' ? 'income' : 'expense')) {
       setSelectedCategory(null);
@@ -58,9 +59,9 @@ export default function Transactions() {
       setError(null);
       const response = await apiClient.getTransactions(1, 50);
       setTransactions(response.data || []);
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Error loading transactions', error);
-      setError(error.message);
+      setError(error instanceof Error ? error.message : 'Failed to load transactions');
     } finally {
       setLoading(false);
     }
@@ -87,10 +88,11 @@ export default function Transactions() {
       });
       setSelectedCategory(null);
       setShowAddForm(false);
+      dispatchTransactionsUpdated();
       loadTransactions();
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Error creating transaction', error);
-      setError(error.message);
+      setError(error instanceof Error ? error.message : 'Failed to create transaction');
     }
   };
 
@@ -98,9 +100,10 @@ export default function Transactions() {
     if (window.confirm('Are you sure you want to delete this transaction?')) {
       try {
         await apiClient.deleteTransaction(id);
+        dispatchTransactionsUpdated();
         loadTransactions();
-      } catch (error: any) {
-        setError(error.message);
+      } catch (error: unknown) {
+        setError(error instanceof Error ? error.message : 'Failed to delete transaction');
       }
     }
   };

@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { LogOut, Menu, Settings, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { onProfileUpdated } from '../../lib/appEvents';
+import { readProfileIdentity } from '../../lib/profileIdentity';
 
 interface TopBarProps {
   onMenuClick: () => void;
@@ -8,6 +10,7 @@ interface TopBarProps {
 
 export default function TopBar({ onMenuClick }: TopBarProps) {
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [identity, setIdentity] = useState(readProfileIdentity);
   const navigate = useNavigate();
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -21,6 +24,8 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => onProfileUpdated(() => setIdentity(readProfileIdentity())), []);
 
   const handleLogout = async () => {
     const confirmed = window.confirm('Are you sure you want to log out?');
@@ -67,14 +72,14 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
             title="User profile"
             aria-label="User profile"
           >
-            SS
+            {identity.initials}
           </button>
 
           {showUserMenu && (
             <div className="absolute right-0 z-50 mt-2 w-52 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 shadow-xl shadow-black/30">
               <div className="border-b border-zinc-800 px-4 py-3">
-                <p className="text-sm font-medium text-zinc-100">Shashwat</p>
-                <p className="mt-0.5 text-xs text-zinc-500">testuser@example.com</p>
+                <p className="text-sm font-medium text-zinc-100">{identity.name}</p>
+                {identity.contact && <p className="mt-0.5 text-xs text-zinc-500">{identity.contact}</p>}
               </div>
 
               <button
