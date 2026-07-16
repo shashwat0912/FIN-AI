@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, ArrowRight } from 'lucide-react';
+import { ArrowRight, Plus } from 'lucide-react';
 import { apiClient } from '../lib/api';
 import { Transaction } from '../types';
 import { logger } from '../utils/logger';
 import { onTransactionsUpdated } from '../lib/appEvents';
+import { Amount, Button, EmptyState, FolioHeader, InlineNotice } from '../components/ui/PrivateLedger';
 
 interface TransactionAnalytics {
   totalIncome: number;
@@ -31,20 +32,15 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value || 0);
 
-const formatPercent = (value: number) =>
-  `${Math.round(value).toLocaleString('en-IN')}%`;
+const formatPercent = (value: number) => `${Math.round(value).toLocaleString('en-IN')}%`;
 
 const formatDate = (date: string) =>
-  new Intl.DateTimeFormat('en-IN', {
-    day: 'numeric',
-    month: 'short',
-  }).format(new Date(date));
+  new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short' }).format(new Date(date));
 
 const formatPeriodRange = (endDate: Date, period: string) => {
   const days = Number.parseInt(period, 10) || 30;
   const startDate = new Date(endDate);
   startDate.setDate(startDate.getDate() - days + 1);
-
   return `${formatDate(startDate.toISOString())} - ${formatDate(endDate.toISOString())}`;
 };
 
@@ -67,8 +63,8 @@ export default function Dashboard() {
 
       setAnalytics({ ...emptyAnalytics, ...analyticsResponse });
       setTransactions(transactionsResponse.data || []);
-    } catch (error) {
-      logger.error('Failed to load dashboard', error instanceof Error ? error : undefined);
+    } catch (requestError) {
+      logger.error('Failed to load dashboard', requestError instanceof Error ? requestError : undefined);
       setError('Could not load your financial brief. Try again in a moment.');
     } finally {
       setLoading(false);
@@ -77,9 +73,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadDashboard();
-    return onTransactionsUpdated(() => {
-      loadDashboard();
-    });
+    return onTransactionsUpdated(loadDashboard);
   }, [loadDashboard]);
 
   const data = analytics || emptyAnalytics;
@@ -90,274 +84,213 @@ export default function Dashboard() {
     : 0;
   const isCashflowPositive = data.netAmount >= 0;
 
-  const statusLabel = !hasTransactions
-    ? 'No activity recorded'
-    : isCashflowPositive
-      ? 'Cashflow positive'
-      : 'Cashflow negative';
-  const statusClass = !hasTransactions
-    ? 'border-zinc-700 bg-zinc-800/60 text-zinc-300'
-    : isCashflowPositive
-      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
-      : 'border-red-400/20 bg-red-400/10 text-red-300';
-
-  const heroLine = useMemo(() => {
-    if (loading) {
-      return {
-        first: 'Preparing your financial brief',
-        second: '',
-      };
+  const finding = useMemo(() => {
+    if (!hasTransactions) return 'No transactions have been recorded yet.';
+    if (data.totalIncome > 0 && data.totalExpenses > 0) {
+      return isCashflowPositive
+        ? `You retained ${formatCurrency(data.netAmount)} after recorded spending.`
+        : `Recorded spending exceeded income by ${formatCurrency(Math.abs(data.netAmount))}.`;
     }
-
-    if (!hasTransactions) {
-      return {
-        first: 'No transactions recorded',
-        second: `over the last ${data.period}`,
-      };
-    }
-
-    return {
-      first: `${formatCurrency(Math.abs(data.netAmount))} ${isCashflowPositive ? 'net cashflow' : 'net outflow'}`,
-      second: `over the last ${data.period}`,
-    };
-  }, [data.netAmount, data.period, hasTransactions, isCashflowPositive, loading]);
+    if (data.totalIncome > 0) return `You recorded ${formatCurrency(data.totalIncome)} in income.`;
+    return `You recorded ${formatCurrency(data.totalExpenses)} in expenses.`;
+  }, [data.netAmount, data.totalExpenses, data.totalIncome, hasTransactions, isCashflowPositive]);
 
   const cashflowFact = useMemo(() => {
-    if (!hasTransactions) {
-      return 'Add transactions to generate a financial brief.';
-    }
-
+    if (!hasTransactions) return 'Add transactions to generate a financial brief.';
     if (data.totalIncome > 0 && data.totalExpenses > 0) {
-      if (data.totalIncome >= data.totalExpenses) {
-        const percent = ((data.totalIncome - data.totalExpenses) / data.totalExpenses) * 100;
-        return `Income exceeded expenses by ${formatPercent(percent)}.`;
-      }
-
-      const percent = ((data.totalExpenses - data.totalIncome) / data.totalIncome) * 100;
-      return `Expenses exceeded income by ${formatPercent(percent)}.`;
+      const difference = Math.abs(data.totalIncome - data.totalExpenses);
+      const comparison = Math.min(data.totalIncome, data.totalExpenses);
+      const percent = comparison > 0 ? (difference / comparison) * 100 : 0;
+      return data.totalIncome >= data.totalExpenses
+        ? `Income exceeded expenses by ${formatPercent(percent)}.`
+        : `Expenses exceeded income by ${formatPercent(percent)}.`;
     }
-
-    if (data.totalIncome > 0) {
-      return `${formatCurrency(data.totalIncome)} income was recorded with no expenses.`;
-    }
-
-    if (data.totalExpenses > 0) {
-      return `${formatCurrency(data.totalExpenses)} expenses were recorded with no income.`;
-    }
-
+    if (data.totalIncome > 0) return 'No expenses were recorded in this period.';
+    if (data.totalExpenses > 0) return 'No income was recorded in this period.';
     return 'No income or expense records are available yet.';
   }, [data.totalExpenses, data.totalIncome, hasTransactions]);
 
   const driverFact = topCategory
-    ? `${topCategory.category} accounted for ${formatPercent(topCategoryShare)} of recorded spending.`
+    ? `${topCategory.category} accounted for ${formatPercent(topCategoryShare)} of recorded expenses.`
     : 'No spending driver is available yet.';
 
   const nextAction = useMemo(() => {
     if (topCategory) {
       return {
         title: `Review ${topCategory.category} spending`,
-        detail: `${topCategory.category} is the largest recorded expense category this month.`,
-        cta: `Ask why ${topCategory.category} is highest`,
+        detail: `${topCategory.category} is the largest recorded expense category in this period.`,
+        cta: `Ask about ${topCategory.category}`,
         action: () => navigate('/dashboard/ai-advisor'),
       };
     }
 
     return {
       title: 'Review recent transactions',
-      detail: 'Start by reviewing your latest recorded activity.',
+      detail: 'Start by checking the latest activity recorded in your ledger.',
       cta: 'Review transactions',
       action: () => navigate('/dashboard/transactions'),
     };
   }, [navigate, topCategory]);
 
-  const metricItems = [
-    { label: 'Income', value: formatCurrency(data.totalIncome), tone: 'text-emerald-300' },
-    { label: 'Expenses', value: formatCurrency(data.totalExpenses), tone: 'text-red-300' },
-    {
-      label: 'Net cashflow',
-      value: `${data.netAmount >= 0 ? '+' : '-'}${formatCurrency(Math.abs(data.netAmount))}`,
-      tone: data.netAmount >= 0 ? 'text-emerald-300' : 'text-red-300',
-      featured: true,
-    },
-    { label: 'Transactions', value: data.transactionCount.toLocaleString('en-IN'), tone: 'text-zinc-100' },
-  ];
-
-  const categoryItems = data.topCategories.slice(0, 3);
-  const recentItems = transactions.slice(0, 6);
-  const showConcentrationNote = Boolean(topCategory && topCategoryShare >= 40);
   const latestTransactionDate = transactions.reduce<Date | null>((latest, transaction) => {
     const date = new Date(transaction.date);
     return !latest || date > latest ? date : latest;
   }, null);
   const periodRange = formatPeriodRange(latestTransactionDate || new Date(), data.period);
+  const categoryItems = data.topCategories.slice(0, 3);
+  const recentItems = transactions.slice(0, 6);
+  const showConcentrationNote = Boolean(topCategory && topCategoryShare >= 40);
+  const metricItems = [
+    { label: 'Income', value: formatCurrency(data.totalIncome), tone: 'text-accent' },
+    { label: 'Expenses', value: formatCurrency(data.totalExpenses), tone: 'text-negative' },
+    {
+      label: 'Net movement',
+      value: `${data.netAmount >= 0 ? '+' : '-'}${formatCurrency(Math.abs(data.netAmount))}`,
+      tone: data.netAmount >= 0 ? 'text-ink' : 'text-negative',
+    },
+    { label: 'Transactions', value: data.transactionCount.toLocaleString('en-IN'), tone: 'text-ink' },
+  ];
 
   return (
-    <div className="mx-auto w-full max-w-[1440px] text-white">
+    <div className="space-y-8" aria-busy={loading}>
+      <FolioHeader
+        title="Dashboard"
+        description={periodRange}
+        action={(
+          <Button onClick={() => navigate('/dashboard/transactions?add=1')} className="w-full sm:w-auto">
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Add transaction
+          </Button>
+        )}
+      />
+
       {error && (
-        <div className="mb-6 flex items-start gap-3 rounded-2xl border border-red-400/20 bg-red-400/10 p-4 text-sm text-red-100">
-          <AlertCircle size={18} className="mt-0.5 shrink-0" />
-          <p>{error}</p>
-        </div>
+        <InlineNotice action={<Button variant="secondary" onClick={loadDashboard}>Retry</Button>}>
+          {error}
+        </InlineNotice>
       )}
 
-      <section className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-950/60 p-5 sm:p-8">
-        <div className="flex flex-col gap-8 lg:flex-row lg:items-stretch">
-          <div className="min-w-0 lg:w-[64%]">
-            <div className="flex flex-wrap items-center gap-3">
-              <span className={`rounded-full border px-4 py-2 text-sm font-semibold ${statusClass}`}>
-                <span className="mr-2 inline-block h-2 w-2 rounded-full bg-current align-middle" />
-                {statusLabel}
-              </span>
-              <span className="text-sm text-zinc-500">{periodRange}</span>
+      <section className="grid gap-7 border-b border-ledger-border pb-8 lg:grid-cols-[minmax(0,7fr)_minmax(16rem,3fr)] lg:gap-10">
+        <div className="min-w-0">
+          {loading ? (
+            <div role="status" aria-label="Loading financial brief" className="animate-pulse motion-reduce:animate-none">
+              <div className="h-10 w-full max-w-2xl rounded-status bg-ledger-border" />
+              <div className="mt-4 h-4 w-full max-w-xl rounded-status bg-ledger-border" />
             </div>
-
-            <div className="mt-7 max-w-4xl">
-              <p className="font-display text-4xl font-bold leading-tight tracking-tight text-white tabular-nums md:text-5xl">
-                {heroLine.first}
-                {heroLine.second && (
-                  <>
-                    <br />
-                    {heroLine.second}
-                  </>
-                )}
+          ) : (
+            <>
+              <h2 className="max-w-[24ch] text-[2rem] font-semibold leading-[1.15] tracking-[-0.035em] text-ink tabular-nums sm:text-[2.625rem]">
+                {finding}
+              </h2>
+              <p className="mt-4 max-w-[68ch] text-sm leading-6 text-ink-secondary sm:text-base sm:leading-7">
+                {cashflowFact} {driverFact}
               </p>
-              <p className="mt-6 max-w-4xl text-base leading-relaxed text-zinc-400">
-                {loading ? 'Loading recorded cashflow and spending drivers.' : `${cashflowFact} ${driverFact}`}
-              </p>
-            </div>
-
-            <div className="mt-9 grid grid-cols-2 gap-3 lg:grid-cols-4">
-              {metricItems.map((item) => (
-                <div
-                  key={item.label}
-                  className={`rounded-2xl border px-5 py-4 ${item.featured ? 'border-emerald-500/30 bg-emerald-500/[0.07]' : 'border-zinc-800 bg-zinc-950/45'}`}
-                >
-                  <p className="text-sm text-zinc-400">{item.label}</p>
-                  <p className={`mt-2 text-xl font-semibold tabular-nums ${item.tone}`}>
-                    {loading ? '...' : item.value}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <aside className="flex h-full min-w-0 rounded-2xl border border-zinc-800 bg-zinc-950 p-7 lg:w-[36%] lg:p-8">
-            <div className="flex h-full flex-col justify-between gap-8">
-              <div>
-                <p className="text-base font-semibold text-emerald-300">Next action</p>
-                <h2 className="mt-5 font-display text-[28px] font-semibold leading-tight tracking-tight text-white">
-                  {loading ? 'Preparing recommendation' : nextAction.title}
-                </h2>
-                <p className="mt-6 text-lg leading-relaxed text-zinc-400">
-                  {loading ? 'FinanceAI will use recorded transaction data.' : nextAction.detail}
-                </p>
-              </div>
-
-              <div>
-                <button
-                  type="button"
-                  onClick={nextAction.action}
-                  disabled={loading}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-emerald-500 px-6 text-base font-semibold text-zinc-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {loading ? 'Loading' : nextAction.cta}
-                  {!loading && <ArrowRight size={15} />}
-                </button>
-                <p className="mt-5 text-sm leading-relaxed text-zinc-500">
-                  Based on recorded transactions only.
-                </p>
-              </div>
-            </div>
-          </aside>
+            </>
+          )}
         </div>
+
+        <aside className="border-t border-ledger-border pt-6 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-1">
+          <p className="text-sm font-medium text-accent">Next action</p>
+          <h2 className="mt-2 text-xl font-semibold tracking-[-0.02em] text-ink">
+            {loading ? 'Preparing recommendation' : nextAction.title}
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-ink-secondary">
+            {loading ? 'Using recorded transaction data.' : nextAction.detail}
+          </p>
+          <button
+            type="button"
+            onClick={nextAction.action}
+            disabled={loading}
+            className="mt-4 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-accent transition-[color,transform] duration-150 ease-out hover:text-accent-hover active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-canvas disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
+          >
+            {loading ? 'Loading' : nextAction.cta}
+            {!loading && <ArrowRight className="h-4 w-4" aria-hidden="true" />}
+          </button>
+        </aside>
       </section>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <section className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5 sm:p-8">
-          <div>
-            <h2 className="font-display text-[28px] font-semibold tracking-tight text-white">Why this happened</h2>
-            <p className="mt-2 text-base text-zinc-400">Recorded spending drivers for the last {data.period}.</p>
-          </div>
-
-          <div className="mt-8 space-y-6">
+      <section aria-label="Period totals" className="grid grid-cols-2 border-y border-ledger-border sm:grid-cols-4">
+        {metricItems.map((item, index) => (
+          <div
+            key={item.label}
+            className={`min-w-0 px-4 py-5 first:pl-0 last:pr-0 sm:px-5 ${
+              index % 2 === 1 ? 'border-l border-ledger-border' : ''
+            } ${index >= 2 ? 'border-t border-ledger-border sm:border-t-0' : ''} ${
+              index > 0 ? 'sm:border-l sm:border-ledger-border' : ''
+            }`}
+          >
+            <p className="text-sm text-ink-secondary">{item.label}</p>
             {loading ? (
-              <p className="text-sm text-zinc-500">Loading spending drivers.</p>
+              <div className="ml-auto mt-3 h-5 w-24 animate-pulse rounded-status bg-ledger-border motion-reduce:animate-none" />
+            ) : (
+              <p className={`mt-2 text-right text-xl font-semibold tabular-nums lining-nums sm:text-2xl ${item.tone}`}>
+                {item.value}
+              </p>
+            )}
+          </div>
+        ))}
+      </section>
+
+      <div className="grid divide-y divide-ledger-border lg:grid-cols-2 lg:divide-x lg:divide-y-0">
+        <section className="pb-8 lg:pb-0 lg:pr-10" aria-labelledby="spending-drivers-heading">
+          <h2 id="spending-drivers-heading" className="text-xl font-semibold tracking-[-0.02em] text-ink">Spending drivers</h2>
+          <p className="mt-1 text-sm text-ink-secondary">Recorded expenses for the last {data.period}.</p>
+
+          <div className="mt-5">
+            {loading ? (
+              <div className="space-y-3" role="status" aria-label="Loading spending drivers">
+                {[0, 1, 2].map((item) => <div key={item} className="h-12 animate-pulse border-b border-ledger-border bg-ledger-surface motion-reduce:animate-none" />)}
+              </div>
             ) : categoryItems.length > 0 ? (
-              categoryItems.map((item, index) => {
+              categoryItems.map((item) => {
                 const share = data.totalExpenses > 0 ? (item.amount / data.totalExpenses) * 100 : 0;
                 return (
-                  <div key={item.category}>
-                    <div className="mb-2 flex items-baseline justify-between gap-4">
-                      <span className="text-lg font-semibold text-zinc-100">{item.category}</span>
-                      <span className="text-base font-semibold tabular-nums text-zinc-200">
-                        {formatPercent(share)} · {formatCurrency(item.amount)}
-                      </span>
-                    </div>
-                    <div className="h-2.5 overflow-hidden rounded-full bg-zinc-800">
-                      <div
-                        className={`h-full rounded-full ${index === 0 ? 'bg-emerald-400' : 'bg-zinc-500'}`}
-                        style={{ width: `${Math.max(4, share)}%` }}
-                      />
-                    </div>
+                  <div key={item.category} className="flex items-baseline justify-between gap-4 border-b border-ledger-border py-4">
+                    <span className="min-w-0 truncate text-sm font-medium text-ink">{item.category}</span>
+                    <span className="shrink-0 text-right text-sm tabular-nums text-ink-secondary">
+                      {formatPercent(share)} <span className="ml-3 text-ink">{formatCurrency(item.amount)}</span>
+                    </span>
                   </div>
                 );
               })
             ) : (
-              <p className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-4 text-sm leading-relaxed text-zinc-500">
-                No expense categories were recorded in the last {data.period}.
-              </p>
+              <EmptyState title="No spending recorded" description={`No expense categories were recorded in the last ${data.period}.`} />
             )}
 
             {showConcentrationNote && topCategory && (
-              <div className="rounded-2xl border border-amber-500/25 bg-amber-500/[0.07] p-5">
-                <p className="text-base leading-relaxed text-amber-100/90">
-                  {topCategory.category} concentration is high this month. Review {topCategory.category} transactions before changing budgets.
-                </p>
-              </div>
+              <p className="border-b border-ledger-border py-4 text-sm leading-6 text-warning">
+                {topCategory.category} is concentrated in this period. Review those transactions before changing budgets.
+              </p>
             )}
           </div>
         </section>
 
-        <section className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5 sm:p-8">
-          <div className="flex items-start justify-between gap-4">
+        <section className="pt-8 lg:pl-10 lg:pt-0" aria-labelledby="recent-activity-heading">
+          <div className="flex items-baseline justify-between gap-4">
             <div>
-              <h2 className="font-display text-[28px] font-semibold tracking-tight text-white">Recent activity</h2>
-              <p className="mt-2 text-base text-zinc-400">Latest recorded transactions</p>
+              <h2 id="recent-activity-heading" className="text-xl font-semibold tracking-[-0.02em] text-ink">Recent activity</h2>
+              <p className="mt-1 text-sm text-ink-secondary">Latest recorded transactions.</p>
             </div>
-            <p className="mt-2 text-sm font-medium text-zinc-600">{data.transactionCount.toLocaleString('en-IN')} total</p>
+            <p className="text-sm tabular-nums text-ink-secondary">{data.transactionCount.toLocaleString('en-IN')} total</p>
           </div>
 
-          <div className="mt-7">
+          <div className="mt-5">
             {loading ? (
-              <p className="text-sm text-zinc-500">Loading recent activity.</p>
-            ) : recentItems.length > 0 ? (
-              recentItems.map((transaction) => {
-                const isIncome = transaction.type === 'INCOME';
-                return (
-                  <div
-                    key={transaction.id}
-                    className="border-b border-zinc-800 py-5 last:border-b-0 last:pb-0"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <p className="truncate text-lg font-semibold text-zinc-100">{transaction.description}</p>
-                        <p className="mt-1 text-sm text-zinc-600">
-                          {transaction.category} · {formatDate(transaction.date)}
-                        </p>
-                      </div>
-                      <p className={`shrink-0 text-lg font-semibold tabular-nums ${isIncome ? 'text-emerald-300' : 'text-red-300'}`}>
-                        {isIncome ? '+' : '-'}
-                        {formatCurrency(Number(transaction.amount))}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-4">
-                <p className="text-sm font-medium text-zinc-300">No transactions yet</p>
-                <p className="mt-1 text-sm text-zinc-500">Start by logging your first transaction.</p>
+              <div className="space-y-3" role="status" aria-label="Loading recent activity">
+                {[0, 1, 2].map((item) => <div key={item} className="h-14 animate-pulse border-b border-ledger-border bg-ledger-surface motion-reduce:animate-none" />)}
               </div>
+            ) : recentItems.length > 0 ? (
+              recentItems.map((transaction) => (
+                <div key={transaction.id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-b border-ledger-border py-4">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-ink">{transaction.description}</p>
+                    <p className="mt-1 truncate text-xs text-ink-secondary">{transaction.category} <span className="mx-1">/</span> {formatDate(transaction.date)}</p>
+                  </div>
+                  <Amount amount={Number(transaction.amount)} type={transaction.type} className="self-center text-base" />
+                </div>
+              ))
+            ) : (
+              <EmptyState title="No transactions yet" description="Start by logging the first item in your ledger." />
             )}
           </div>
         </section>

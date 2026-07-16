@@ -2,8 +2,31 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>FinanceAI Dashboard</title>
+    <script>
+      (() => {
+        try {
+          const stored = localStorage.getItem('userPreferences');
+          const preferences = stored ? JSON.parse(stored) : {};
+          let preference = preferences.theme;
+
+          if (!['light', 'dark', 'auto'].includes(preference)) {
+            const legacy = localStorage.getItem('darkMode');
+            preference = legacy === null ? 'light' : legacy === 'true' ? 'dark' : 'light';
+            localStorage.setItem('userPreferences', JSON.stringify({ ...preferences, theme: preference }));
+            localStorage.removeItem('darkMode');
+          }
+
+          const isDark = preference === 'dark' || (
+            preference === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches
+          );
+          document.documentElement.classList.toggle('dark', isDark);
+        } catch {
+          document.documentElement.classList.remove('dark');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

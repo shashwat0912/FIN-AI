@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { LogOut, Menu, Settings, User } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { LogOut, Menu, User } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { onProfileUpdated } from '../../lib/appEvents';
 import { readProfileIdentity } from '../../lib/profileIdentity';
+import { useNavItems } from '../navigation/NavItems';
+import { IconButton } from '../ui/PrivateLedger';
 
 interface TopBarProps {
   onMenuClick: () => void;
@@ -12,7 +14,10 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [identity, setIdentity] = useState(readProfileIdentity);
   const navigate = useNavigate();
+  const location = useLocation();
+  const navItems = useNavItems();
   const menuRef = useRef<HTMLDivElement>(null);
+  const currentSection = navItems.find((item) => item.path === location.pathname)?.label || navItems[0].label;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -36,79 +41,59 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
   };
 
   return (
-    <header className="relative flex h-14 items-center justify-between border-b border-zinc-800 bg-zinc-950 px-4 text-white sm:px-6">
-      <div className="flex items-center gap-3 xl:hidden">
-        <button
+    <header className="relative flex h-14 shrink-0 items-center justify-between border-b border-ledger-border bg-ledger-surface px-3 text-ink sm:px-4">
+      <div className="flex min-w-0 items-center gap-2">
+        <IconButton
           onClick={onMenuClick}
-          className="rounded-lg p-2 text-zinc-500 hover:bg-zinc-900 hover:text-zinc-100"
+          className="lg:hidden"
           title="Toggle sidebar"
           aria-label="Toggle sidebar"
+          aria-controls="primary-navigation"
         >
-          <Menu className="h-5 w-5" />
-        </button>
+          <Menu className="h-[18px] w-[18px]" />
+        </IconButton>
 
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 text-sm font-bold text-zinc-950">
-            F
-          </div>
-          <span className="hidden text-base font-semibold text-zinc-100 md:block">FinanceAI</span>
-        </div>
+        <p className="truncate text-sm font-semibold text-ink">{currentSection}</p>
       </div>
 
-      <div className="ml-auto flex items-center gap-2">
-        <button
-          onClick={() => navigate('/dashboard/settings')}
-          className="rounded-lg p-2 text-zinc-500 hover:bg-zinc-900 hover:text-zinc-100"
-          title="Open settings"
-          aria-label="Open settings"
-        >
-          <Settings className="h-5 w-5" />
-        </button>
-
+      <div className="ml-auto flex items-center">
         <div ref={menuRef} className="relative">
           <button
             onClick={() => setShowUserMenu((isOpen) => !isOpen)}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-zinc-700 bg-zinc-900 text-sm font-semibold text-zinc-100 hover:border-zinc-600 hover:bg-zinc-800"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-ledger-border bg-surface-strong text-sm font-semibold text-ink transition-colors duration-150 ease-out hover:border-border-strong hover:bg-accent-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-ledger-surface motion-reduce:transition-none"
             title="User profile"
             aria-label="User profile"
+            aria-haspopup="menu"
+            aria-expanded={showUserMenu}
           >
             {identity.initials}
           </button>
 
           {showUserMenu && (
-            <div className="absolute right-0 z-50 mt-2 w-52 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 shadow-xl shadow-black/30">
-              <div className="border-b border-zinc-800 px-4 py-3">
-                <p className="text-sm font-medium text-zinc-100">{identity.name}</p>
-                {identity.contact && <p className="mt-0.5 text-xs text-zinc-500">{identity.contact}</p>}
+            <div role="menu" className="absolute right-0 z-50 mt-2 w-52 overflow-hidden rounded-popover border border-border-strong bg-surface-strong">
+              <div className="border-b border-ledger-border px-4 py-3">
+                <p className="text-sm font-medium text-ink">{identity.name}</p>
+                {identity.contact && <p className="mt-0.5 truncate text-xs text-ink-muted">{identity.contact}</p>}
               </div>
-
-              <button
-                onClick={() => {
-                  navigate('/dashboard/settings');
-                  setShowUserMenu(false);
-                }}
-                className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-zinc-300 hover:bg-zinc-900 hover:text-white"
-              >
-                <Settings className="h-4 w-4" />
-                Settings
-              </button>
 
               <button
                 onClick={() => {
                   navigate('/profile');
                   setShowUserMenu(false);
                 }}
-                className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-zinc-300 hover:bg-zinc-900 hover:text-white"
+                role="menuitem"
+                className="flex min-h-11 w-full items-center gap-2 px-4 text-left text-sm text-ink-secondary transition-colors duration-150 hover:bg-accent-soft hover:text-ink focus:outline-none focus-visible:bg-accent-soft focus-visible:text-ink"
               >
                 <User className="h-4 w-4" />
                 Profile
               </button>
 
-              <div className="border-t border-zinc-800" />
+              <div className="border-t border-ledger-border" />
 
               <button
                 onClick={handleLogout}
-                className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-red-300 hover:bg-red-500/10 hover:text-red-200"
+                role="menuitem"
+                className="flex min-h-11 w-full items-center gap-2 px-4 text-left text-sm text-negative transition-colors duration-150 hover:bg-ledger-surface focus:outline-none focus-visible:bg-ledger-surface"
               >
                 <LogOut className="h-4 w-4" />
                 Logout

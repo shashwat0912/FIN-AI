@@ -1,194 +1,136 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+/* eslint-disable react-refresh/only-export-components */
+import React, {
+  createContext,
+  ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { logger } from '../utils/logger';
 
+export type ThemePreference = 'light' | 'dark' | 'auto';
+export type ResolvedTheme = 'light' | 'dark';
+
 interface DarkModeContextType {
+  preference: ThemePreference;
+  resolvedTheme: ResolvedTheme;
+  setTheme: (preference: ThemePreference) => void;
+  // Compatibility aliases for untouched authentication and settings surfaces.
   isDarkMode: boolean;
   toggleDarkMode: () => void;
-  theme: 'light' | 'dark';
-  isTransitioning: boolean;
+  theme: ResolvedTheme;
+  isTransitioning: false;
 }
 
 const DarkModeContext = createContext<DarkModeContextType | undefined>(undefined);
+const THEME_KEY = 'userPreferences';
+
+const isThemePreference = (value: unknown): value is ThemePreference =>
+  value === 'light' || value === 'dark' || value === 'auto';
+
+const getSystemTheme = (): ResolvedTheme =>
+  typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
+    ? 'dark'
+    : 'light';
+
+const readPreference = (): ThemePreference => {
+  if (typeof window === 'undefined') return 'light';
+
+  try {
+    const stored = localStorage.getItem(THEME_KEY);
+    if (stored) {
+      const preference = JSON.parse(stored).theme;
+      if (isThemePreference(preference)) return preference;
+    }
+
+    const legacy = localStorage.getItem('darkMode');
+    if (legacy !== null) {
+      const preference = legacy === 'true' ? 'dark' : 'light';
+      localStorage.setItem(THEME_KEY, JSON.stringify({ theme: preference }));
+      localStorage.removeItem('darkMode');
+      return preference;
+    }
+  } catch {
+    logger.warn('Error reading theme preferences from localStorage');
+  }
+
+  return 'light';
+};
+
+const applyTheme = (theme: ResolvedTheme) => {
+  document.documentElement.classList.toggle('dark', theme === 'dark');
+};
 
 export function DarkModeProvider({ children }: { children: ReactNode }) {
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
-    // Check if we're in the browser
-    if (typeof window !== 'undefined') {
+  const [preference, setPreference] = useState<ThemePreference>(readPreference);
+  const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(getSystemTheme);
+  const resolvedTheme: ResolvedTheme = preference === 'auto' ? systemTheme : preference;
+
+  useLayoutEffect(() => applyTheme(resolvedTheme), [resolvedTheme]);
+
+  useEffect(() => {
+    if (preference !== 'auto') return;
+
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleSystemThemeChange = (event: MediaQueryListEvent) => {
+      setSystemTheme(event.matches ? 'dark' : 'light');
+    };
+
+    setSystemTheme(mediaQuery.matches ? 'dark' : 'light');
+    mediaQuery.addEventListener('change', handleSystemThemeChange);
+    return () => mediaQuery.removeEventListener('change', handleSystemThemeChange);
+  }, [preference]);
+
+  useEffect(() => {
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key !== THEME_KEY || !event.newValue) return;
+
       try {
-        // First check user's theme preference
-        const userPreferences = localStorage.getItem('userPreferences');
-        if (userPreferences) {
-          const prefs = JSON.parse(userPreferences);
-          if (prefs.theme === 'auto') {
-            // For auto theme, use system preference
-            return window.matchMedia('(prefers-color-scheme: dark)').matches;
-          } else if (prefs.theme === 'dark') {
-            return true;
-          } else if (prefs.theme === 'light') {
-            return false;
-          }
-        }
-        
-        // Fallback to old darkMode localStorage
-        const savedDarkMode = localStorage.getItem('darkMode');
-        if (savedDarkMode !== null && savedDarkMode !== undefined) {
-          return savedDarkMode === 'true';
-        }
-        
-        // Default to system preference if no saved preference
-        return window.matchMedia('(prefers-color-scheme: dark)').matches;
-      } catch (error) {
-        logger.warn('Error reading theme preferences from localStorage');
-        return false;
-      }
-    }
-    return false;
-  });
-
-  const [isTransitioning, setIsTransitioning] = useState(false);
-  const [currentTheme, setCurrentTheme] = useState<'light' | 'dark' | 'auto'>('auto');
-
-  // Apply dark mode to document with premium smooth transitions
-  useEffect(() => {
-    // Start transition
-    setIsTransitioning(true);
-    
-    // Add premium transition classes
-    document.documentElement.classList.add('theme-transitioning');
-    document.body.classList.add('theme-transitioning');
-    
-    // Apply theme with smooth transition
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-      document.body.style.backgroundColor = '#0f0f23'; // Premium dark background
-      document.body.style.color = '#e2e8f0';
-    } else {
-      document.documentElement.classList.remove('dark');
-      document.body.style.backgroundColor = '#ffffff'; // Clean white background
-      document.body.style.color = '#1f2937';
-    }
-    
-    // End transition after animation completes
-    setTimeout(() => {
-      document.documentElement.classList.remove('theme-transitioning');
-      document.body.classList.remove('theme-transitioning');
-      setIsTransitioning(false);
-    }, 200); // Fast and responsive
-  }, [isDarkMode]);
-
-  // Listen for system theme changes when auto is selected
-  useEffect(() => {
-    // Get current theme preference
-    const userPreferences = localStorage.getItem('userPreferences');
-    if (userPreferences) {
-      try {
-        const prefs = JSON.parse(userPreferences);
-        setCurrentTheme(prefs.theme || 'auto');
-      } catch (error) {
-        logger.warn('Error parsing user preferences');
-      }
-    }
-  }, []); // Only run once on mount
-
-  // Separate effect to listen for system changes only when auto is selected
-  useEffect(() => {
-    // Only listen for system changes if theme is set to auto
-    if (currentTheme === 'auto') {
-      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-      
-      const handleSystemThemeChange = (e: MediaQueryListEvent) => {
-        // Double-check that theme is still auto before updating
-        const currentPrefs = localStorage.getItem('userPreferences');
-        if (currentPrefs) {
-          try {
-            const prefs = JSON.parse(currentPrefs);
-            if (prefs.theme === 'auto') {
-              const shouldBeDark = e.matches;
-              if (shouldBeDark !== isDarkMode) {
-                setIsDarkMode(shouldBeDark);
-              }
-            }
-          } catch (error) {
-            logger.warn('Error handling system theme change');
-          }
-        }
-      };
-
-      mediaQuery.addEventListener('change', handleSystemThemeChange);
-      
-      return () => {
-        mediaQuery.removeEventListener('change', handleSystemThemeChange);
-      };
-    }
-  }, [currentTheme, isDarkMode]);
-
-  // Listen for theme changes from Settings page
-  useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'userPreferences' && e.newValue) {
-        try {
-          const prefs = JSON.parse(e.newValue);
-          setCurrentTheme(prefs.theme || 'auto');
-          
-          // Apply the theme immediately
-          if (prefs.theme === 'dark') {
-            setIsDarkMode(true);
-          } else if (prefs.theme === 'light') {
-            setIsDarkMode(false);
-          } else if (prefs.theme === 'auto') {
-            // For auto, use system preference
-            const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            setIsDarkMode(systemPrefersDark);
-          }
-        } catch (error) {
-          logger.warn('Error handling theme change from storage');
-        }
+        const nextPreference = JSON.parse(event.newValue).theme;
+        if (isThemePreference(nextPreference)) setPreference(nextPreference);
+      } catch {
+        logger.warn('Error synchronizing theme preferences across tabs');
       }
     };
 
     window.addEventListener('storage', handleStorageChange);
-    
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-    };
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  const toggleDarkMode = () => {
-    const newDarkMode = !isDarkMode;
-    
-    // Add a subtle haptic feedback if available
-    if (navigator.vibrate) {
-      navigator.vibrate(50);
-    }
-    
-    setIsDarkMode(newDarkMode);
-    
-    // Save to localStorage with error handling
+  const setTheme = useCallback((nextPreference: ThemePreference) => {
+    setPreference(nextPreference);
+
     try {
-      localStorage.setItem('darkMode', newDarkMode.toString());
-    } catch (error) {
-      logger.warn('Error saving darkMode to localStorage');
+      const stored = localStorage.getItem(THEME_KEY);
+      const preferences = stored ? JSON.parse(stored) : {};
+      localStorage.setItem(THEME_KEY, JSON.stringify({ ...preferences, theme: nextPreference }));
+    } catch {
+      logger.warn('Error saving theme preferences to localStorage');
     }
-  };
+  }, []);
 
-  const value: DarkModeContextType = {
-    isDarkMode,
+  const toggleDarkMode = useCallback(() => {
+    setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
+  }, [resolvedTheme, setTheme]);
+
+  const value = useMemo<DarkModeContextType>(() => ({
+    preference,
+    resolvedTheme,
+    setTheme,
+    isDarkMode: resolvedTheme === 'dark',
     toggleDarkMode,
-    theme: isDarkMode ? 'dark' : 'light',
-    isTransitioning,
-  };
+    theme: resolvedTheme,
+    isTransitioning: false,
+  }), [preference, resolvedTheme, setTheme, toggleDarkMode]);
 
-  return (
-    <DarkModeContext.Provider value={value}>
-      {children}
-    </DarkModeContext.Provider>
-  );
+  return <DarkModeContext.Provider value={value}>{children}</DarkModeContext.Provider>;
 }
 
 export const useDarkMode = (): DarkModeContextType => {
   const context = useContext(DarkModeContext);
-  if (context === undefined) {
-    throw new Error('useDarkMode must be used within a DarkModeProvider');
-  }
+  if (!context) throw new Error('useDarkMode must be used within a DarkModeProvider');
   return context;
 };

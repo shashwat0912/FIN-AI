@@ -3,23 +3,42 @@ export default {
   content: [
     "./index.html",
     "./frontend/**/*.{js,ts,jsx,tsx}",
-    "./backend/**/*.{js,ts,jsx,tsx}",
   ],
   darkMode: 'class', // Enable class-based dark mode
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Inter', 'Geist', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        amount: ['Inter', 'Geist', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        sans: ['ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+        amount: ['ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
       },
       fontSize: {
-        display: ['32px', { lineHeight: '40px', fontWeight: '600' }],
-        heading: ['20px', { lineHeight: '28px', fontWeight: '500' }],
-        body: ['14px', { lineHeight: '20px', fontWeight: '400' }],
-        caption: ['12px', { lineHeight: '16px', fontWeight: '400' }],
-        amount: ['14px', { lineHeight: '20px', fontWeight: '500' }],
+        display: ['2rem', { lineHeight: '2.5rem', fontWeight: '600' }],
+        heading: ['1.25rem', { lineHeight: '1.75rem', fontWeight: '500' }],
+        body: ['0.875rem', { lineHeight: '1.25rem', fontWeight: '400' }],
+        caption: ['0.75rem', { lineHeight: '1rem', fontWeight: '400' }],
+        amount: ['0.875rem', { lineHeight: '1.25rem', fontWeight: '500' }],
+      },
+      borderRadius: {
+        section: '0',
+        status: '4px',
+        control: '6px',
+        popover: '8px',
       },
       colors: {
+        canvas: 'var(--ledger-canvas)',
+        'ledger-surface': 'var(--ledger-surface)',
+        'surface-strong': 'var(--ledger-surface-strong)',
+        ink: 'var(--ledger-ink)',
+        'ink-secondary': 'var(--ledger-ink-secondary)',
+        'ink-muted': 'var(--ledger-ink-muted)',
+        'ledger-border': 'var(--ledger-border)',
+        'border-strong': 'var(--ledger-border-strong)',
+        'accent-hover': 'var(--ledger-accent-hover)',
+        'accent-soft': 'var(--ledger-accent-soft)',
+        negative: 'var(--ledger-negative)',
+        warning: 'var(--ledger-warning)',
+        focus: 'var(--ledger-focus)',
+        overlay: 'var(--ledger-overlay)',
         // V2 semantic palette
         background: '#0A0A0B',
         surface: '#141416',
@@ -45,8 +64,8 @@ export default {
         },
         // Soft accent colors for dark mode
         accent: {
-          DEFAULT: '#10B981',
-          subtle: '#10B98115',
+          DEFAULT: 'var(--ledger-accent)',
+          subtle: 'var(--ledger-accent-soft)',
           50: '#f0f9ff',
           100: '#e0f2fe',
           200: '#bae6fd',

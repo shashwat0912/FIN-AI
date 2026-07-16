@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { User, Bell, Palette, Shield, LogOut, Save } from 'lucide-react';
 import { apiClient } from '../lib/api';
-import { useDarkMode } from '../context/DarkModeContext';
+import { ThemePreference, useDarkMode } from '../context/DarkModeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { logger } from '../utils/logger';
 import { decodeToken } from '../utils/jwtUtils';
@@ -19,7 +19,7 @@ const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
 
 export default function Settings() {
-  const { theme } = useDarkMode();
+  const { preference: theme, setTheme } = useDarkMode();
   const { currentLanguage, setLanguage, t } = useLanguage();
   const [activeTab, setActiveTab] = useState('profile');
   const [loading, setLoading] = useState(true);
@@ -225,15 +225,11 @@ export default function Settings() {
       localStorage.setItem(getUserKey('userPreferences'), JSON.stringify(updatedPreferences));
       localStorage.setItem('userPreferences', JSON.stringify(updatedPreferences));
       setPreferences(updatedPreferences);
-      window.dispatchEvent(new StorageEvent('storage', {
-        key: 'userPreferences',
-        newValue: JSON.stringify(updatedPreferences),
-        oldValue: JSON.stringify(preferences)
-      }));
+      setTheme(updatedPreferences.theme as ThemePreference);
     } catch (error) {
       logger.warn('Error saving preferences');
     }
-  }, [getUserKey, preferences]);
+  }, [getUserKey, setTheme]);
 
   const handleSave = useCallback(async (section: string) => {
     try {
@@ -463,14 +459,6 @@ export default function Settings() {
               onChange={(e) => {
                 const newTheme = e.target.value;
                 savePreferences({ ...preferences, theme: newTheme });
-
-                // Also update the old darkMode key for backward compatibility
-                if (newTheme === 'auto') {
-                  const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                  localStorage.setItem('darkMode', systemPrefersDark.toString());
-                } else {
-                  localStorage.setItem('darkMode', (newTheme === 'dark').toString());
-                }
               }}
               className="h-11 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-100 hover:border-zinc-700 focus:border-emerald-400/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/10"
             >

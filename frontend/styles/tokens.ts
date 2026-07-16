@@ -9,6 +9,44 @@
 // COLOR TOKENS
 // ============================================
 
+export const privateLedgerColors = {
+  light: {
+    canvas: '#F2F2EE',
+    surface: '#FAFAF7',
+    ink: '#20231F',
+    inkSecondary: '#555C55',
+    inkMuted: '#6B726A',
+    border: '#CED1CA',
+    borderStrong: '#AEB4AB',
+    accent: '#355C48',
+    accentSoft: '#E1E9E3',
+    negative: '#963F38',
+  },
+  dark: {
+    canvas: '#121512',
+    surface: '#181C18',
+    ink: '#E9ECE6',
+    inkSecondary: '#B8BDB5',
+    inkMuted: '#8D958C',
+    border: '#30362F',
+    borderStrong: '#444C43',
+    accent: '#82A38F',
+    accentSoft: '#223129',
+    negative: '#D28A83',
+  },
+} as const;
+
+export const privateLedgerSpacing = [2, 4, 8, 12, 16, 20, 24, 32, 40, 48, 64] as const;
+
+export const privateLedgerRadii = {
+  section: 0,
+  status: 4,
+  control: 6,
+  popover: 8,
+} as const;
+
+export const ledgerControlClass = 'h-11 w-full rounded-control border border-ledger-border bg-surface-strong px-3 text-sm text-ink placeholder:text-ink-muted transition-[border-color,background-color] duration-150 ease-out hover:border-border-strong focus:border-focus focus:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none';
+
 export const v2Colors = {
   background: '#0A0A0B',
   surface: '#141416',

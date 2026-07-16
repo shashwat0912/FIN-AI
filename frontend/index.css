@@ -2,70 +2,126 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Premium Dark Mode Base Styles */
 @layer base {
-  html {
-    @apply transition-all duration-700 ease-in-out;
+  :root {
+    color-scheme: light;
+    --ledger-canvas: #f2f2ee;
+    --ledger-surface: #fafaf7;
+    --ledger-surface-strong: var(--ledger-surface);
+    --ledger-ink: #20231f;
+    --ledger-ink-secondary: #555c55;
+    --ledger-ink-muted: #6b726a;
+    --ledger-border: #ced1ca;
+    --ledger-border-strong: #aeb4ab;
+    --ledger-accent: #355c48;
+    --ledger-accent-hover: color-mix(
+      in srgb,
+      var(--ledger-accent) 88%,
+      var(--ledger-ink)
+    );
+    --ledger-accent-soft: #e1e9e3;
+    --ledger-negative: #963f38;
+    --ledger-warning: #735f25;
+    --ledger-focus: var(--ledger-accent);
+    --ledger-overlay: rgb(32 35 31 / 0.42);
+    --space-0-5: 0.125rem;
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-5: 1.25rem;
+    --space-6: 1.5rem;
+    --space-8: 2rem;
+    --space-10: 2.5rem;
+    --space-12: 3rem;
+    --space-16: 4rem;
+    --radius-section: 0;
+    --radius-status: 4px;
+    --radius-control: 6px;
+    --radius-popover: 8px;
+    --motion-fast: 120ms;
+    --motion-standard: 180ms;
+    --ease-out-ui: cubic-bezier(0.23, 1, 0.32, 1);
   }
-  
-  body {
-    @apply transition-all duration-700 ease-in-out;
-  }
-  
-  /* Premium dark mode color scheme */
+
   .dark {
     color-scheme: dark;
+    --ledger-canvas: #121512;
+    --ledger-surface: #181c18;
+    --ledger-surface-strong: var(--ledger-surface);
+    --ledger-ink: #e9ece6;
+    --ledger-ink-secondary: #b8bdb5;
+    --ledger-ink-muted: #8d958c;
+    --ledger-border: #30362f;
+    --ledger-border-strong: #444c43;
+    --ledger-accent: #82a38f;
+    --ledger-accent-hover: color-mix(
+      in srgb,
+      var(--ledger-accent) 88%,
+      var(--ledger-ink)
+    );
+    --ledger-accent-soft: #223129;
+    --ledger-negative: #d28a83;
+    --ledger-warning: #d0a765;
+    --ledger-focus: var(--ledger-accent);
+    --ledger-overlay: rgb(18 21 18 / 0.72);
   }
-  
-  /* Premium theme transition effects */
-  .theme-transitioning {
-    transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1) !important;
+
+  html,
+  body,
+  #root {
+    min-width: 320px;
+    background: var(--ledger-canvas);
+    color: var(--ledger-ink);
   }
-  
-  .theme-transitioning * {
-    transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1) !important;
+
+  body {
+    min-height: 100dvh;
+    margin: 0;
+    font-family:
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
+      sans-serif;
+    font-kerning: normal;
   }
-  
-  /* Smooth transitions for all elements with premium easing */
-  * {
-    @apply transition-all duration-500 ease-out;
+
+  #root {
+    min-height: 100dvh;
   }
-  
-  /* Exclude specific properties from global transition */
-  *:not([class*="transition-"]) {
-    transition-property: background-color, border-color, color, fill, stroke, box-shadow, transform;
-  }
-  
-  /* Premium staggered animations for theme switching */
-  .theme-transitioning .animate-stagger-1 {
-    animation-delay: 0.1s;
-  }
-  
-  .theme-transitioning .animate-stagger-2 {
-    animation-delay: 0.2s;
-  }
-  
-  .theme-transitioning .animate-stagger-3 {
-    animation-delay: 0.3s;
-  }
-  
-  .theme-transitioning .animate-stagger-4 {
-    animation-delay: 0.4s;
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
 
 /* Premium Color Variables */
 :root {
-  --color-bg: #0A0A0B;
+  --color-bg: #0a0a0b;
   --color-surface: #141416;
-  --color-border: #1F1F23;
-  --color-text-primary: #FAFAFA;
-  --color-text-secondary: #71717A;
-  --color-text-muted: #52525B;
-  --color-accent: #10B981;
-  --color-accent-subtle: #10B98115;
-  --color-danger: #EF4444;
+  --color-border: #1f1f23;
+  --color-text-primary: #fafafa;
+  --color-text-secondary: #71717a;
+  --color-text-muted: #52525b;
+  --color-accent: #10b981;
+  --color-accent-subtle: #10b98115;
+  --color-danger: #ef4444;
   --font-size-display: 32px;
   --font-size-heading: 20px;
   --font-size-body: 14px;
@@ -125,68 +181,77 @@
 
 /* Premium Theme Transition Animations */
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes themeSlideIn {
-  0% { 
-    opacity: 0; 
-    transform: translateY(20px) scale(0.95); 
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
   }
-  50% { 
-    opacity: 0.8; 
-    transform: translateY(-5px) scale(1.02); 
+  50% {
+    opacity: 0.8;
+    transform: translateY(-5px) scale(1.02);
   }
-  100% { 
-    opacity: 1; 
-    transform: translateY(0) scale(1); 
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
 @keyframes themeFadeIn {
-  0% { 
-    opacity: 0; 
-    transform: scale(0.9); 
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
   }
-  100% { 
-    opacity: 1; 
-    transform: scale(1); 
+  100% {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 
 @keyframes themeGlow {
-  0% { 
-    box-shadow: 0 0 0 rgba(99, 102, 241, 0); 
+  0% {
+    box-shadow: 0 0 0 rgba(99, 102, 241, 0);
   }
-  50% { 
-    box-shadow: 0 0 30px rgba(99, 102, 241, 0.3); 
+  50% {
+    box-shadow: 0 0 30px rgba(99, 102, 241, 0.3);
   }
-  100% { 
-    box-shadow: 0 0 0 rgba(99, 102, 241, 0); 
+  100% {
+    box-shadow: 0 0 0 rgba(99, 102, 241, 0);
   }
 }
 
 @keyframes themePulse {
-  0%, 100% { 
-    transform: scale(1); 
+  0%,
+  100% {
+    transform: scale(1);
   }
-  50% { 
-    transform: scale(1.05); 
+  50% {
+    transform: scale(1.05);
   }
 }
 
 @keyframes themeRotate {
-  from { 
-    transform: rotate(0deg) scale(1); 
+  from {
+    transform: rotate(0deg) scale(1);
   }
-  to { 
-    transform: rotate(360deg) scale(1); 
+  to {
+    transform: rotate(360deg) scale(1);
   }
 }
 
@@ -270,12 +335,20 @@
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, var(--premium-primary), var(--premium-secondary));
+  background: linear-gradient(
+    135deg,
+    var(--premium-primary),
+    var(--premium-secondary)
+  );
   border-radius: 3px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, var(--premium-secondary), var(--premium-accent));
+  background: linear-gradient(
+    135deg,
+    var(--premium-secondary),
+    var(--premium-accent)
+  );
 }
 
 /* Premium Input Styles */
@@ -305,13 +378,21 @@
 
 /* Premium Button Styles */
 .premium-button {
-  background: linear-gradient(135deg, var(--premium-primary), var(--premium-secondary));
+  background: linear-gradient(
+    135deg,
+    var(--premium-primary),
+    var(--premium-secondary)
+  );
   color: white;
   transition: all 0.3s ease;
 }
 
 .premium-button:hover {
-  background: linear-gradient(135deg, var(--premium-secondary), var(--premium-accent));
+  background: linear-gradient(
+    135deg,
+    var(--premium-secondary),
+    var(--premium-accent)
+  );
   transform: translateY(-1px);
   box-shadow: 0 10px 25px rgba(99, 102, 241, 0.3);
 }
@@ -328,7 +409,12 @@
 
 /* Premium Gradient Text */
 .premium-gradient-text {
-  background: linear-gradient(135deg, var(--premium-primary), var(--premium-secondary), var(--premium-accent));
+  background: linear-gradient(
+    135deg,
+    var(--premium-primary),
+    var(--premium-secondary),
+    var(--premium-accent)
+  );
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -386,20 +472,31 @@
 /* Premium Border Gradients */
 .premium-border-gradient {
   border: 2px solid;
-  border-image: linear-gradient(135deg, var(--premium-primary), var(--premium-secondary)) 1;
+  border-image: linear-gradient(
+      135deg,
+      var(--premium-primary),
+      var(--premium-secondary)
+    )
+    1;
 }
 
 /* Premium Shadow */
 .premium-shadow {
-  box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.1), 0 2px 4px -1px rgba(99, 102, 241, 0.06);
+  box-shadow:
+    0 4px 6px -1px rgba(99, 102, 241, 0.1),
+    0 2px 4px -1px rgba(99, 102, 241, 0.06);
 }
 
 .premium-shadow-lg {
-  box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.1), 0 4px 6px -2px rgba(99, 102, 241, 0.05);
+  box-shadow:
+    0 10px 15px -3px rgba(99, 102, 241, 0.1),
+    0 4px 6px -2px rgba(99, 102, 241, 0.05);
 }
 
 .premium-shadow-xl {
-  box-shadow: 0 20px 25px -5px rgba(99, 102, 241, 0.1), 0 10px 10px -5px rgba(99, 102, 241, 0.04);
+  box-shadow:
+    0 20px 25px -5px rgba(99, 102, 241, 0.1),
+    0 10px 10px -5px rgba(99, 102, 241, 0.04);
 }
 
 /* Chat drawer slide-in animation */
@@ -420,7 +517,15 @@
 /* Landing page design reference utilities */
 .landing-page {
   color-scheme: dark;
-  font-family: Inter, Geist, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family:
+    Inter,
+    Geist,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
   background: #09090b;
 }
 
@@ -430,7 +535,9 @@
 }
 
 .font-mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    monospace;
 }
 
 .bg-grid {
@@ -442,8 +549,16 @@
 
 .bg-radial-emerald {
   background:
-    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(16, 185, 129, 0.18), transparent 70%),
-    radial-gradient(ellipse 60% 40% at 50% 110%, rgba(16, 185, 129, 0.08), transparent 70%);
+    radial-gradient(
+      ellipse 80% 50% at 50% -10%,
+      rgba(16, 185, 129, 0.18),
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 60% 40% at 50% 110%,
+      rgba(16, 185, 129, 0.08),
+      transparent 70%
+    );
 }
 
 .landing-page .reveal {
@@ -468,8 +583,12 @@
 }
 
 @keyframes landing-scroll-x {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
 }
 
 .animate-scroll-x {
@@ -477,7 +596,8 @@
 }
 
 @keyframes landing-ping-emerald {
-  75%, 100% {
+  75%,
+  100% {
     transform: scale(2);
     opacity: 0;
   }

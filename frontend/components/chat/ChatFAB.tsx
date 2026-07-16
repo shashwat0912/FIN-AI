@@ -7,18 +7,16 @@ export default function ChatFAB() {
 
   return (
     <>
-      {/* Floating button */}
       {!isOpen && (
         <button
           onClick={toggleChat}
-          className="fixed bottom-4 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-emerald-400/30 bg-emerald-500 text-zinc-950 shadow-lg shadow-black/30 hover:bg-emerald-400 sm:bottom-6 sm:right-6 sm:h-14 sm:w-14"
+          className="fixed bottom-4 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-border-strong bg-ledger-surface text-accent transition-[background-color,border-color,color,transform] duration-150 ease-out hover:border-accent hover:bg-accent-soft hover:text-ink active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-canvas motion-reduce:transition-none sm:bottom-6 sm:right-6"
           aria-label="Open chat"
         >
-          <MessageCircle className="w-6 h-6" />
+          <MessageCircle className="h-5 w-5" strokeWidth={1.75} />
         </button>
       )}
 
-      {/* Drawer */}
       <ChatDrawer />
     </>
   );

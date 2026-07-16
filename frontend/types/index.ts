@@ -59,7 +59,7 @@ export interface Transaction {
   amount: number;
   description: string;
   category: string;
-  type: 'INCOME' | 'EXPENSE';
+  type: 'INCOME' | 'EXPENSE' | 'TRANSFER';
   date: string;
   userId: string;
   createdAt: string;
@@ -152,7 +152,7 @@ export interface TransactionFormData {
   amount: number;
   description: string;
   category: string;
-  type: 'INCOME' | 'EXPENSE';
+  type: 'INCOME' | 'EXPENSE' | 'TRANSFER';
   date: string;
 }
 
