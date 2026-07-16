@@ -5,6 +5,7 @@ import csrf from 'csrf';
 import { createHash } from 'crypto';
 import { config } from '../config/env';
 import logger from '../config/logger';
+import { AuthenticatedRequest } from '../types';
 
 // CSRF protection - use a single server-side secret for stateless verification
 const csrfProtection = new csrf();
@@ -57,6 +58,10 @@ export const securityHeaders = helmet({
 export const rateLimiter = rateLimit({
   windowMs: config.RATE_LIMIT_WINDOW_MS,
   max: config.NODE_ENV === 'development' ? 1000 : config.RATE_LIMIT_MAX_REQUESTS, // Much more lenient in development
+  skip: (req) => {
+    const ledgerRoot = `/api/${config.API_VERSION}`;
+    return req.path.startsWith(`${ledgerRoot}/budgets`) || req.path.startsWith(`${ledgerRoot}/goals`);
+  },
   message: {
     success: false,
     message: 'Too many requests from this IP, please try again later.',
@@ -180,15 +185,19 @@ export const securityLogger = (req: Request, res: Response, next: NextFunction) 
 const userRateLimitStore = new Map<string, { count: number; resetTime: number }>();
 
 // Per-user rate limiting middleware
-export const perUserRateLimiter = (maxRequests: number = 10, windowMs: number = 15 * 60 * 1000) => {
-  return (req: Request, res: Response, next: NextFunction) => {
-    const userId = (req as any).user?.id;
+export const perUserRateLimiter = (
+  maxRequests: number = 10,
+  windowMs: number = 15 * 60 * 1000,
+  scope: string = 'default'
+) => {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    const userId = req.user?.id;
     if (!userId) {
       return next(); // Skip if no user ID
     }
 
     const now = Date.now();
-    const key = `user:${userId}`;
+    const key = `${scope}:user:${userId}`;
     const userLimit = userRateLimitStore.get(key);
 
     if (!userLimit || now > userLimit.resetTime) {
@@ -375,14 +384,8 @@ export const generateCsrfToken = (req: Request, res: Response, next: NextFunctio
 export const validateCsrfToken = (req: Request, res: Response, next: NextFunction): void => {
   // Skip CSRF validation for auth endpoints (login/register/OTP)
   // These endpoints use JWT tokens for authentication instead
-  const authPaths = ['/api/v1/auth/login', '/api/v1/auth/register', '/api/v1/auth/refresh', '/api/v1/auth/send-otp', '/api/v1/auth/verify-otp'];
-  const isAuthPath = authPaths.some(path => 
-    req.path.includes('auth/login') || 
-    req.path.includes('auth/register') || 
-    req.path.includes('auth/refresh') ||
-    req.path.includes('auth/send-otp') ||
-    req.path.includes('auth/verify-otp')
-  );
+  const authPaths = ['auth/login', 'auth/register', 'auth/refresh', 'auth/send-otp', 'auth/verify-otp'];
+  const isAuthPath = authPaths.some(path => req.path.includes(path));
   
   if (isAuthPath) {
     next();

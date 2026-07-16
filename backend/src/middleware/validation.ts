@@ -108,7 +108,7 @@ export const budgetSchemas = {
 export const goalSchemas = {
   create: Joi.object({
     name: Joi.string().min(1).max(100).required(),
-    description: Joi.string().max(500),
+    description: Joi.string().allow('').max(500),
     targetAmount: Joi.number().positive().required(),
     currentAmount: Joi.number().min(0).default(0),
     targetDate: Joi.date().iso(),
@@ -117,7 +117,7 @@ export const goalSchemas = {
   
   update: Joi.object({
     name: Joi.string().min(1).max(100),
-    description: Joi.string().max(500),
+    description: Joi.string().allow('').max(500),
     targetAmount: Joi.number().positive(),
     currentAmount: Joi.number().min(0),
     targetDate: Joi.date().iso(),

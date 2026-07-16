@@ -191,4 +191,21 @@ describe('apiClient CSRF handling', () => {
     );
     expect(response.data?.id).toBe('budget-1');
   });
+
+  it('does not retry a rate-limited request', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ success: false, message: 'Too many requests' }),
+        { status: 429, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { apiClient } = await import('../../lib/api');
+
+    await expect(apiClient.getBudgets()).rejects.toThrow(
+      'Too many requests. Please wait a moment and try again.',
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });

@@ -147,15 +147,22 @@ export function SkeletonRow() {
   );
 }
 
-export function Amount({ amount, type, className, ...props }: { amount: number; type: string } & HTMLAttributes<HTMLSpanElement>) {
+export function Amount({
+  amount,
+  type,
+  showSign = true,
+  className,
+  ...props
+}: { amount: number; type: string; showSign?: boolean } & HTMLAttributes<HTMLSpanElement>) {
   const isExpense = type === 'EXPENSE';
-  const formatted = `${isExpense ? '-' : '+'}₹${Number(amount).toLocaleString('en-IN')}`;
+  const sign = showSign ? (isExpense ? '-' : '+') : Number(amount) < 0 ? '-' : '';
+  const formatted = `${sign}₹${Math.abs(Number(amount)).toLocaleString('en-IN')}`;
 
   return (
     <span
       className={cx(
         'whitespace-nowrap font-amount text-sm font-medium tabular-nums lining-nums',
-        isExpense ? 'text-negative' : type === 'INCOME' ? 'text-accent' : 'text-ink-secondary',
+        isExpense ? 'text-negative' : type === 'INCOME' ? 'text-accent' : type === 'NEUTRAL' ? null : 'text-ink-secondary',
         className,
       )}
       {...props}

@@ -4,11 +4,9 @@ import cookieParser from 'cookie-parser';
 import { config } from './config/env';
 import logger from './config/logger';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
-import { generalLimiter } from './middleware/rateLimiter';
 import { 
   securityHeaders, 
   rateLimiter, 
-  authRateLimiter, 
   validateRequest, 
   corsOptions, 
   securityLogger, 
@@ -36,7 +34,6 @@ app.use(cors(corsOptions));
 
 // Rate limiting
 app.use(rateLimiter);
-app.use(generalLimiter);
 
 // Cookie parser middleware (needed for CSRF tokens)
 app.use(cookieParser());
