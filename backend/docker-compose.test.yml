@@ -1,0 +1,20 @@
+name: finance-ai-test
+
+services:
+  postgres-test:
+    image: postgres:15-alpine
+    container_name: finance-ai-postgres-test
+    environment:
+      POSTGRES_DB: finance_ai_test
+      POSTGRES_USER: financeai_test
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "${TEST_DB_PORT:-5433}:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U financeai_test -d finance_ai_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+      start_period: 2s

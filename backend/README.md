@@ -18,7 +18,7 @@ A production-ready, scalable backend API for the Finance AI Dashboard built with
 
 ## 📋 Prerequisites
 
-- Node.js 18+ 
+- Node.js 18+
 - PostgreSQL 15+
 - Docker & Docker Compose (optional)
 
@@ -27,21 +27,25 @@ A production-ready, scalable backend API for the Finance AI Dashboard built with
 ### Option 1: Local Development
 
 1. **Clone and navigate to the server directory:**
+
    ```bash
    cd server
    ```
 
 2. **Install dependencies:**
+
    ```bash
    npm install
    ```
 
 3. **Set up environment variables:**
+
    ```bash
    cp env.example .env
    ```
-   
+
    Edit `.env` with your configuration:
+
    ```env
    NODE_ENV=development
    PORT=3000
@@ -52,13 +56,14 @@ A production-ready, scalable backend API for the Finance AI Dashboard built with
    ```
 
 4. **Set up the database:**
+
    ```bash
    # Generate Prisma client
    npm run db:generate
-   
+
    # Run database migrations
    npm run db:migrate
-   
+
    # Seed the database with test data
    npm run db:seed
    ```
@@ -71,16 +76,19 @@ A production-ready, scalable backend API for the Finance AI Dashboard built with
 ### Option 2: Docker Compose (Recommended)
 
 1. **Navigate to the server directory:**
+
    ```bash
    cd server
    ```
 
 2. **Start all services:**
+
    ```bash
    docker-compose up -d
    ```
 
 3. **Run database migrations:**
+
    ```bash
    docker-compose exec api npm run db:migrate
    ```
@@ -93,45 +101,46 @@ A production-ready, scalable backend API for the Finance AI Dashboard built with
 ## 📚 API Documentation
 
 ### Base URL
+
 ```
 http://localhost:3000/api/v1
 ```
 
 ### Authentication Endpoints
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| POST | `/auth/register` | Register new user | No |
-| POST | `/auth/login` | Login user | No |
-| POST | `/auth/refresh-token` | Refresh access token | No |
-| POST | `/auth/logout` | Logout user | Yes |
-| POST | `/auth/logout-all` | Logout all sessions | Yes |
+| Method | Endpoint              | Description          | Auth Required |
+| ------ | --------------------- | -------------------- | ------------- |
+| POST   | `/auth/register`      | Register new user    | No            |
+| POST   | `/auth/login`         | Login user           | No            |
+| POST   | `/auth/refresh-token` | Refresh access token | No            |
+| POST   | `/auth/logout`        | Logout user          | Yes           |
+| POST   | `/auth/logout-all`    | Logout all sessions  | Yes           |
 
 ### Transaction Endpoints
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/transactions` | Get user transactions | Yes |
-| POST | `/transactions` | Create transaction | Yes |
-| GET | `/transactions/:id` | Get transaction by ID | Yes |
-| PUT | `/transactions/:id` | Update transaction | Yes |
-| DELETE | `/transactions/:id` | Delete transaction | Yes |
-| GET | `/transactions/analytics` | Get transaction analytics | Yes |
-| GET | `/transactions/categories` | Get transaction categories | Yes |
+| Method | Endpoint                   | Description                | Auth Required |
+| ------ | -------------------------- | -------------------------- | ------------- |
+| GET    | `/transactions`            | Get user transactions      | Yes           |
+| POST   | `/transactions`            | Create transaction         | Yes           |
+| GET    | `/transactions/:id`        | Get transaction by ID      | Yes           |
+| PUT    | `/transactions/:id`        | Update transaction         | Yes           |
+| DELETE | `/transactions/:id`        | Delete transaction         | Yes           |
+| GET    | `/transactions/analytics`  | Get transaction analytics  | Yes           |
+| GET    | `/transactions/categories` | Get transaction categories | Yes           |
 
 ### AI Endpoints
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| POST | `/ai/advice` | Get AI financial advice | Yes |
-| GET | `/ai/history` | Get AI conversation history | Yes |
-| DELETE | `/ai/sessions/:id` | Delete AI session | Yes |
+| Method | Endpoint           | Description                 | Auth Required |
+| ------ | ------------------ | --------------------------- | ------------- |
+| POST   | `/ai/advice`       | Get AI financial advice     | Yes           |
+| GET    | `/ai/history`      | Get AI conversation history | Yes           |
+| DELETE | `/ai/sessions/:id` | Delete AI session           | Yes           |
 
 ### Health Check
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/health` | API health status |
+| Method | Endpoint  | Description       |
+| ------ | --------- | ----------------- |
+| GET    | `/health` | API health status |
 
 ## 🔧 Available Scripts
 
@@ -143,8 +152,8 @@ npm start           # Start production server
 
 # Database
 npm run db:generate # Generate Prisma client
-npm run db:push     # Push schema to database
 npm run db:migrate  # Run database migrations
+npm run db:migrate:deploy # Apply checked-in migrations
 npm run db:seed     # Seed database with test data
 npm run db:studio   # Open Prisma Studio
 
@@ -224,16 +233,16 @@ The application uses PostgreSQL with the following main entities:
 
 ## 🌐 Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `NODE_ENV` | Environment | `development` |
-| `PORT` | Server port | `3000` |
-| `DATABASE_URL` | PostgreSQL connection string | Required |
-| `JWT_SECRET` | JWT signing secret | Required |
-| `JWT_REFRESH_SECRET` | Refresh token secret | Required |
-| `CORS_ORIGIN` | Allowed CORS origin | `http://localhost:5173` |
-| `RATE_LIMIT_WINDOW_MS` | Rate limit window | `900000` (15 min) |
-| `RATE_LIMIT_MAX_REQUESTS` | Max requests per window | `100` |
+| Variable                  | Description                  | Default                 |
+| ------------------------- | ---------------------------- | ----------------------- |
+| `NODE_ENV`                | Environment                  | `development`           |
+| `PORT`                    | Server port                  | `3000`                  |
+| `DATABASE_URL`            | PostgreSQL connection string | Required                |
+| `JWT_SECRET`              | JWT signing secret           | Required                |
+| `JWT_REFRESH_SECRET`      | Refresh token secret         | Required                |
+| `CORS_ORIGIN`             | Allowed CORS origin          | `http://localhost:5173` |
+| `RATE_LIMIT_WINDOW_MS`    | Rate limit window            | `900000` (15 min)       |
+| `RATE_LIMIT_MAX_REQUESTS` | Max requests per window      | `100`                   |
 
 ## 🚀 Deployment
 
@@ -250,6 +259,7 @@ The application uses PostgreSQL with the following main entities:
 ### Cloud Deployment
 
 The application is ready for deployment on:
+
 - **AWS**: ECS, EKS, or EC2
 - **Google Cloud**: Cloud Run, GKE
 - **Azure**: Container Instances, AKS
@@ -260,6 +270,7 @@ The application is ready for deployment on:
 ## 📝 API Examples
 
 ### Register User
+
 ```bash
 curl -X POST http://localhost:3000/api/v1/auth/register \
   -H "Content-Type: application/json" \
@@ -271,6 +282,7 @@ curl -X POST http://localhost:3000/api/v1/auth/register \
 ```
 
 ### Login
+
 ```bash
 curl -X POST http://localhost:3000/api/v1/auth/login \
   -H "Content-Type: application/json" \
@@ -281,6 +293,7 @@ curl -X POST http://localhost:3000/api/v1/auth/login \
 ```
 
 ### Create Transaction
+
 ```bash
 curl -X POST http://localhost:3000/api/v1/transactions \
   -H "Content-Type: application/json" \
@@ -295,6 +308,7 @@ curl -X POST http://localhost:3000/api/v1/transactions \
 ```
 
 ### Get AI Advice
+
 ```bash
 curl -X POST http://localhost:3000/api/v1/ai/advice \
   -H "Content-Type: application/json" \
@@ -324,6 +338,7 @@ This project is licensed under the MIT License.
 ## 🆘 Support
 
 For support and questions:
+
 - Create an issue in the repository
 - Check the API documentation
 - Review the test files for usage examples

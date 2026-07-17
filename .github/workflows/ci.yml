@@ -60,13 +60,28 @@ jobs:
     name: Backend
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: finance_ai_test
+          POSTGRES_USER: financeai_test
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U financeai_test -d finance_ai_test"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
     defaults:
       run:
         working-directory: backend
 
     env:
       NODE_ENV: test
-      DATABASE_URL: file:./test.db
+      DATABASE_URL: postgresql://financeai_test@localhost:5432/finance_ai_test
+      TEST_DATABASE_URL: postgresql://financeai_test@localhost:5432/finance_ai_test
       JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
       JWT_REFRESH_SECRET: fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210
       JWT_EXPIRES_IN: 15m
@@ -102,8 +117,8 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Prepare test database
-        run: npm run test:prepare
+      - name: Prepare isolated PostgreSQL test database
+        run: npm run test:db:prepare
 
       - name: Unit and service tests
         run: npm run test:ci

@@ -10,6 +10,7 @@ A comprehensive financial management platform built with modern web technologies
 ## ✨ Features
 
 ### 🎯 Core Functionality
+
 - **Smart Dashboard** - Real-time financial overview with interactive charts and analytics
 - **Transaction Management** - Complete CRUD operations for income and expense tracking
 - **Budget Planning** - Create, monitor, and manage budgets with spending alerts
@@ -18,12 +19,14 @@ A comprehensive financial management platform built with modern web technologies
 - **Multi-language Support** - Available in English, Hindi, Marathi, and Kannada
 
 ### 🤖 AI-Powered Features
+
 - **Smart Category Suggestions** - Intelligent category recommendations based on transaction descriptions
 - **AI Financial Advisor** - Get personalized financial advice powered by OpenAI
 - **Dynamic Category Filtering** - Smart filtering of income/expense categories
 - **Custom Category Creation** - Create and manage personalized transaction categories
 
 ### 🎨 User Experience
+
 - **Responsive Design** - Optimized for desktop, tablet, and mobile devices
 - **Dark/Light Mode** - Toggle between themes for comfortable viewing
 - **Real-time Search** - Quick access to transactions, goals, and analytics
@@ -31,6 +34,7 @@ A comprehensive financial management platform built with modern web technologies
 - **Intuitive Navigation** - Clean, modern interface with sidebar navigation
 
 ### 🔒 Security & Performance
+
 - **JWT Authentication** - Secure token-based authentication with refresh tokens
 - **Rate Limiting** - API protection against abuse and spam
 - **Input Validation** - Comprehensive data validation using Joi
@@ -40,6 +44,7 @@ A comprehensive financial management platform built with modern web technologies
 ## 🚀 Future ML Roadmap
 
 ### Phase 2 - Machine Learning Integration
+
 - **Expense Categorization** - Auto-classify Indian transaction texts using NLP and ML models
 - **Fraud Detection** - Real-time anomaly detection for suspicious transactions
 - **Personalized Budgeting** - AI-driven spending predictions and savings recommendations
@@ -49,6 +54,7 @@ A comprehensive financial management platform built with modern web technologies
 ## 🛠️ Tech Stack
 
 ### Frontend
+
 - **React 18.2.0** - Modern UI library with hooks and functional components
 - **TypeScript 5.2.2** - Type-safe JavaScript for better development experience
 - **Vite 5.1.4** - Lightning-fast build tool and development server
@@ -59,21 +65,24 @@ A comprehensive financial management platform built with modern web technologies
 - **Zustand 4.5.1** - Lightweight state management solution
 
 ### Backend
+
 - **Node.js 18+** - JavaScript runtime for server-side development
 - **Express.js 4.18.2** - Fast, unopinionated web framework
 - **TypeScript 5.3.2** - Type-safe server-side development
 - **Prisma 5.7.1** - Modern database ORM with type safety
-- **SQLite** - Lightweight, serverless database for development
+- **PostgreSQL 15** - Shared database engine for development, tests, and deployment
 - **JWT (jsonwebtoken 9.0.2)** - Secure authentication tokens
 - **bcryptjs 2.4.3** - Password hashing and verification
 - **Joi 17.11.0** - Schema validation for API endpoints
 
 ### AI & Analytics
+
 - **OpenAI API 4.28.0** - AI-powered financial advice and insights
 - **Recharts 2.12.2** - Interactive data visualization and charts
 - **Custom Analytics** - Built-in financial analytics and reporting
 
 ### Development Tools
+
 - **ESLint** - Code linting and quality assurance
 - **Prettier** - Code formatting and style consistency
 - **Vitest** - Fast unit testing framework
@@ -84,6 +93,7 @@ A comprehensive financial management platform built with modern web technologies
 ## 🚀 Quick Start
 
 ### Prerequisites
+
 - Node.js 18.0.0 or higher
 - npm or yarn package manager
 - Git for version control
@@ -91,17 +101,20 @@ A comprehensive financial management platform built with modern web technologies
 ### Installation
 
 1. **Clone the repository**
+
    ```bash
    git clone https://github.com/yourusername/finance-ai-dashboard.git
    cd finance-ai-dashboard
    ```
 
 2. **Install frontend dependencies**
+
    ```bash
    npm install
    ```
 
 3. **Install backend dependencies**
+
    ```bash
    cd server
    npm install
@@ -109,23 +122,27 @@ A comprehensive financial management platform built with modern web technologies
    ```
 
 4. **Set up environment variables**
+
    ```bash
    # Copy the example environment file
    cp server/.env.example server/.env
-   
+
    # Edit the environment variables
    nano server/.env
    ```
 
 5. **Configure the database**
+
    ```bash
-   cd server
+   cd backend
    npx prisma generate
-   npx prisma db push
+   # Do not use prisma db push. Follow backend/DATABASE_SETUP.md before
+   # applying migrations; the deployed migration history is under review.
    cd ..
    ```
 
 6. **Start the development servers**
+
    ```bash
    # Recommended: start frontend + backend together
    npm run dev
@@ -180,11 +197,11 @@ finance-ai-dashboard/
 
 ### Environment Variables
 
-Create a `.env` file in the `server` directory with the following variables:
+Create a `.env` file in the `backend` directory with the following variables:
 
 ```env
 # Database
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/financeai?schema=public"
 
 # JWT Configuration
 JWT_SECRET="your-super-secret-jwt-key"
@@ -224,12 +241,14 @@ The application uses the following main entities:
 ## 📊 API Endpoints
 
 ### Authentication
+
 - `POST /api/v1/auth/register` - User registration
 - `POST /api/v1/auth/login` - User login
 - `POST /api/v1/auth/refresh` - Refresh access token
 - `POST /api/v1/auth/logout` - User logout
 
 ### Transactions
+
 - `GET /api/v1/transactions` - Get user transactions
 - `POST /api/v1/transactions` - Create new transaction
 - `PUT /api/v1/transactions/:id` - Update transaction
@@ -237,32 +256,38 @@ The application uses the following main entities:
 - `GET /api/v1/transactions/analytics` - Get transaction analytics
 
 ### Analytics
+
 - `GET /api/v1/transactions/analytics` - Get transaction analytics and insights
 
 ### Budgets
+
 - `GET /api/v1/budgets` - Get user budgets
 - `POST /api/v1/budgets` - Create new budget
 - `PUT /api/v1/budgets/:id` - Update budget
 - `DELETE /api/v1/budgets/:id` - Delete budget
 
 ### Goals
+
 - `GET /api/v1/goals` - Get user goals
 - `POST /api/v1/goals` - Create new goal
 - `PUT /api/v1/goals/:id` - Update goal
 - `DELETE /api/v1/goals/:id` - Delete goal
 
 ### AI Advisor
+
 - `POST /api/v1/ai/advice` - Get AI financial advice
 - `GET /api/v1/ai/history` - Get AI conversation history
 
 ## 🧪 Testing
 
 ### Frontend Testing
+
 ```bash
 npm run test
 ```
 
 ### Backend Testing
+
 ```bash
 cd server
 npm run test
@@ -272,13 +297,17 @@ npm run test:coverage
 ## 🔧 Environment Setup (Optional Features)
 
 ### AI Advisor (Optional)
+
 The AI Advisor feature requires an OpenAI API key:
+
 1. Get your API key from https://platform.openai.com/api-keys
 2. Add to `server/.env`: `OPENAI_API_KEY=sk-your-key-here`
 3. Without this key, the AI Advisor page will show a friendly error message
 
 ### Firebase Authentication (Optional)
+
 For Firebase authentication features:
+
 1. Create a Firebase project at https://console.firebase.google.com
 2. Copy the configuration values to `.env` (see `.env.example`)
 
@@ -287,6 +316,7 @@ For Firebase authentication features:
 ## 🚀 Deployment
 
 ### Production Build
+
 ```bash
 # Build frontend
 npm run build
@@ -297,6 +327,7 @@ npm run build
 ```
 
 ### Docker Deployment
+
 ```bash
 # Build and run with Docker Compose
 docker-compose up -d
@@ -312,24 +343,28 @@ docker-compose up -d
 ## 🔮 Future Roadmap
 
 ### Phase 1 (Current)
+
 - ✅ Core financial management features
 - ✅ Basic AI advisor integration
 - ✅ Multi-language support
 - ✅ Responsive design
 
-### Phase 2 
+### Phase 2
+
 - 🔄 Advanced ML models for expense categorization
 - 🔄 Real-time fraud detection
 - 🔄 Investment recommendation engine
 - 🔄 Mobile app (React Native)
 
 ### Phase 3
+
 - 📋 Advanced analytics dashboard
 - 📋 Social features and peer comparison
 - 📋 Integration with Indian banks
 - 📋 Voice commands and accessibility
 
 ### Phase 4
+
 - 📋 Blockchain integration for secure transactions
 - 📋 Advanced AI personalization
 - 📋 International expansion
@@ -353,4 +388,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - The React and Node.js communities for excellent documentation
 - Tailwind CSS for the beautiful design system
 - Prisma for the amazing database ORM
-

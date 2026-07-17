@@ -1,146 +1,178 @@
-# Database Setup Guide
+# Database workflow
 
-## Overview
+The application schema is PostgreSQL-only. `prisma db push` is prohibited for
+normal development, CI, and deployment because it bypasses reviewed migration
+history.
 
-The application uses **PostgreSQL** for production and supports **SQLite** for local development.
+## Current deployment status
 
-## Schema Compatibility
+The checked-in migration history is not yet authoritative:
 
-The Prisma schema is designed to work with both SQLite (development) and PostgreSQL (production):
-- Uses `String` instead of enums (compatible with both)
-- Uses standard data types that work in both databases
-- All foreign keys and constraints are properly defined
+- `schema.prisma` uses PostgreSQL.
+- `prisma/migrations/migration_lock.toml` still says SQLite.
+- the initial SQL migration does not represent the complete current schema.
+- the knowledge migration requires pgvector, while the current Prisma schema
+  and Docker PostgreSQL image do not.
 
-## Production Database Setup
+The local Docker database has application tables but no
+`_prisma_migrations` table, so it is classified as a schema-push database.
+Production remains unclassified until the read-only EC2 checks below are run.
+Do not replace migration history, resolve a baseline, or deploy migrations to
+production while its classification is unknown.
 
-### Option 1: Using Docker Compose (Recommended)
+## EC2 read-only classification
 
-1. **Start PostgreSQL container:**
-   ```bash
-   docker-compose -f docker-compose.prod.yml up -d postgres
-   ```
+The CD workflow defaults to a server-maintained `docker-compose.yml`, not the
+repository's `docker-compose.prod.yml`, and `DEPLOY_COMMAND` may override that
+default. On EC2, first identify the actual compose project:
 
-2. **Set environment variable:**
-   ```bash
-   export DATABASE_URL="postgresql://financeai:changeme@localhost:5432/financeai?schema=public"
-   ```
+```bash
+cd ~/finance-ai
+docker compose ls
+find . -maxdepth 1 -name 'docker-compose*.yml' -print
+docker compose --env-file .release.env -f docker-compose.yml config --services
+docker compose --env-file .release.env -f docker-compose.yml ps
+```
 
-3. **Run migrations:**
-   ```bash
-   npm run db:migrate:deploy
-   ```
+If the database service is named `postgres`, these commands reveal the
+database name, PostgreSQL version, migration classification, and application
+tables without displaying passwords or `DATABASE_URL`:
 
-4. **Verify migration:**
-   ```bash
-   npm run db:migrate:status
-   ```
+```bash
+docker compose --env-file .release.env -f docker-compose.yml exec -T postgres \
+  sh -lc 'printf "database=%s\n" "$POSTGRES_DB"; psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SHOW server_version"'
 
-### Option 2: Using Managed PostgreSQL Service
+docker compose --env-file .release.env -f docker-compose.yml exec -T postgres \
+  sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT CASE WHEN to_regclass('"'"'public._prisma_migrations'"'"') IS NULL THEN '"'"'absent'"'"' ELSE '"'"'present'"'"' END"'
 
-1. **Create database** on your provider (AWS RDS, Heroku, etc.)
+docker compose --env-file .release.env -f docker-compose.yml exec -T postgres \
+  sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT table_name FROM information_schema.tables WHERE table_schema = '"'"'public'"'"' ORDER BY table_name"'
+```
 
-2. **Set DATABASE_URL** in your environment:
-   ```bash
-   DATABASE_URL="postgresql://user:password@host:5432/database?schema=public"
-   ```
+Inspect image identities and the PostgreSQL volume without dumping container
+environment variables:
 
-3. **Run migrations:**
-   ```bash
-   npm run db:migrate:deploy
-   ```
+```bash
+docker compose --env-file .release.env -f docker-compose.yml images
+docker inspect "$(docker compose --env-file .release.env -f docker-compose.yml ps -q backend)" \
+  --format '{{.Config.Image}} {{.Image}}'
+docker inspect "$(docker compose --env-file .release.env -f docker-compose.yml ps -q postgres)" \
+  --format '{{range .Mounts}}{{if eq .Destination "/var/lib/postgresql/data"}}{{.Name}}{{end}}{{end}}'
+```
 
-## Development Database Setup
+Classification:
 
-For local development, you can use SQLite:
+- **A:** `_prisma_migrations` absent — schema-push/manual database.
+- **B:** `_prisma_migrations` present — migration-managed; inspect its rows
+  before planning any reconciliation.
+- **C:** compose/database inaccessible or ambiguous — stop and investigate.
 
-1. **Update schema.prisma temporarily:**
-   ```prisma
-   datasource db {
-     provider = "sqlite"
-     url      = "file:./dev.db"
-   }
-   ```
+Do not run commands that print `docker inspect ... .Config.Env`, `docker compose
+config`, `.env` files, or connection URLs into logs.
 
-2. **Or use PostgreSQL locally:**
-   - Use Docker Compose
-   - Or install PostgreSQL locally
+## Local development database
 
-## Migration Files
+`../docker-compose.prod.yml` currently starts PostgreSQL service `postgres` as
+container `finance-ai-db`, using database `DB_NAME` (default `financeai`) and
+the named `postgres_data` volume. The backend `DATABASE_URL` is assembled by
+Compose from `DB_USER`, `DB_PASSWORD`, and `DB_NAME`. The backend container does
+not automatically run migrations.
 
-### Initial Migration
-- **Location**: `prisma/migrations/20250101000000_init/migration.sql`
-- **Contains**: All table definitions, indexes, and foreign keys
-- **Status**: Ready for production deployment
+## Backup and verified restore
 
-### Migration Commands
+Run this before any local migration work. The unique timestamp and existence
+check prevent overwriting an earlier dump.
 
-- **Development**: `npm run db:migrate` - Creates and applies migration
-- **Production**: `npm run db:migrate:deploy` - Applies existing migrations
-- **Status**: `npm run db:migrate:status` - Check migration status
+```bash
+mkdir -p "$HOME/finance-ai-backups"
+BACKUP="financeai-$(date -u +%Y%m%dT%H%M%SZ).dump"
+test ! -e "$HOME/finance-ai-backups/$BACKUP"
 
-## Database Schema
+docker exec -e BACKUP_NAME="$BACKUP" finance-ai-db sh -lc \
+  'set -eu; umask 077; test ! -e "/tmp/$BACKUP_NAME"; pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc -f "/tmp/$BACKUP_NAME"'
 
-### Tables Created
+docker exec -e BACKUP_NAME="$BACKUP" finance-ai-db sh -lc \
+  'set -eu; pg_restore --list "/tmp/$BACKUP_NAME" >/dev/null'
 
-1. **users** - User accounts and authentication
-2. **refresh_tokens** - JWT refresh token storage
-3. **transactions** - Financial transactions
-4. **budgets** - Budget tracking
-5. **goals** - Financial goals
-6. **ai_sessions** - AI advice history
+docker cp "finance-ai-db:/tmp/$BACKUP" "$HOME/finance-ai-backups/$BACKUP"
+test -s "$HOME/finance-ai-backups/$BACKUP"
+```
 
-### Indexes Created
+Restore only into a new throwaway database. This deliberately fails if the
+throwaway name already exists and never targets the running `financeai`
+database:
 
-- `users.email` - Unique index for email
-- `refresh_tokens.token` - Unique index for tokens
-- `transactions.userId` - Index for user queries
-- `transactions.date` - Index for date filtering
-- `transactions.category` - Index for category filtering
-- `budgets.userId` - Index for user queries
-- `goals.userId` - Index for user queries
-- `ai_sessions.userId` - Index for user queries
-- `ai_sessions.createdAt` - Index for date sorting
+```bash
+RESTORE_DB=financeai_restore_test
+docker exec -e BACKUP_NAME="$BACKUP" -e RESTORE_DB="$RESTORE_DB" finance-ai-db sh -lc '
+  set -eu
+  existing=$(psql -U "$POSTGRES_USER" -d postgres -Atc "SELECT count(*) FROM pg_database WHERE datname = '"'"'$RESTORE_DB'"'"'")
+  test "$existing" = 0
+  createdb -U "$POSTGRES_USER" "$RESTORE_DB"
+  pg_restore -U "$POSTGRES_USER" -d "$RESTORE_DB" --exit-on-error "/tmp/$BACKUP_NAME"
+'
+```
 
-### Foreign Keys
+Confirm important row counts in the restored copy:
 
-All foreign keys use `ON DELETE CASCADE` to maintain referential integrity:
-- `refresh_tokens.userId` → `users.id`
-- `transactions.userId` → `users.id`
-- `budgets.userId` → `users.id`
-- `goals.userId` → `users.id`
-- `ai_sessions.userId` → `users.id`
+```bash
+docker exec -e RESTORE_DB="$RESTORE_DB" finance-ai-db sh -lc '
+  psql -U "$POSTGRES_USER" -d "$RESTORE_DB" -v ON_ERROR_STOP=1 -c \
+    '"'"'SELECT (SELECT count(*) FROM users) AS users,
+            (SELECT count(*) FROM transactions) AS transactions,
+            (SELECT count(*) FROM budgets) AS budgets,
+            (SELECT count(*) FROM goals) AS goals;'"'"'
+'
+```
 
-## Data Types
+After verification, remove only the throwaway database:
 
-- **String** - TEXT in PostgreSQL
-- **Decimal** - DECIMAL(65,30) for precise financial calculations
-- **Boolean** - BOOLEAN
-- **DateTime** - TIMESTAMP(3) with millisecond precision
+```bash
+docker exec -e RESTORE_DB="$RESTORE_DB" finance-ai-db sh -lc \
+  'dropdb -U "$POSTGRES_USER" --if-exists "$RESTORE_DB"'
+```
 
-## Production Checklist
+Keep the copied dump outside the container and Docker volume. Recovery from a
+failed migration is restore into a new database, verify it, then deliberately
+switch the application connection; never overwrite the running database in
+place.
 
-- [ ] PostgreSQL database created
-- [ ] DATABASE_URL environment variable set
-- [ ] Migrations deployed (`npm run db:migrate:deploy`)
-- [ ] Migration status verified (`npm run db:migrate:status`)
-- [ ] Database connection tested
-- [ ] Backup strategy configured
-- [ ] Connection pooling configured (if needed)
+## Isolated PostgreSQL tests
 
-## Troubleshooting
+The test service uses `finance_ai_test` on host port 5433, a tmpfs data
+directory, and no development volume:
 
-### Migration Fails
-- Check DATABASE_URL is correct
-- Verify database exists and is accessible
-- Check user has CREATE TABLE permissions
+```bash
+npm run test:db:up
+npm run test:db:prepare
+npm run test:db:reset
+npm test
+npm run test:db:down
+```
 
-### Connection Issues
-- Verify PostgreSQL is running
-- Check firewall rules
-- Verify credentials in DATABASE_URL
+`test:db:prepare` and `test:db:reset` require `NODE_ENV=test`, PostgreSQL, and
+a database name ending in `_test`. They explicitly reject `financeai` and
+`finance_ai_db`. `TEST_DATABASE_URL` may override the local test URL in CI.
 
-### Schema Mismatch
-- Run `npm run db:generate` to regenerate Prisma client
-- Check migration status
-- Review migration SQL files
+The active PostgreSQL history begins with
+`prisma/migrations/0_postgresql_baseline`. The incompatible SQLite history is
+preserved under `prisma/legacy-sqlite-migrations` for audit.
 
+## Migration creation and deployment
+
+After production history is classified and reconciled:
+
+1. Back up and verify restore.
+2. Create migrations on an isolated development database with
+   `prisma migrate dev --create-only`.
+3. Review generated SQL and a `prisma migrate diff` before applying it.
+4. Apply checked-in migrations to isolated tests.
+5. Use `prisma migrate deploy` only against an explicitly approved deployment
+   database.
+6. Run `prisma migrate status` after deployment.
+
+The reviewed source at `prisma/review/current-schema-baseline.sql` is
+byte-identical to
+`prisma/migrations/0_postgresql_baseline/migration.sql`. Production is
+classified as a schema-push/manual database, but the active baseline must not
+be marked as applied there until the separately approved production procedure.

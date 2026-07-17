@@ -64,7 +64,6 @@ ehthumbs.db
 Thumbs.db
 
 # Prisma
-prisma/migrations/
 
 # Test files
 test-results/
