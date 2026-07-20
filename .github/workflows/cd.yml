@@ -123,11 +123,22 @@ jobs:
         id: check
         shell: bash
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.deploy }}" == "true" && -n "$DEPLOY_HOST" && -n "$DEPLOY_USER" && -n "$DEPLOY_SSH_KEY" ]]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
+          if [[ "${{ github.event_name }}" != "workflow_dispatch" || "${{ inputs.deploy }}" != "true" ]]; then
             echo "enabled=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+
+          missing=()
+          [[ -n "$DEPLOY_HOST" ]] || missing+=("DEPLOY_HOST")
+          [[ -n "$DEPLOY_USER" ]] || missing+=("DEPLOY_USER")
+          [[ -n "$DEPLOY_SSH_KEY" ]] || missing+=("DEPLOY_SSH_KEY")
+
+          if (( ${#missing[@]} )); then
+            echo "::error title=Missing deployment secrets::deploy=true requires: ${missing[*]}"
+            exit 1
+          fi
+
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
 
   deploy:
     name: Deploy over SSH
@@ -142,8 +153,8 @@ jobs:
       DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
       DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
       DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-      DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '~/finance-ai' }}
-      DEPLOY_COMMAND: ${{ vars.DEPLOY_COMMAND || 'docker compose --env-file .release.env -f docker-compose.yml pull && docker compose --env-file .release.env -f docker-compose.yml up -d' }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/home/ubuntu/apps/FIN-AI' }}
+      DEPLOY_COMMAND: ${{ vars.DEPLOY_COMMAND || 'set -a && . ./.release.env && set +a && docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d' }}
       FRONTEND_IMAGE: ${{ needs.publish.outputs.frontend_image }}:sha-${{ github.sha }}
       BACKEND_IMAGE: ${{ needs.publish.outputs.backend_image }}:sha-${{ github.sha }}
 
