@@ -153,12 +153,16 @@ jobs:
       DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
       DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
       DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-      DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/home/ubuntu/apps/FIN-AI' }}
-      DEPLOY_COMMAND: ${{ vars.DEPLOY_COMMAND || 'set -a && . ./.release.env && set +a && docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d' }}
+      DEPLOY_PATH: /home/ubuntu/apps/FIN-AI
+      GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GHCR_USER: ${{ github.actor }}
       FRONTEND_IMAGE: ${{ needs.publish.outputs.frontend_image }}:sha-${{ github.sha }}
       BACKEND_IMAGE: ${{ needs.publish.outputs.backend_image }}:sha-${{ github.sha }}
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Configure SSH
         shell: bash
         run: |
@@ -167,12 +171,74 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
 
+      - name: Copy deployment manifest
+        shell: bash
+        run: |
+          remote_manifest="$DEPLOY_PATH/.docker-compose.prod.yml.$GITHUB_RUN_ID.$GITHUB_RUN_ATTEMPT.tmp"
+          ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p '$DEPLOY_PATH'"
+          scp -i ~/.ssh/deploy_key docker-compose.prod.yml \
+            "$DEPLOY_USER@$DEPLOY_HOST:$remote_manifest"
+
       - name: Deploy release
         shell: bash
         run: |
+          remote_manifest="$DEPLOY_PATH/.docker-compose.prod.yml.$GITHUB_RUN_ID.$GITHUB_RUN_ATTEMPT.tmp"
+
+          printf '%s' "$GHCR_TOKEN" | ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" \
+            "docker login ghcr.io -u '$GHCR_USER' --password-stdin"
+
           ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" \
-            "mkdir -p $DEPLOY_PATH && cd $DEPLOY_PATH && \
-             printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u '${{ github.actor }}' --password-stdin && \
-             echo 'FRONTEND_IMAGE=$FRONTEND_IMAGE' > .release.env && \
-             echo 'BACKEND_IMAGE=$BACKEND_IMAGE' >> .release.env && \
-             $DEPLOY_COMMAND"
+            "DEPLOY_PATH='$DEPLOY_PATH' REMOTE_MANIFEST='$remote_manifest' FRONTEND_IMAGE='$FRONTEND_IMAGE' BACKEND_IMAGE='$BACKEND_IMAGE' bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          cd "$DEPLOY_PATH"
+          mv "$REMOTE_MANIFEST" docker-compose.prod.yml
+
+          printf 'FRONTEND_IMAGE=%s\nBACKEND_IMAGE=%s\n' \
+            "$FRONTEND_IMAGE" "$BACKEND_IMAGE" > .release.env
+
+          set -a
+          . ./.release.env
+          set +a
+
+          compose=(docker compose -f docker-compose.prod.yml)
+          "${compose[@]}" config --quiet
+          "${compose[@]}" pull backend frontend
+          "${compose[@]}" up -d --no-deps --no-build backend frontend
+
+          fail() {
+            echo "::error::$1"
+            "${compose[@]}" ps --all backend frontend || true
+            exit 1
+          }
+
+          backend_id="$("${compose[@]}" ps --all --quiet backend)"
+          frontend_id="$("${compose[@]}" ps --all --quiet frontend)"
+          [[ -n "$backend_id" ]] || fail "Backend container does not exist"
+          [[ -n "$frontend_id" ]] || fail "Frontend container does not exist"
+
+          actual_backend_image="$(docker inspect --format '{{.Config.Image}}' "$backend_id")"
+          actual_frontend_image="$(docker inspect --format '{{.Config.Image}}' "$frontend_id")"
+          [[ "$actual_backend_image" == "$BACKEND_IMAGE" ]] || \
+            fail "Backend image mismatch: expected $BACKEND_IMAGE, got $actual_backend_image"
+          [[ "$actual_frontend_image" == "$FRONTEND_IMAGE" ]] || \
+            fail "Frontend image mismatch: expected $FRONTEND_IMAGE, got $actual_frontend_image"
+
+          for attempt in {1..60}; do
+            backend_state="$(docker inspect --format '{{.State.Status}}' "$backend_id")"
+            frontend_state="$(docker inspect --format '{{.State.Status}}' "$frontend_id")"
+            [[ "$backend_state" == running ]] || fail "Backend container state is $backend_state"
+            [[ "$frontend_state" == running ]] || fail "Frontend container state is $frontend_state"
+
+            backend_health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' "$backend_id")"
+            frontend_health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' "$frontend_id")"
+            if [[ "$backend_health" == healthy && "$frontend_health" == healthy ]]; then
+              echo "Deployment verified: backend and frontend use the requested images and are healthy"
+              exit 0
+            fi
+
+            sleep 5
+          done
+
+          fail "Health check timed out: backend=$backend_health frontend=$frontend_health"
+          REMOTE
