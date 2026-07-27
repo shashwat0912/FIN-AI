@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import prisma from '../../config/database';
 import logger from '../../config/logger';
 import {
@@ -8,13 +9,16 @@ import {
   BudgetEntities,
   BulkTransactionEntities,
   ConfirmationCard,
-  ConversationStateType,
+  ConversationState,
 } from '../../types';
 import { IntentParser } from './intentParser';
 import { ContextManager } from './contextManager';
 import { ConversationStateMachine } from './conversationStateMachine';
 import { DateResolver } from './dateResolver';
 import { AiService } from '../aiService';
+import { normalizeCategory } from '../../domain/categoryRegistry';
+import { createTransactionRecord } from '../transactionService';
+import { projectBudgets } from '../budgetProjectionService';
 
 interface BulkTransactionItem {
   amount: number;
@@ -183,16 +187,13 @@ export class ChatService {
 
     if (pending.type === 'transaction') {
       const txnData = data as TransactionEntities;
-      await prisma.transaction.create({
-        data: {
-          userId,
-          amount: txnData.amount,
-          description: txnData.description,
-          category: txnData.category || 'Uncategorized',
-          type: txnData.type === 'income' ? 'INCOME' : 'EXPENSE',
-          source: 'chat',
-          date: txnData.date ? new Date(txnData.date) : new Date(),
-        },
+      await createTransactionRecord(userId, {
+        amount: txnData.amount,
+        description: txnData.description,
+        category: txnData.category || 'Uncategorized',
+        type: txnData.type === 'income' ? 'INCOME' : 'EXPENSE',
+        source: 'chat',
+        date: txnData.date ? new Date(txnData.date) : new Date(),
       });
 
       await prisma.pendingConfirmation.update({
@@ -223,6 +224,7 @@ export class ChatService {
         data: {
           userId,
           name: budgetData.category,
+          categoryKey: normalizeCategory(budgetData.category, 'expense')?.key || null,
           amount: budgetData.amount,
           period: budgetData.period === 'weekly' ? 'WEEKLY' : 'MONTHLY',
         },
@@ -498,7 +500,7 @@ export class ChatService {
     const normalizedKeyword = this.normalizeCategoryText(keyword);
     if (normalizedKeyword.length < 4) return false;
 
-    const words = this.normalizeCategoryText(text).split(/\s+/).filter((word) => word.length >= 4);
+    const words = this.normalizeCategoryText(text).split(/\s+/).filter((word) => word.length >= 3);
     const candidates = normalizedKeyword.includes(' ')
       ? [this.normalizeCategoryText(text)]
       : words;
@@ -599,7 +601,10 @@ export class ChatService {
       entities.type === 'income' ? 'income' : 'expense'
     );
 
-    const where: any = { userId, date: { gte: startDate, lte: endDate } };
+    const where: Prisma.TransactionWhereInput = {
+      userId,
+      date: { gte: startDate, lte: endDate },
+    };
     if (category) where.category = category;
     if (entities.type !== 'both') where.type = entities.type === 'income' ? 'INCOME' : 'EXPENSE';
 
@@ -682,7 +687,8 @@ export class ChatService {
       });
     }
 
-    const summary = budgets
+    const projectedBudgets = await projectBudgets(userId, budgets);
+    const summary = projectedBudgets
       .map((b) => `${b.name}: ₹${Number(b.spent).toLocaleString('en-IN')} / ₹${Number(b.amount).toLocaleString('en-IN')}`)
       .join('\n');
 
@@ -711,7 +717,7 @@ export class ChatService {
   private async handleCategorySelection(
     userId: string,
     content: string,
-    state: any
+    state: ConversationState
   ): Promise<ChatResponsePayload> {
     // Clean up emoji prefixes from chip selection
     const category = content.replace(/^[\p{Emoji_Presentation}\p{Emoji}\uFE0F\s]+/u, '').trim();
@@ -805,7 +811,7 @@ export class ChatService {
   private async handleConfirmationInput(
     userId: string,
     content: string,
-    state: any
+    state: ConversationState
   ): Promise<ChatResponsePayload> {
     const lower = content.toLowerCase().trim();
 
@@ -858,7 +864,7 @@ export class ChatService {
   private async handleEditDetailsInput(
     userId: string,
     content: string,
-    state: any
+    state: ConversationState
   ): Promise<ChatResponsePayload> {
     const lower = content.toLowerCase().trim();
 
@@ -1145,75 +1151,7 @@ export class ChatService {
     raw: string | null | undefined,
     type: 'income' | 'expense'
   ): string | null {
-    const input = this.normalizeCategoryText(raw);
-    if (!input) return null;
-
-    // ponytail: mirrored from frontend/data/categories.ts until categories are shared.
-    const aliasMap: Record<'income' | 'expense', Record<string, string[]>> = {
-      income: {
-        'Salary/Wages': ['salary', 'wages', 'payroll'],
-        'Business Income': ['business'],
-        'Freelancing/Consulting': ['freelance', 'freelancing', 'consulting', 'consultancy'],
-        'Investment Returns': ['investment', 'investment returns'],
-        'Rental Income': ['rental income', 'rent income'],
-        'Interest Income': ['interest'],
-        'Dividend Income': ['dividend'],
-        'Capital Gains': ['capital gain', 'capital gains'],
-      },
-      expense: {
-        'Food & Dining': ['food', 'dining'],
-        'Groceries & Household': ['grocery', 'groceries', 'household'],
-        Transportation: ['transport', 'transportation', 'travel'],
-        'Fuel & Vehicle Maintenance': ['fuel', 'petrol', 'diesel'],
-        'Mobile & Internet Bills': ['mobile', 'internet', 'phone'],
-        Utilities: ['utilities', 'utility', 'electricity', 'water', 'gas'],
-        'EMI Payments': ['emi'],
-        'Insurance Premiums': ['insurance', 'premium'],
-        'House Rent/Maintenance': ['rent', 'housing', 'maintenance'],
-        'Domestic Help': ['domestic help', 'maid', 'cook'],
-        'Medical & Healthcare': ['health', 'healthcare', 'medical'],
-        'Education & Courses': ['education', 'course', 'courses'],
-        'Religious & Donations': ['religious', 'donation', 'donations'],
-        'Mutual Fund SIP': ['investment', 'investments', 'mutual fund sip', 'mutual funds', 'sip'],
-        'Fixed Deposits': ['fixed deposit', 'fixed deposits', 'fd'],
-        'Gold/Jewelry': ['gold', 'jewelry', 'jewellery'],
-        'Real Estate': ['real estate', 'property'],
-        'Entertainment & Movies': ['entertainment', 'movies', 'movie'],
-        'Shopping & Clothing': ['shopping', 'clothing', 'clothes'],
-        'Travel & Vacation': ['vacation', 'hotel', 'flight'],
-        'Gifts & Celebrations': ['gift', 'gifts', 'celebration', 'celebrations'],
-        'Personal Care & Beauty': ['personal care', 'beauty', 'grooming'],
-        'Haircut & Salon Services': ['haircut', 'salon'],
-        'Spa & Beauty Treatments': ['spa', 'facial', 'massage'],
-        'Personal Care Products': ['shampoo', 'soap', 'deodorant', 'hygiene'],
-        'Sexual Wellness & Contraceptives': ['sexual wellness', 'contraceptives'],
-        'Cosmetics & Skincare': ['cosmetics', 'skincare', 'makeup'],
-        'Gym & Fitness': ['gym', 'fitness', 'workout', 'exercise'],
-        Miscellaneous: ['misc', 'miscellaneous'],
-      },
-    };
-
-    for (const [canonical, aliases] of Object.entries(aliasMap[type])) {
-      if (input === this.normalizeCategoryText(canonical)) return canonical;
-      if (aliases.some((alias) => input === this.normalizeCategoryText(alias))) return canonical;
-    }
-
-    let fuzzyMatch: string | null = null;
-    for (const [canonical, aliases] of Object.entries(aliasMap[type])) {
-      for (const candidate of [canonical, ...aliases]) {
-        const normalizedCandidate = this.normalizeCategoryText(candidate);
-        if (normalizedCandidate.length < 4) continue;
-        const maxDistance = input.length <= 5 ? 1 : 2;
-        if (
-          Math.abs(input.length - normalizedCandidate.length) <= maxDistance &&
-          this.levenshteinDistance(input, normalizedCandidate) <= maxDistance
-        ) {
-          if (fuzzyMatch && fuzzyMatch !== canonical) return null;
-          fuzzyMatch = canonical;
-        }
-      }
-    }
-    return fuzzyMatch;
+    return normalizeCategory(raw, type)?.label || null;
   }
 
   private normalizeCategoryText(raw: string | null | undefined): string {
@@ -1346,17 +1284,14 @@ export class ChatService {
 
     await prisma.$transaction(async (tx) => {
       for (const txItem of transactionsForInsert) {
-        await tx.transaction.create({
-          data: {
-            userId,
-            amount: txItem.amount,
-            description: txItem.description,
-            category: txItem.category || 'Uncategorized',
-            type: txItem.type === 'income' ? 'INCOME' : 'EXPENSE',
-            source: 'chat',
-            date: txItem.date ? new Date(txItem.date) : new Date(),
-          },
-        });
+        await createTransactionRecord(userId, {
+          amount: txItem.amount,
+          description: txItem.description,
+          category: txItem.category || 'Uncategorized',
+          type: txItem.type === 'income' ? 'INCOME' : 'EXPENSE',
+          source: 'chat',
+          date: txItem.date ? new Date(txItem.date) : new Date(),
+        }, tx);
       }
     });
 
@@ -1406,7 +1341,7 @@ export class ChatService {
     const parts = (hasLineBreaks ? raw.split(/\r?\n/) : raw.split(/[;,]+/))
       .map((line) =>
         line
-          .replace(/^\s*[\-\*\u2022]+\s*/, '')
+          .replace(/^\s*[-*\u2022]+\s*/, '')
           // Strip only true numbered-list prefixes like "1. " or "2) ".
           // Do not strip values like "500 coffee".
           .replace(/^\s*\d{1,2}[.)]\s+/, '')
@@ -1497,7 +1432,7 @@ export class ChatService {
   }
 
   private detectBulkHeaderContext(line: string): BulkHeaderContext | null {
-    const normalized = line.toLowerCase().replace(/[:\-]/g, '').trim();
+    const normalized = line.toLowerCase().replace(/[:-]/g, '').trim();
     if (/^(income|incomes|earning|earnings|salary list)$/.test(normalized)) {
       return { type: 'income', categoryHint: null };
     }
@@ -1528,7 +1463,7 @@ export class ChatService {
     const type = explicitType || defaultType;
 
     const patterns: RegExp[] = [
-      /^(.+?)\s*[:\-]\s*(?:₹|rs\.?\s*|inr\s*)?([\d,]+(?:\.\d{1,2})?(?:\s*(?:k|lakh|lac))?)$/i,
+      /^(.+?)\s*[:-]\s*(?:₹|rs\.?\s*|inr\s*)?([\d,]+(?:\.\d{1,2})?(?:\s*(?:k|lakh|lac))?)$/i,
       /^(.+?)\s+(?:₹|rs\.?\s*|inr\s*)?([\d,]+(?:\.\d{1,2})?(?:\s*(?:k|lakh|lac))?)$/i,
       /^(?:₹|rs\.?\s*|inr\s*)?([\d,]+(?:\.\d{1,2})?(?:\s*(?:k|lakh|lac))?)\s+(.+)$/i,
     ];

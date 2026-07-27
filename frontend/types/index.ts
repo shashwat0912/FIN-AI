@@ -27,6 +27,17 @@ export interface ApiResponse<T = unknown> {
   timestamp: string;
 }
 
+export interface Pagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface PaginatedApiResponse<T> extends ApiResponse<T[]> {
+  pagination?: Pagination;
+}
+
 export interface AuthResponse {
   user: User;
   accessToken: string;
@@ -59,6 +70,7 @@ export interface Transaction {
   amount: number;
   description: string;
   category: string;
+  categoryKey?: string | null;
   type: 'INCOME' | 'EXPENSE' | 'TRANSFER';
   date: string;
   userId: string;
@@ -93,14 +105,20 @@ export interface AiResponse {
 export interface Budget {
   id: string;
   name: string;
+  categoryKey: string | null;
   amount: number;
   spent: number;
-  period: 'MONTHLY' | 'YEARLY';
+  remaining: number;
+  utilizationPercentage: number;
+  status: 'ON_TRACK' | 'NEAR_LIMIT' | 'OVER_BUDGET' | 'INACTIVE';
+  period: 'WEEKLY' | 'MONTHLY' | 'YEARLY';
   userId: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }
+
+export type BudgetWrite = Pick<Budget, 'name' | 'amount' | 'period' | 'isActive'>;
 
 // ===== GOAL TYPES =====
 

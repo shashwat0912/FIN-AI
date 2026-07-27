@@ -91,7 +91,6 @@ export const budgetSchemas = {
   create: Joi.object({
     name: Joi.string().min(1).max(100).required(),
     amount: Joi.number().positive().required(),
-    spent: Joi.number().min(0).default(0),
     period: Joi.string().valid('MONTHLY', 'YEARLY', 'WEEKLY').required(),
     isActive: Joi.boolean().default(true),
   }),
@@ -99,7 +98,6 @@ export const budgetSchemas = {
   update: Joi.object({
     name: Joi.string().min(1).max(100),
     amount: Joi.number().positive(),
-    spent: Joi.number().min(0),
     period: Joi.string().valid('MONTHLY', 'YEARLY', 'WEEKLY'),
     isActive: Joi.boolean(),
   }),

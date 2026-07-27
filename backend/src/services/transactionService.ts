@@ -1,17 +1,42 @@
+import { Prisma, type Transaction } from '@prisma/client';
 import prisma from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { TransactionRequest, PaginationParams, PaginatedResponse } from '../types';
 import logger from '../config/logger';
+import { normalizeCategory } from '../domain/categoryRegistry';
+
+export type TransactionWriteInput = {
+  amount: Prisma.Decimal | number | string;
+  description: string;
+  category: string;
+  type: string;
+  date: Date | string;
+  source?: string;
+};
+
+export function buildTransactionCreateData(userId: string, data: TransactionWriteInput) {
+  const categoryType = data.type === 'INCOME' ? 'income' : 'expense';
+  return {
+    ...data,
+    userId,
+    source: data.source || 'manual',
+    categoryKey: normalizeCategory(data.category, categoryType)?.key || null,
+    date: data.date instanceof Date ? data.date : new Date(data.date),
+  };
+}
+
+export async function createTransactionRecord(
+  userId: string,
+  data: TransactionWriteInput,
+  client: Pick<Prisma.TransactionClient, 'transaction'> = prisma,
+  query: Omit<Prisma.TransactionCreateArgs, 'data'> = {}
+) {
+  return client.transaction.create({ ...query, data: buildTransactionCreateData(userId, data) });
+}
 
 export class TransactionService {
   async createTransaction(userId: string, data: TransactionRequest) {
-    const transaction = await prisma.transaction.create({
-      data: {
-        ...data,
-        userId,
-        amount: data.amount,
-        date: new Date(data.date),
-      },
+    const transaction = await createTransactionRecord(userId, data, prisma, {
       include: {
         user: {
           select: {
@@ -31,7 +56,7 @@ export class TransactionService {
   async getTransactions(
     userId: string,
     pagination: PaginationParams = {}
-  ): Promise<PaginatedResponse<any>> {
+  ): Promise<PaginatedResponse<Transaction>> {
     const {
       page = 1,
       limit = 10,
@@ -114,7 +139,13 @@ export class TransactionService {
       throw new AppError('Transaction not found', 404);
     }
 
-    const updateData: any = { ...data };
+    const updateData: Prisma.TransactionUncheckedUpdateInput = {
+      ...data,
+      categoryKey: normalizeCategory(
+        data.category || existingTransaction.category,
+        (data.type || existingTransaction.type) === 'INCOME' ? 'income' : 'expense'
+      )?.key || null,
+    };
     if (data.date) {
       updateData.date = new Date(data.date);
     }

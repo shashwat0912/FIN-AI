@@ -1,17 +1,17 @@
 import { Router, Response, RequestHandler } from 'express';
 import { authenticateToken } from '../middleware/auth';
 import { ApiResponse, AuthenticatedRequest } from '../types';
-import prisma from '../config/database';
 import { v1FinancialEngine } from '../services/v1FinancialEngine';
 import { getInsight } from '../services/v1InsightService';
 import logger from '../config/logger';
+import { createTransactionRecord } from '../services/transactionService';
 
 const router = Router();
 
 router.use(authenticateToken);
 
 /**
- * Simple V1 transaction insert — direct Prisma create, bypasses legacy transaction controller.
+ * Simple V1 transaction insert through the canonical transaction write layer.
  * Spec: amount, type "income"|"expense", category, optional description, optional date (default now).
  */
 const handleV1CreateTransaction: RequestHandler = async (req: AuthenticatedRequest, res: Response<ApiResponse>) => {
@@ -33,16 +33,13 @@ const handleV1CreateTransaction: RequestHandler = async (req: AuthenticatedReque
       return;
     }
 
-    const transaction = await prisma.transaction.create({
-      data: {
-        userId,
-        amount,
-        type: normType,
-        category: category.trim(),
-        description: (description as string | undefined)?.trim() || '(no description)',
-        source: 'v1',
-        date: date ? new Date(date) : new Date(),
-      },
+    const transaction = await createTransactionRecord(userId, {
+      amount,
+      type: normType,
+      category: category.trim(),
+      description: (description as string | undefined)?.trim() || '(no description)',
+      source: 'v1',
+      date: date ? new Date(date) : new Date(),
     });
 
     res.status(201).json({

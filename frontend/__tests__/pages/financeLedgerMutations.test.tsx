@@ -1,5 +1,6 @@
 import React, { StrictMode } from "react";
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -11,6 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import Budget from "../../pages/Budget";
 import Goals from "../../pages/Goals";
 import { apiClient } from "../../lib/api";
+import { dispatchTransactionsUpdated } from "../../lib/appEvents";
 
 vi.mock("../../lib/api", () => ({
   apiClient: {
@@ -36,8 +38,12 @@ vi.mock("../../utils/logger", () => ({
 const budget = (id: string, name: string) => ({
   id,
   name,
+  categoryKey: "food-dining",
   amount: 1000,
   spent: 100,
+  remaining: 900,
+  utilizationPercentage: 10,
+  status: "ON_TRACK" as const,
   period: "MONTHLY" as const,
   userId: "user-1",
   isActive: true,
@@ -70,7 +76,6 @@ async function createBudget(name: string) {
   await user.click(screen.getAllByRole("button", { name: "add-budget" })[0]);
   await user.type(screen.getByLabelText("budget-name"), name);
   await user.type(screen.getByLabelText("budget-amount"), "1000");
-  await user.type(screen.getByLabelText("spent-amount"), "100");
   const submit = screen.getByRole("button", { name: "create-budget" });
   fireEvent.submit(submit.closest("form")!);
   await waitFor(() => expect(submit).not.toBeInTheDocument());
@@ -121,7 +126,6 @@ describe("Budget mutations", () => {
     await user.click(screen.getAllByRole("button", { name: "add-budget" })[0]);
     await user.type(screen.getByLabelText("budget-name"), "Food");
     await user.type(screen.getByLabelText("budget-amount"), "1000");
-    await user.type(screen.getByLabelText("spent-amount"), "100");
     fireEvent.submit(
       screen.getByRole("button", { name: "create-budget" }).closest("form")!,
     );
@@ -184,6 +188,19 @@ describe("Budget mutations", () => {
     ).toBeInTheDocument();
     expect(screen.getAllByText("Food").length).toBeGreaterThan(1);
     expect(screen.getByText("1 category")).toBeInTheDocument();
+  });
+
+  it("reloads derived budgets when transactions are updated", async () => {
+    vi.mocked(apiClient.getBudgets)
+      .mockResolvedValueOnce({ data: [], pagination: {} })
+      .mockResolvedValueOnce({ data: [budget("b1", "Food")], pagination: {} });
+    render(<Budget />);
+    await screen.findByText("no-budgets-yet");
+
+    act(() => dispatchTransactionsUpdated());
+
+    await waitFor(() => expect(apiClient.getBudgets).toHaveBeenCalledTimes(2));
+    expect(screen.getAllByText("Food").length).toBeGreaterThan(0);
   });
 });
 

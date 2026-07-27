@@ -1,6 +1,8 @@
 import prisma from '../config/database';
 import { AuthService } from '../services/authService';
 import logger from '../config/logger';
+import { normalizeCategory } from '../domain/categoryRegistry';
+import { createTransactionRecord } from '../services/transactionService';
 
 const authService = new AuthService();
 
@@ -23,18 +25,16 @@ async function seedDatabase() {
       {
         amount: 5000,
         description: 'Salary',
-        category: 'Income',
+        category: 'Salary/Wages',
         type: 'INCOME' as const,
         date: new Date('2024-01-01'),
-        userId: testUser.user.id,
       },
       {
         amount: 1500,
         description: 'Rent',
-        category: 'Housing',
+        category: 'House Rent/Maintenance',
         type: 'EXPENSE' as const,
         date: new Date('2024-01-01'),
-        userId: testUser.user.id,
       },
       {
         amount: 300,
@@ -42,7 +42,6 @@ async function seedDatabase() {
         category: 'Food',
         type: 'EXPENSE' as const,
         date: new Date('2024-01-02'),
-        userId: testUser.user.id,
       },
       {
         amount: 200,
@@ -50,15 +49,13 @@ async function seedDatabase() {
         category: 'Transport',
         type: 'EXPENSE' as const,
         date: new Date('2024-01-03'),
-        userId: testUser.user.id,
       },
       {
         amount: 1000,
         description: 'Freelance Work',
-        category: 'Income',
+        category: 'Freelancing/Consulting',
         type: 'INCOME' as const,
         date: new Date('2024-01-05'),
-        userId: testUser.user.id,
       },
       {
         amount: 150,
@@ -66,7 +63,6 @@ async function seedDatabase() {
         category: 'Food',
         type: 'EXPENSE' as const,
         date: new Date('2024-01-06'),
-        userId: testUser.user.id,
       },
       {
         amount: 250,
@@ -74,12 +70,11 @@ async function seedDatabase() {
         category: 'Food',
         type: 'EXPENSE' as const,
         date: new Date('2024-01-07'),
-        userId: testUser.user.id,
       },
     ];
 
     for (const transaction of sampleTransactions) {
-      await prisma.transaction.create({ data: transaction });
+      await createTransactionRecord(testUser.user.id, transaction);
     }
 
     logger.info('✅ Sample transactions created');
@@ -87,16 +82,16 @@ async function seedDatabase() {
     // Create sample budgets
     const sampleBudgets = [
       {
-        name: 'Monthly Budget',
+        name: 'House Rent/Maintenance',
+        categoryKey: normalizeCategory('House Rent/Maintenance', 'expense')!.key,
         amount: 3000,
-        spent: 2000,
         period: 'MONTHLY' as const,
         userId: testUser.user.id,
       },
       {
-        name: 'Food Budget',
+        name: 'Food & Dining',
+        categoryKey: normalizeCategory('Food & Dining', 'expense')!.key,
         amount: 500,
-        spent: 300,
         period: 'MONTHLY' as const,
         userId: testUser.user.id,
       },

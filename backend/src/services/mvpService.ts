@@ -1,4 +1,5 @@
 import prisma from '../config/database';
+import { createTransactionRecord } from './transactionService';
 
 /** Calendar week Monday 00:00 UTC → Sunday 23:59:59.999 UTC (MVP simplicity). */
 function getUtcWeekRangeContaining(date: Date): { weekStart: Date; weekEnd: Date } {
@@ -119,16 +120,13 @@ export class MVPService {
 
     const category = this.inferCategory(parsed.description);
 
-    await prisma.transaction.create({
-      data: {
-        userId,
-        amount: parsed.amount,
-        description: parsed.description,
-        category,
-        type: 'EXPENSE',
-        source: 'mvp',
-        date: new Date(),
-      },
+    await createTransactionRecord(userId, {
+      amount: parsed.amount,
+      description: parsed.description,
+      category,
+      type: 'EXPENSE',
+      source: 'mvp',
+      date: new Date(),
     });
 
     const currentWeekSpend = await this.getWeeklySpend(userId, category);

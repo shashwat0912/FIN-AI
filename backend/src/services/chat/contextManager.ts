@@ -1,6 +1,7 @@
 import prisma from '../../config/database';
 import logger from '../../config/logger';
 import { OpenAIMessage } from '../../types';
+import { projectBudgets } from '../budgetProjectionService';
 
 const SYSTEM_PROMPT = `You are a smart financial assistant for an Indian personal finance app called Finance AI.
 
@@ -105,7 +106,11 @@ export class ContextManager {
       .map(([cat, amt]) => `${cat}: ₹${amt.toLocaleString('en-IN')}`)
       .join(', ');
 
-    const budgetInfo = budgets
+    const projectedBudgets = await projectBudgets(userId, budgets, {
+      timezone: user?.timezone || 'Asia/Kolkata',
+      asOf: now,
+    });
+    const budgetInfo = projectedBudgets
       .map((b) => `${b.name}: ₹${Number(b.spent).toLocaleString('en-IN')} / ₹${Number(b.amount).toLocaleString('en-IN')}`)
       .join(', ');
 

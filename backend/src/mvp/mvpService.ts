@@ -1,5 +1,6 @@
 import prisma from '../config/database';
 import { generateInsights, Insight } from '../services/insightEngine';
+import { createTransactionRecord } from '../services/transactionService';
 
 type ParsedExpense = {
   amount: number;
@@ -78,9 +79,9 @@ export class MvpService {
     }
 
     const category = this.inferCategory(parsed.description);
-    const createdTransaction = await prisma.transaction.create({
-      data: {
-        userId,
+    const createdTransaction = await createTransactionRecord(
+      userId,
+      {
         amount: parsed.amount,
         description: parsed.description,
         category,
@@ -88,15 +89,18 @@ export class MvpService {
         source: 'mvp',
         date: new Date(),
       },
-      select: {
-        id: true,
-        amount: true,
-        description: true,
-        category: true,
-        type: true,
-        date: true,
+      prisma,
+      {
+        select: {
+          id: true,
+          amount: true,
+          description: true,
+          category: true,
+          type: true,
+          date: true,
+        },
       },
-    });
+    );
 
     const insights = await generateInsights(userId);
 

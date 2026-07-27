@@ -80,6 +80,7 @@ model Transaction {
   amount      Decimal
   description String
   category    String
+  categoryKey String?
   type        String
   source      String          @default("manual")
   date        DateTime
@@ -89,12 +90,14 @@ model Transaction {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId, type, categoryKey, date])
   @@map("transactions")
 }
 
 model Budget {
   id          String      @id @default(cuid())
   name        String
+  categoryKey String?
   amount      Decimal
   spent       Decimal     @default(0)
   period      String

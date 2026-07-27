@@ -6,6 +6,20 @@ import logger from '../config/logger';
 import OpenAI from 'openai';
 import { RAGService, RetrievedChunk } from './ragService';
 import { hasUsableOpenAiKey } from '../config/openai';
+import { projectBudgets, summarizeBudgetProjections } from './budgetProjectionService';
+
+type FinancialContext = Record<string, unknown> & {
+  currentBalance?: number;
+  monthlyIncome?: number;
+  monthlyExpenses?: number;
+  goals?: string[];
+  totalDebt?: number;
+  savingsRate?: number;
+  budgetUtilization?: number;
+};
+
+const errorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : 'unknown';
 
 export class AiService {
   private openai: OpenAI | null = null;
@@ -34,7 +48,7 @@ export class AiService {
     try {
       let advice: string;
       let retrievedChunks: RetrievedChunk[] = [];
-      let enhancedContext: Record<string, any> = {};
+      let enhancedContext: FinancialContext = {};
 
       try {
         retrievedChunks = await this.ragService.retrieveContext(query, {
@@ -43,9 +57,9 @@ export class AiService {
           candidatePool: 250,
           jurisdiction: 'india',
         });
-      } catch (ragError: any) {
+      } catch (ragError: unknown) {
         logger.warn('RAG retrieval failed, continuing without retrieved chunks', {
-          error: ragError?.message || 'unknown',
+          error: errorMessage(ragError),
           userId,
         });
       }
@@ -79,7 +93,7 @@ export class AiService {
             temperature: 0.4,
           });
 
-          advice = completion.choices[0]?.message?.content || this.generateMockAdvice(query, context);
+          advice = completion.choices[0]?.message?.content || this.generateMockAdvice(query);
           advice = this.postProcessAdvice(advice);
           
           logger.info('RAG-enhanced advice generated', {
@@ -87,9 +101,9 @@ export class AiService {
             retrievedChunks: retrievedChunks.length,
             topSimilarity: retrievedChunks[0]?.similarity || 0,
           });
-        } catch (openaiError: any) {
+        } catch (openaiError: unknown) {
           logger.warn('OpenAI advice generation failed. Falling back to deterministic grounded advice.', {
-            error: openaiError?.message || 'unknown',
+            error: errorMessage(openaiError),
             userId,
           });
           advice = this.generateGroundedLocalAdvice(query, enhancedContext, retrievedChunks);
@@ -160,7 +174,7 @@ export class AiService {
     return { success: true, message: 'AI session deleted successfully' };
   }
 
-  private generateMockAdvice(query: string, context?: any): string {
+  private generateMockAdvice(query: string): string {
     const lowerQuery = query.toLowerCase();
 
     if (lowerQuery.includes('budget') || lowerQuery.includes('spending')) {
@@ -209,7 +223,7 @@ export class AiService {
     return 'general';
   }
 
-  private generatePrompt(query: string, context?: any): string {
+  private generatePrompt(query: string, context?: FinancialContext): string {
     let prompt = `User query: ${query}\n\n`;
     
     if (context) {
@@ -252,7 +266,7 @@ export class AiService {
 
   private generateGroundedLocalAdvice(
     query: string,
-    userContext: Record<string, any>,
+    userContext: FinancialContext,
     retrievedChunks: RetrievedChunk[]
   ): string {
     const actions: string[] = [];
@@ -319,7 +333,11 @@ export class AiService {
   /**
    * Generate enhanced prompt with RAG context
    */
-  private generateEnhancedPrompt(query: string, userContext: any, retrievedChunks: any[]): string {
+  private generateEnhancedPrompt(
+    query: string,
+    userContext: FinancialContext,
+    retrievedChunks: RetrievedChunk[]
+  ): string {
     let prompt = `User Query: ${query}\n\n`;
 
     // Add retrieved knowledge context
@@ -346,7 +364,7 @@ export class AiService {
       }
       if (userContext.monthlyExpenses !== undefined) {
         prompt += `- Monthly Expenses: ₹${userContext.monthlyExpenses.toLocaleString('en-IN')}\n`;
-        const savings = userContext.monthlyIncome - userContext.monthlyExpenses;
+        const savings = Number(userContext.monthlyIncome) - userContext.monthlyExpenses;
         prompt += `- Monthly Savings: ₹${savings.toLocaleString('en-IN')}\n`;
       }
       if (userContext.goals && userContext.goals.length > 0) {
@@ -368,10 +386,13 @@ export class AiService {
   /**
    * Get comprehensive financial context for a user
    */
-  private async getUserFinancialContext(userId: string, providedContext?: any): Promise<any> {
+  private async getUserFinancialContext(
+    userId: string,
+    providedContext?: AiAdviceRequest['context']
+  ): Promise<FinancialContext> {
     try {
       // Start with provided context
-      const context: any = { ...providedContext };
+      const context: FinancialContext = { ...providedContext };
 
       // Fetch user's transactions to calculate actual income/expenses
       const recentTransactions = await prisma.transaction.findMany({
@@ -423,15 +444,10 @@ export class AiService {
       // Fetch user's active budgets
       const budgets = await prisma.budget.findMany({
         where: { userId, isActive: true },
-        select: { name: true, amount: true, spent: true },
       });
-
-      const totalBudget = budgets.reduce((sum, b) => sum + Number(b.amount), 0);
-      const totalSpent = budgets.reduce((sum, b) => sum + Number(b.spent), 0);
-      
-      context.budgetUtilization = totalBudget > 0 
-        ? Math.round((totalSpent / totalBudget) * 100)
-        : 0;
+      const projectedBudgets = await projectBudgets(userId, budgets);
+      const budgetSummary = summarizeBudgetProjections(projectedBudgets);
+      context.budgetUtilization = budgetSummary.utilizationPercentage.toNumber();
 
       return context;
     } catch (error) {

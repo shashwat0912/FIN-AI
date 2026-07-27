@@ -1,12 +1,131 @@
-import { ApiResponse, User, AuthResponse, Transaction, Budget, Goal, AiAdvice, SendOtpRequest, SendOtpResponse, VerifyOtpRequest } from '../types';
+import {
+  ApiResponse,
+  User,
+  AuthResponse,
+  Transaction,
+  Budget,
+  BudgetWrite,
+  Goal,
+  AiAdvice,
+  SendOtpResponse,
+  PaginatedApiResponse,
+  Pagination,
+} from '../types';
 import { tokenRefreshService } from '../services/tokenRefreshService';
 import { sessionSyncService } from '../services/sessionSyncService';
 import { shouldRefreshToken, isTokenExpired } from '../utils/jwtUtils';
 import { env } from '../config/env';
 import { logger } from '../utils/logger';
+import { dispatchTransactionsUpdated } from './appEvents';
 
 // API configuration
 const API_BASE_URL = env.API_BASE_URL;
+
+type JsonObject = Record<string, unknown>;
+
+export interface TransactionAnalytics {
+  totalIncome: number;
+  totalExpenses: number;
+  netAmount: number;
+  topCategories: Array<{ category: string; amount: number }>;
+  transactionCount: number;
+  period: string;
+}
+
+export interface TransactionSearchResult {
+  id: string;
+  type: 'transaction';
+  title: string;
+  amount: string;
+  category: string;
+  transactionType: string;
+  date: string;
+  icon: string;
+  color: string;
+}
+
+export interface AiAdviceContext {
+  currentBalance?: number;
+  monthlyIncome?: number;
+  monthlyExpenses?: number;
+  goals?: string[];
+}
+
+export interface AiHistoryItem {
+  id: string;
+  query: string;
+  response: string;
+  category: string;
+  createdAt: string;
+}
+
+export interface BudgetAnalytics extends JsonObject {
+  totalBudget: number | string;
+  totalSpent: number | string;
+  remainingBudget: number | string;
+  utilizationPercentage: number | string;
+  budgetCount: number;
+  activeBudgets: number;
+  recentTransactions: Transaction[];
+  budgets: Budget[];
+}
+
+export interface GoalAnalytics extends JsonObject {
+  totalGoals: number;
+  activeGoals: number;
+  completedGoals: number;
+  pausedGoals: number;
+  cancelledGoals: number;
+  totalTargetAmount: number;
+  totalCurrentAmount: number;
+  overallProgress: number;
+  nearingCompletion: number;
+  upcomingDeadlines: number;
+}
+
+export interface UserStats extends JsonObject {
+  transactionCount: number;
+  budgetCount: number;
+  goalCount: number;
+  aiSessionCount: number;
+}
+
+export type AppSettings = Record<string, JsonObject>;
+
+export interface Preferences extends JsonObject {
+  theme?: 'light' | 'dark' | 'system';
+  defaultTransactionType?: 'INCOME' | 'EXPENSE' | 'TRANSFER';
+  defaultCurrency?: string;
+  dateFormat?: string;
+  numberFormat?: 'Indian' | 'International';
+  autoCategorize?: boolean;
+  showTutorials?: boolean;
+}
+
+export interface NotificationSettings extends JsonObject {
+  email?: boolean;
+  push?: boolean;
+  sms?: boolean;
+  budgetAlerts?: boolean;
+  goalReminders?: boolean;
+  transactionAlerts?: boolean;
+  weeklyReports?: boolean;
+  monthlyReports?: boolean;
+}
+
+export interface HealthStatus extends JsonObject {
+  message: string;
+  version: string;
+  timestamp: string;
+}
+
+const normalizeBudget = (budget: Budget): Budget => ({
+  ...budget,
+  amount: Number(budget.amount),
+  spent: Number(budget.spent),
+  remaining: Number(budget.remaining),
+  utilizationPercentage: Number(budget.utilizationPercentage),
+});
 
 // API Client class
 class ApiClient {
@@ -147,11 +266,14 @@ class ApiClient {
           await tokenRefreshService.ensureTokenValid();
           // Update access token after refresh
           this.accessToken = localStorage.getItem('accessToken');
-        } catch (refreshError: any) {
+        } catch (refreshError: unknown) {
           // If refresh fails, clear tokens and throw error
           // This prevents the request from continuing with an invalid token
           this.clearTokens();
-          const error = new Error(refreshError.message || 'Your session has expired. Please login again.') as Error & {
+          const message = refreshError instanceof Error
+            ? refreshError.message
+            : 'Your session has expired. Please login again.';
+          const error = new Error(message) as Error & {
             status?: number;
             isAuthError?: boolean;
           };
@@ -234,7 +356,7 @@ class ApiClient {
           this.accessToken = localStorage.getItem('accessToken');
           // Retry the original request with new token
           return this.request<T>(endpoint, options, false, retryOnCsrf);
-        } catch (refreshError: any) {
+        } catch {
           // Refresh failed, clear tokens and throw user-friendly error
           this.clearTokens();
           const error = new Error('Your session has expired. Please login again.') as Error & { 
@@ -468,8 +590,10 @@ class ApiClient {
   }
 
   // Transaction methods
-  async getTransactions(page = 1, limit = 10): Promise<{ data: Transaction[]; pagination: any }> {
-    const response = await this.request<{ data: Transaction[]; pagination: any }>(`/transactions?page=${page}&limit=${limit}`);
+  async getTransactions(page = 1, limit = 10): Promise<{ data: Transaction[]; pagination: Partial<Pagination> }> {
+    const response = await this.request<Transaction[]>(
+      `/transactions?page=${page}&limit=${limit}`
+    ) as PaginatedApiResponse<Transaction>;
     return {
       data: response.data || [],
       pagination: response.pagination || {}
@@ -481,6 +605,7 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify(transaction),
     });
+    dispatchTransactionsUpdated();
     return response.data!;
   }
 
@@ -489,6 +614,7 @@ class ApiClient {
       method: 'PUT',
       body: JSON.stringify(transaction),
     });
+    dispatchTransactionsUpdated();
     return response.data!;
   }
 
@@ -496,66 +622,68 @@ class ApiClient {
     await this.request(`/transactions/${id}`, {
       method: 'DELETE',
     });
+    dispatchTransactionsUpdated();
   }
 
-  async getTransactionAnalytics(period = '30'): Promise<any> {
-    const response = await this.request<any>(`/transactions/analytics?period=${period}`);
+  async getTransactionAnalytics(period = '30'): Promise<TransactionAnalytics> {
+    const response = await this.request<TransactionAnalytics>(`/transactions/analytics?period=${period}`);
     return response.data!;
   }
 
-  async searchTransactions(query: string, limit = 10): Promise<any[]> {
-    const response = await this.request<any[]>(`/transactions/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+  async searchTransactions(query: string, limit = 10): Promise<TransactionSearchResult[]> {
+    const response = await this.request<TransactionSearchResult[]>(`/transactions/search?q=${encodeURIComponent(query)}&limit=${limit}`);
     return response.data || [];
   }
 
   // AI methods
-  async getAiAdvice(query: string, context?: any): Promise<AiAdvice> {
+  async getAiAdvice(query: string, context?: AiAdviceContext): Promise<AiAdvice> {
     try {
       const response = await this.request<AiAdvice>('/ai/advice', {
         method: 'POST',
         body: JSON.stringify({ query, context }),
       });
       return response.data!;
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Check if error is due to missing API key
-      if (error.message?.includes('API key') || error.status === 500) {
+      const status = error instanceof Error && 'status' in error ? error.status : undefined;
+      if ((error instanceof Error && error.message.includes('API key')) || status === 500) {
         throw new Error('AI Advisor requires an OpenAI API key. Please configure OPENAI_API_KEY in the backend .env file.');
       }
       throw error;
     }
   }
 
-  async getAiHistory(limit = 10): Promise<any[]> {
-    const response = await this.request<any[]>(`/ai/history?limit=${limit}`);
+  async getAiHistory(limit = 10): Promise<AiHistoryItem[]> {
+    const response = await this.request<AiHistoryItem[]>(`/ai/history?limit=${limit}`);
     return response.data!;
   }
 
   // Budget methods
-  async getBudgets(page = 1, limit = 10, status?: string): Promise<{ data: Budget[]; pagination: any }> {
+  async getBudgets(page = 1, limit = 10, status?: string): Promise<{ data: Budget[]; pagination: Partial<Pagination> }> {
     const params = new URLSearchParams({ page: page.toString(), limit: limit.toString() });
     if (status) params.append('status', status);
     
-    const response = await this.request<{ data: Budget[]; pagination: any }>(`/budgets?${params}`);
+    const response = await this.request<Budget[]>(`/budgets?${params}`) as PaginatedApiResponse<Budget>;
     return {
-      data: response.data || [],
+      data: (response.data || []).map(normalizeBudget),
       pagination: response.pagination || {}
     };
   }
 
-  async createBudget(budget: Omit<Budget, 'id' | 'userId' | 'createdAt' | 'updatedAt'>): Promise<Budget> {
+  async createBudget(budget: BudgetWrite): Promise<Budget> {
     const response = await this.request<Budget>('/budgets', {
       method: 'POST',
       body: JSON.stringify(budget),
     });
-    return response.data!;
+    return normalizeBudget(response.data!);
   }
 
-  async updateBudget(id: string, budget: Partial<Budget>): Promise<Budget> {
+  async updateBudget(id: string, budget: Partial<BudgetWrite>): Promise<Budget> {
     const response = await this.request<Budget>(`/budgets/${id}`, {
       method: 'PUT',
       body: JSON.stringify(budget),
     });
-    return response.data!;
+    return normalizeBudget(response.data!);
   }
 
   async deleteBudget(id: string): Promise<void> {
@@ -564,17 +692,17 @@ class ApiClient {
     });
   }
 
-  async getBudgetAnalytics(period = '30'): Promise<any> {
-    const response = await this.request<any>(`/budgets/analytics?period=${period}`);
+  async getBudgetAnalytics(period = '30'): Promise<BudgetAnalytics> {
+    const response = await this.request<BudgetAnalytics>(`/budgets/analytics?period=${period}`);
     return response.data!;
   }
 
   // Goal methods
-  async getGoals(page = 1, limit = 10, status?: string): Promise<{ data: Goal[]; pagination: any }> {
+  async getGoals(page = 1, limit = 10, status?: string): Promise<{ data: Goal[]; pagination: Partial<Pagination> }> {
     const params = new URLSearchParams({ page: page.toString(), limit: limit.toString() });
     if (status) params.append('status', status);
     
-    const response = await this.request<{ data: Goal[]; pagination: any }>(`/goals?${params}`);
+    const response = await this.request<Goal[]>(`/goals?${params}`) as PaginatedApiResponse<Goal>;
     return {
       data: response.data || [],
       pagination: response.pagination || {}
@@ -603,8 +731,8 @@ class ApiClient {
     });
   }
 
-  async getGoalAnalytics(): Promise<any> {
-    const response = await this.request<any>('/goals/analytics');
+  async getGoalAnalytics(): Promise<GoalAnalytics> {
+    const response = await this.request<GoalAnalytics>('/goals/analytics');
     return response.data!;
   }
 
@@ -644,45 +772,47 @@ class ApiClient {
     });
   }
 
-  async getUserStats(): Promise<any> {
-    const response = await this.request<any>('/users/stats');
+  async getUserStats(): Promise<UserStats> {
+    const response = await this.request<UserStats>('/users/stats');
     return response.data!;
   }
 
   // Settings methods
-  async getSettings(): Promise<any> {
-    const response = await this.request<any>('/settings');
+  async getSettings(): Promise<AppSettings> {
+    const response = await this.request<AppSettings>('/settings');
     return response.data!;
   }
 
-  async updateSettings(section: string, settings: any): Promise<any> {
-    const response = await this.request<any>('/settings', {
+  async updateSettings<T extends JsonObject>(section: string, settings: T): Promise<T> {
+    const response = await this.request<T>('/settings', {
       method: 'PUT',
       body: JSON.stringify({ section, settings }),
     });
     return response.data!;
   }
 
-  async getPreferences(): Promise<any> {
-    const response = await this.request<any>('/settings/preferences');
+  async getPreferences(): Promise<Preferences> {
+    const response = await this.request<Preferences>('/settings/preferences');
     return response.data!;
   }
 
-  async updatePreferences(preferences: any): Promise<any> {
-    const response = await this.request<any>('/settings/preferences', {
+  async updatePreferences(preferences: Preferences): Promise<Preferences> {
+    const response = await this.request<Preferences>('/settings/preferences', {
       method: 'PUT',
       body: JSON.stringify(preferences),
     });
     return response.data!;
   }
 
-  async getNotificationSettings(): Promise<any> {
-    const response = await this.request<any>('/settings/notifications');
+  async getNotificationSettings(): Promise<NotificationSettings> {
+    const response = await this.request<NotificationSettings>('/settings/notifications');
     return response.data!;
   }
 
-  async updateNotificationSettings(notifications: any): Promise<any> {
-    const response = await this.request<any>('/settings/notifications', {
+  async updateNotificationSettings(
+    notifications: NotificationSettings
+  ): Promise<NotificationSettings> {
+    const response = await this.request<NotificationSettings>('/settings/notifications', {
       method: 'PUT',
       body: JSON.stringify(notifications),
     });
@@ -690,8 +820,8 @@ class ApiClient {
   }
 
   // Health check
-  async healthCheck(): Promise<any> {
-    const response = await this.request<any>('/health');
+  async healthCheck(): Promise<HealthStatus> {
+    const response = await this.request<HealthStatus>('/health');
     return response.data!;
   }
 

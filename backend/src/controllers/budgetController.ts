@@ -1,41 +1,47 @@
 import { Request, Response } from 'express';
-import { Budget, Prisma, PrismaClient } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import prisma from '../config/database';
 import { ApiResponse, PaginatedApiResponse } from '../types';
+import { normalizeCategory } from '../domain/categoryRegistry';
+import {
+  projectBudgets,
+  summarizeBudgetProjections,
+  type BudgetProjection,
+} from '../services/budgetProjectionService';
 
-const prisma = new PrismaClient();
 type AuthenticatedRequest = Request & { user: { id: string } };
 const getUserId = (req: Request) => (req as AuthenticatedRequest).user.id;
-const getErrorMessage = (error: unknown) => error instanceof Error ? error.message : 'Something went wrong';
+
+function sendBudgetError(res: Response<ApiResponse>, error: unknown, message: string): void {
+  const duplicate = error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
+  res.status(duplicate ? 409 : 500).json({
+    success: false,
+    message: duplicate ? 'An active budget already exists for this category and period' : message,
+    error: error instanceof Error ? error.message : 'Something went wrong',
+    timestamp: new Date().toISOString(),
+  });
+}
 
 export class BudgetController {
-  // Get all budgets for a user
   async getBudgets(req: Request, res: Response<ApiResponse>) {
     try {
       const userId = getUserId(req);
       const { page = 1, limit = 10, status } = req.query;
-
       const skip = (Number(page) - 1) * Number(limit);
       const take = Number(limit);
-
       const where: Prisma.BudgetWhereInput = { userId };
-      if (typeof status === 'string') {
-        where.isActive = status === 'active';
-      }
+      if (typeof status === 'string') where.isActive = status === 'active';
 
       const [budgets, total] = await Promise.all([
-        prisma.budget.findMany({
-          where,
-          skip,
-          take,
-          orderBy: { createdAt: 'desc' },
-        }),
+        prisma.budget.findMany({ where, skip, take, orderBy: { createdAt: 'desc' } }),
         prisma.budget.count({ where }),
       ]);
+      const data = await projectBudgets(userId, budgets);
 
       res.json({
         success: true,
         message: 'Budgets retrieved successfully',
-        data: budgets,
+        data,
         pagination: {
           page: Number(page),
           limit: Number(limit),
@@ -43,238 +49,155 @@ export class BudgetController {
           totalPages: Math.ceil(total / Number(limit)),
         },
         timestamp: new Date().toISOString(),
-      } as PaginatedApiResponse<Budget>);
+      } as PaginatedApiResponse<BudgetProjection>);
     } catch (error: unknown) {
-      res.status(500).json({
-        success: false,
-        message: 'Failed to retrieve budgets',
-        error: getErrorMessage(error),
-        timestamp: new Date().toISOString(),
-      });
-      return;
-      return;
+      sendBudgetError(res, error, 'Failed to retrieve budgets');
     }
   }
 
-  // Get budget by ID
   async getBudgetById(req: Request, res: Response<ApiResponse>) {
     try {
       const userId = getUserId(req);
-      const { id } = req.params;
-
-      const budget = await prisma.budget.findFirst({
-        where: { id, userId },
-      });
-
+      const budget = await prisma.budget.findFirst({ where: { id: req.params.id, userId } });
       if (!budget) {
-        return res.status(404).json({
+        res.status(404).json({
           success: false,
           message: 'Budget not found',
           timestamp: new Date().toISOString(),
         });
-      return;
+        return;
       }
 
+      const [data] = await projectBudgets(userId, [budget]);
       res.json({
         success: true,
         message: 'Budget retrieved successfully',
-        data: budget,
+        data,
         timestamp: new Date().toISOString(),
       });
-      return;
     } catch (error: unknown) {
-      res.status(500).json({
-        success: false,
-        message: 'Failed to retrieve budget',
-        error: getErrorMessage(error),
-        timestamp: new Date().toISOString(),
-      });
-      return;
+      sendBudgetError(res, error, 'Failed to retrieve budget');
     }
   }
 
-  // Create new budget
   async createBudget(req: Request, res: Response<ApiResponse>) {
     try {
       const userId = getUserId(req);
-      const { name, amount, spent = 0, period, isActive = true } = req.body;
-
+      const { name, amount, period, isActive = true } = req.body;
       const budget = await prisma.budget.create({
         data: {
           name,
+          categoryKey: normalizeCategory(name, 'expense')?.key || null,
           amount,
-          spent,
           period,
           isActive,
           userId,
         },
       });
+      const [data] = await projectBudgets(userId, [budget]);
 
       res.status(201).json({
         success: true,
         message: 'Budget created successfully',
-        data: budget,
+        data,
         timestamp: new Date().toISOString(),
       });
-      return;
     } catch (error: unknown) {
-      res.status(500).json({
-        success: false,
-        message: 'Failed to create budget',
-        error: getErrorMessage(error),
-        timestamp: new Date().toISOString(),
-      });
-      return;
+      sendBudgetError(res, error, 'Failed to create budget');
     }
   }
 
-  // Update budget
   async updateBudget(req: Request, res: Response<ApiResponse>) {
     try {
       const userId = getUserId(req);
-      const { id } = req.params;
-      const updateData = req.body;
-
-      // Check if budget exists and belongs to user
-      const existingBudget = await prisma.budget.findFirst({
-        where: { id, userId },
-      });
-
-      if (!existingBudget) {
-        return res.status(404).json({
+      const existing = await prisma.budget.findFirst({ where: { id: req.params.id, userId } });
+      if (!existing) {
+        res.status(404).json({
           success: false,
           message: 'Budget not found',
           timestamp: new Date().toISOString(),
         });
-      return;
+        return;
       }
 
+      const { name, amount, period, isActive } = req.body;
       const budget = await prisma.budget.update({
-        where: { id },
-        data: updateData,
+        where: { id: existing.id },
+        data: {
+          ...(name !== undefined && { name }),
+          ...(amount !== undefined && { amount }),
+          ...(period !== undefined && { period }),
+          ...(isActive !== undefined && { isActive }),
+          categoryKey: normalizeCategory(name ?? existing.name, 'expense')?.key || null,
+        },
       });
+      const [data] = await projectBudgets(userId, [budget]);
 
       res.json({
         success: true,
         message: 'Budget updated successfully',
-        data: budget,
+        data,
         timestamp: new Date().toISOString(),
       });
-      return;
     } catch (error: unknown) {
-      res.status(500).json({
-        success: false,
-        message: 'Failed to update budget',
-        error: getErrorMessage(error),
-        timestamp: new Date().toISOString(),
-      });
-      return;
+      sendBudgetError(res, error, 'Failed to update budget');
     }
   }
 
-  // Delete budget
   async deleteBudget(req: Request, res: Response<ApiResponse>) {
     try {
       const userId = getUserId(req);
-      const { id } = req.params;
-
-      // Check if budget exists and belongs to user
-      const existingBudget = await prisma.budget.findFirst({
-        where: { id, userId },
-      });
-
-      if (!existingBudget) {
-        return res.status(404).json({
+      const existing = await prisma.budget.findFirst({ where: { id: req.params.id, userId } });
+      if (!existing) {
+        res.status(404).json({
           success: false,
           message: 'Budget not found',
           timestamp: new Date().toISOString(),
         });
-      return;
+        return;
       }
 
-      await prisma.budget.delete({
-        where: { id },
-      });
-
+      await prisma.budget.delete({ where: { id: existing.id } });
       res.json({
         success: true,
         message: 'Budget deleted successfully',
         timestamp: new Date().toISOString(),
       });
-      return;
     } catch (error: unknown) {
-      res.status(500).json({
-        success: false,
-        message: 'Failed to delete budget',
-        error: getErrorMessage(error),
-        timestamp: new Date().toISOString(),
-      });
-      return;
+      sendBudgetError(res, error, 'Failed to delete budget');
     }
   }
 
-  // Get budget analytics
   async getBudgetAnalytics(req: Request, res: Response<ApiResponse>) {
     try {
       const userId = getUserId(req);
-      const { period = '30' } = req.query;
-
-      const days = Number(period);
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - days);
-
-      const budgets = await prisma.budget.findMany({
-        where: { userId, isActive: true },
-      });
-
-      // Calculate analytics
-      const totalBudget = budgets.reduce((sum, budget) => sum + Number(budget.amount), 0);
-      const totalSpent = budgets.reduce((sum, budget) => sum + Number(budget.spent), 0);
-      const remainingBudget = totalBudget - totalSpent;
-      const utilizationRate = totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0;
-
-      // Get recent transactions for spending analysis
-      const recentTransactions = await prisma.transaction.findMany({
-        where: {
-          userId,
-          date: { gte: startDate },
-          type: 'EXPENSE',
-        },
-        orderBy: { date: 'desc' },
-      });
-
-      const analytics = {
-        totalBudget,
-        totalSpent,
-        remainingBudget,
-        utilizationRate: Math.round(utilizationRate * 100) / 100,
-        budgetCount: budgets.length,
-        activeBudgets: budgets.filter(b => b.isActive).length,
-        recentTransactions: recentTransactions.slice(0, 10),
-        budgets: budgets.map(budget => ({
-          ...budget,
-          utilizationRate: Number(budget.amount) > 0 
-            ? Math.round((Number(budget.spent) / Number(budget.amount)) * 10000) / 100 
-            : 0,
-          remaining: Number(budget.amount) - Number(budget.spent),
-        })),
-      };
+      const days = Number(req.query.period || 30);
+      const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+      const [budgets, recentTransactions] = await Promise.all([
+        prisma.budget.findMany({ where: { userId, isActive: true } }),
+        prisma.transaction.findMany({
+          where: { userId, type: 'EXPENSE', date: { gte: startDate } },
+          orderBy: { date: 'desc' },
+          take: 10,
+        }),
+      ]);
+      const projectedBudgets = await projectBudgets(userId, budgets);
+      const summary = summarizeBudgetProjections(projectedBudgets);
 
       res.json({
         success: true,
         message: 'Budget analytics retrieved successfully',
-        data: analytics,
+        data: {
+          ...summary,
+          budgetCount: projectedBudgets.length,
+          activeBudgets: projectedBudgets.length,
+          recentTransactions,
+          budgets: projectedBudgets,
+        },
         timestamp: new Date().toISOString(),
       });
-      return;
     } catch (error: unknown) {
-      res.status(500).json({
-        success: false,
-        message: 'Failed to retrieve budget analytics',
-        error: getErrorMessage(error),
-        timestamp: new Date().toISOString(),
-      });
-      return;
+      sendBudgetError(res, error, 'Failed to retrieve budget analytics');
     }
   }
 }

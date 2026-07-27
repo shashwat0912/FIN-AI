@@ -11,7 +11,7 @@ const { mockPrisma } = vi.hoisted(() => ({
       delete: vi.fn(),
       count: vi.fn(),
     },
-  } as any,
+  },
 }));
 
 vi.mock('../../src/config/database', () => ({
@@ -43,7 +43,9 @@ describe('TransactionService', () => {
         amount: 1200,
         description: 'Groceries',
         category: 'Food',
+        categoryKey: 'food-dining',
         type: 'EXPENSE',
+        source: 'manual',
         date: new Date('2026-03-01'),
       }),
       include: {
@@ -100,7 +102,12 @@ describe('TransactionService', () => {
   });
 
   it('updates an existing transaction', async () => {
-    mockPrisma.transaction.findFirst.mockResolvedValue({ id: 't1', userId: 'u1' });
+    mockPrisma.transaction.findFirst.mockResolvedValue({
+      id: 't1',
+      userId: 'u1',
+      category: 'Food & Dining',
+      type: 'EXPENSE',
+    });
     mockPrisma.transaction.update.mockResolvedValue({ id: 't1', amount: 1500 });
 
     const result = await service.updateTransaction('u1', 't1', { amount: 1500 });
@@ -108,7 +115,7 @@ describe('TransactionService', () => {
     expect(result).toMatchObject({ id: 't1', amount: 1500 });
     expect(mockPrisma.transaction.update).toHaveBeenCalledWith({
       where: { id: 't1' },
-      data: { amount: 1500 },
+      data: { amount: 1500, categoryKey: 'food-dining' },
       include: {
         user: {
           select: {
@@ -119,6 +126,44 @@ describe('TransactionService', () => {
         },
       },
     });
+  });
+
+  it.each([
+    ['category', { category: 'Transportation' }, { category: 'Transportation', categoryKey: 'transportation' }],
+    ['type', { type: 'INCOME' as const }, { type: 'INCOME', categoryKey: null }],
+    ['date', { date: '2026-04-01' }, { date: new Date('2026-04-01'), categoryKey: 'food-dining' }],
+  ])('recalculates categoryKey when %s changes', async (_field, update, expectedData) => {
+    mockPrisma.transaction.findFirst.mockResolvedValue({
+      id: 't1',
+      userId: 'u1',
+      category: 'Food & Dining',
+      type: 'EXPENSE',
+    });
+    mockPrisma.transaction.update.mockResolvedValue({ id: 't1' });
+
+    await service.updateTransaction('u1', 't1', update);
+
+    expect(mockPrisma.transaction.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expectedData })
+    );
+  });
+
+  it('leaves unknown categories unassociated', async () => {
+    mockPrisma.transaction.create.mockResolvedValue({ id: 't-unknown' });
+
+    await service.createTransaction('u1', {
+      amount: 99,
+      description: 'Unmapped expense',
+      category: 'Unrecognized category',
+      type: 'EXPENSE',
+      date: '2026-03-01',
+    });
+
+    expect(mockPrisma.transaction.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ categoryKey: null }),
+      })
+    );
   });
 
   it('deletes an existing transaction', async () => {

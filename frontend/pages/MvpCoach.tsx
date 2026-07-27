@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../lib/api';
+import { dispatchTransactionsUpdated } from '../lib/appEvents';
 
 type MvpInsight = {
   id: string;
@@ -216,6 +217,7 @@ export default function MvpCoach() {
       if (!res.success || res.data == null) {
         throw new Error(res.message || 'Request failed');
       }
+      dispatchTransactionsUpdated();
       setMessages((m) => [
         ...m,
         {

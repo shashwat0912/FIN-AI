@@ -14,12 +14,17 @@ import {
 } from "../components/ui/PrivateLedger";
 import { ProgressLine, RowActionMenu } from "../components/ui/FinanceLedger";
 import { ledgerControlClass } from "../styles/tokens";
+import { onTransactionsUpdated } from "../lib/appEvents";
 
 interface BudgetItem {
   id: string;
   name: string;
+  categoryKey: string | null;
   amount: number;
   spent: number;
+  remaining: number;
+  utilizationPercentage: number;
+  status: "ON_TRACK" | "NEAR_LIMIT" | "OVER_BUDGET" | "INACTIVE";
   period: "MONTHLY" | "YEARLY" | "WEEKLY";
   userId: string;
   isActive: boolean;
@@ -47,7 +52,6 @@ export default function Budget() {
   const [budgetForm, setBudgetForm] = useState({
     name: "",
     amount: "",
-    spent: "",
     period: "MONTHLY" as BudgetItem["period"],
     isActive: true,
   });
@@ -75,13 +79,13 @@ export default function Budget() {
 
   useEffect(() => {
     loadBudgets();
+    return onTransactionsUpdated(loadBudgets);
   }, []);
 
   const resetEditor = () => {
     setBudgetForm({
       name: "",
       amount: "",
-      spent: "",
       period: "MONTHLY",
       isActive: true,
     });
@@ -94,7 +98,6 @@ export default function Budget() {
     setBudgetForm({
       name: "",
       amount: "",
-      spent: "",
       period: "MONTHLY",
       isActive: true,
     });
@@ -111,7 +114,6 @@ export default function Budget() {
       const budgetData = {
         name: budgetForm.name,
         amount: Number.parseFloat(budgetForm.amount),
-        spent: Number.parseFloat(budgetForm.spent),
         period: budgetForm.period,
         isActive: budgetForm.isActive,
       };
@@ -154,7 +156,6 @@ export default function Budget() {
     setBudgetForm({
       name: budget.name,
       amount: budget.amount.toString(),
-      spent: budget.spent.toString(),
       period: budget.period,
       isActive: budget.isActive,
     });
@@ -227,7 +228,7 @@ export default function Budget() {
               {editingBudget ? t("edit-budget") : t("add-new-budget")}
             </h2>
             <p className="mt-1 text-sm text-ink-secondary">
-              Set a limit and record the amount already spent.
+              Set a category limit. Spending is calculated from transactions.
             </p>
           </div>
           <form onSubmit={handleSubmit} className="mt-5 px-4 sm:px-0">
@@ -278,25 +279,6 @@ export default function Budget() {
                     setBudgetForm({ ...budgetForm, amount: event.target.value })
                   }
                   aria-describedby="budget-amount-message"
-                  className={ledgerControlClass}
-                />
-              </Field>
-              <Field
-                label={t("spent-amount")}
-                htmlFor="budget-spent"
-                helper="Rupees and paise."
-              >
-                <input
-                  id="budget-spent"
-                  type="number"
-                  step="0.01"
-                  inputMode="decimal"
-                  required
-                  value={budgetForm.spent}
-                  onChange={(event) =>
-                    setBudgetForm({ ...budgetForm, spent: event.target.value })
-                  }
-                  aria-describedby="budget-spent-message"
                   className={ledgerControlClass}
                 />
               </Field>
@@ -530,11 +512,9 @@ function SummaryItem({
 }
 
 function BudgetDesktopRow({ budget, onEdit, onDelete, t }: BudgetRowProps) {
-  const percentage = getPercentage(budget.spent, budget.amount);
-  const remaining = budget.amount - budget.spent;
-  const status = budget.isActive
-    ? getBudgetStatus(percentage, t)
-    : t("inactive");
+  const percentage = budget.utilizationPercentage;
+  const remaining = budget.remaining;
+  const status = getBudgetStatus(budget.status, t);
 
   return (
     <div
@@ -604,11 +584,9 @@ function BudgetDesktopRow({ budget, onEdit, onDelete, t }: BudgetRowProps) {
 }
 
 function BudgetMobileRow({ budget, onEdit, onDelete, t }: BudgetRowProps) {
-  const percentage = getPercentage(budget.spent, budget.amount);
-  const remaining = budget.amount - budget.spent;
-  const status = budget.isActive
-    ? getBudgetStatus(percentage, t)
-    : t("inactive");
+  const percentage = budget.utilizationPercentage;
+  const remaining = budget.remaining;
+  const status = getBudgetStatus(budget.status, t);
 
   return (
     <article className="group border-b border-ledger-border py-5">
@@ -668,9 +646,10 @@ function BudgetMobileRow({ budget, onEdit, onDelete, t }: BudgetRowProps) {
   );
 }
 
-function getBudgetStatus(percentage: number, t: (key: string) => string) {
-  if (percentage >= 100) return t("over-budget");
-  if (percentage >= 80) return "Near limit";
+function getBudgetStatus(status: BudgetItem["status"], t: (key: string) => string) {
+  if (status === "OVER_BUDGET") return t("over-budget");
+  if (status === "NEAR_LIMIT") return "Near limit";
+  if (status === "INACTIVE") return t("inactive");
   return t("on-track");
 }
 

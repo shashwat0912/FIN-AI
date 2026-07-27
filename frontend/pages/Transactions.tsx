@@ -7,7 +7,6 @@ import WorkingCategorySelector from '../components/transactions/WorkingCategoryS
 import { Category } from '../data/categories';
 import { useLanguage } from '../context/LanguageContext';
 import { logger } from '../utils/logger';
-import { dispatchTransactionsUpdated } from '../lib/appEvents';
 import {
   Amount,
   Button,
@@ -116,7 +115,6 @@ export default function Transactions() {
       });
       setSelectedCategory(null);
       setShowAddForm(false);
-      dispatchTransactionsUpdated();
       loadTransactions();
     } catch (requestError: unknown) {
       logger.error('Error creating transaction', requestError);
@@ -129,7 +127,6 @@ export default function Transactions() {
 
     try {
       await apiClient.deleteTransaction(id);
-      dispatchTransactionsUpdated();
       loadTransactions();
     } catch (requestError: unknown) {
       setError(requestError instanceof Error ? requestError.message : 'Failed to delete transaction');

@@ -208,4 +208,38 @@ describe('apiClient CSRF handling', () => {
     );
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it('dispatches transaction refresh only after successful mutations', async () => {
+    document.cookie = 'csrf-token=mutation-token; path=/';
+    const success = (data: unknown) => new Response(
+      JSON.stringify({ success: true, message: 'ok', data, timestamp: new Date().toISOString() }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(success({ id: 't1' }))
+      .mockResolvedValueOnce(success({ id: 't1' }))
+      .mockResolvedValueOnce(success(null))
+      .mockResolvedValueOnce(new Response(
+        JSON.stringify({ success: false, message: 'rejected' }),
+        { status: 422, headers: { 'Content-Type': 'application/json' } },
+      ));
+    vi.stubGlobal('fetch', fetchMock);
+    const refresh = vi.fn();
+    window.addEventListener('financeai:transactions-updated', refresh);
+    const { apiClient } = await import('../../lib/api');
+
+    await apiClient.createTransaction({
+      amount: 100,
+      description: 'Lunch',
+      category: 'Food & Dining',
+      type: 'EXPENSE',
+      date: '2026-07-25',
+    });
+    await apiClient.updateTransaction('t1', { amount: 125 });
+    await apiClient.deleteTransaction('t1');
+    await expect(apiClient.updateTransaction('t1', { amount: 150 })).rejects.toThrow('rejected');
+
+    expect(refresh).toHaveBeenCalledTimes(3);
+    window.removeEventListener('financeai:transactions-updated', refresh);
+  });
 });
