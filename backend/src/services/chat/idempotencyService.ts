@@ -3,15 +3,24 @@ import logger from '../../config/logger';
 import { IdempotencyCheckResult } from '../../types';
 
 export class IdempotencyService {
-  async check(
-    key: string,
-    userId: string,
-    endpoint: string,
-    requestHash: string
-  ): Promise<IdempotencyCheckResult> {
+  async check(key: string, userId: string, endpoint: string): Promise<IdempotencyCheckResult> {
     const existing = await prisma.idempotencyLog.findUnique({ where: { key } });
 
     if (!existing) {
+      return { status: 'new', cachedResponse: null, requestHash: null };
+    }
+
+    if (existing.expiresAt <= new Date()) {
+      await prisma.idempotencyLog.deleteMany({ where: { key, expiresAt: { lte: new Date() } } });
+      return { status: 'new', cachedResponse: null, requestHash: null };
+    }
+
+    if (existing.userId !== userId || existing.endpoint !== endpoint) {
+      return { status: 'conflict', cachedResponse: null, requestHash: null };
+    }
+
+    if (existing.status === 'FAILED') {
+      await prisma.idempotencyLog.deleteMany({ where: { key, userId, endpoint, status: 'FAILED' } });
       return { status: 'new', cachedResponse: null, requestHash: null };
     }
 

@@ -53,130 +53,167 @@ export class ChatService {
   }
 
   async processMessage(userId: string, content: string): Promise<ChatResponsePayload> {
-    const currentState = await this.fsm.getState(userId);
+    let processingStarted = false;
+    try {
+      const currentState = await this.fsm.getState(userId);
 
-    // Handle clarification flows
-    if (currentState.state === 'AWAITING_CATEGORY') {
-      return this.handleCategorySelection(userId, content, currentState);
-    }
-    if (currentState.state === 'AWAITING_EXPENSE_DETAILS') {
-      return this.handleExpenseDetailsInput(userId, content);
-    }
-    if (currentState.state === 'AWAITING_CONFIRMATION') {
-      return this.handleConfirmationInput(userId, content, currentState);
-    }
-    if (currentState.state === 'AWAITING_EDIT_DETAILS') {
-      return this.handleEditDetailsInput(userId, content, currentState);
-    }
+      if (currentState.state === 'PROCESSING') {
+        throw Object.assign(new Error('A chat request is already being processed.'), {
+          statusCode: 409,
+        });
+      }
 
-    // Persist user message
-    const userMessage = await prisma.chatMessage.create({
-      data: { userId, role: 'USER', content, tokenCount: Math.ceil(content.split(/\s+/).length / 0.75) },
-    });
+      // Handle clarification flows
+      if (currentState.state === 'AWAITING_CATEGORY') {
+        return this.handleCategorySelection(userId, content, currentState);
+      }
+      if (currentState.state === 'AWAITING_EXPENSE_DETAILS') {
+        return this.handleExpenseDetailsInput(userId, content);
+      }
+      if (currentState.state === 'AWAITING_CONFIRMATION') {
+        return this.handleConfirmationInput(userId, content, currentState);
+      }
+      if (currentState.state === 'AWAITING_EDIT_DETAILS') {
+        return this.handleEditDetailsInput(userId, content, currentState);
+      }
 
-    const normalizedContent = content.trim().replace(/\s+/g, ' ');
+      const normalizedContent = content.trim().replace(/\s+/g, ' ');
 
-    if (this.isStartExpenseCaptureCommand(normalizedContent)) {
-      const response = await this.startExpenseCapture(userId);
-      await prisma.chatMessage.create({
+      if (this.isStartExpenseCaptureCommand(normalizedContent)) {
+        await prisma.chatMessage.create({
+          data: {
+            userId,
+            role: 'USER',
+            content,
+            tokenCount: Math.ceil(content.split(/\s+/).length / 0.75),
+          },
+        });
+        const response = await this.startExpenseCapture(userId);
+        await prisma.chatMessage.create({
+          data: {
+            userId,
+            role: 'ASSISTANT',
+            content: response.message,
+            intent: ChatIntentType.LOG_EXPENSE,
+            metadata: null,
+            tokenCount: Math.ceil(response.message.split(/\s+/).length / 0.75),
+          },
+        });
+        return response;
+      }
+
+      await this.fsm.transition(userId, 'MESSAGE_RECEIVED');
+      processingStarted = true;
+
+      const userMessage = await prisma.chatMessage.create({
         data: {
           userId,
-          role: 'ASSISTANT',
-          content: response.message,
-          intent: ChatIntentType.LOG_EXPENSE,
-          metadata: null,
-          tokenCount: Math.ceil(response.message.split(/\s+/).length / 0.75),
+          role: 'USER',
+          content,
+          tokenCount: Math.ceil(content.split(/\s+/).length / 0.75),
         },
       });
-      return response;
-    }
 
-    await this.fsm.transition(userId, 'MESSAGE_RECEIVED');
+      // Handle multi-line / multi-item expense or income list before collapsing whitespace.
+      // Example:
+      // netflix 500
+      // hotstar 300
+      // youtube 300
+      const bulkParse = this.tryParseBulkTransactionList(content);
+      if (bulkParse && bulkParse.items.length >= 2) {
+        return this.handleBulkTransactionConfirmation(userId, bulkParse, userMessage.id);
+      }
 
-    // Handle multi-line / multi-item expense or income list before collapsing whitespace.
-    // Example:
-    // netflix 500
-    // hotstar 300
-    // youtube 300
-    const bulkParse = this.tryParseBulkTransactionList(content);
-    if (bulkParse && bulkParse.items.length >= 2) {
-      return this.handleBulkTransactionConfirmation(userId, bulkParse, userMessage.id);
-    }
-
-    const singleParsedLine = this.parseBulkTransactionLine(content, 'expense', null);
-    if (singleParsedLine) {
-      return this.handleLogTransaction(
-        userId,
-        {
-          amount: singleParsedLine.amount,
-          description: singleParsedLine.description,
-          category: singleParsedLine.categoryHint || null,
-          type: singleParsedLine.type,
-          date: null,
-        },
-        { isFallback: true },
-        userMessage.id
-      );
-    }
-
-    // Normalize so "50   dosa" parses like "50 dosa"
-    const contextMessages = await this.contextManager.buildContextWindow(userId, content);
-    const parsed = await this.intentParser.parse(normalizedContent, contextMessages);
-
-    let response: ChatResponsePayload;
-
-    switch (parsed.intent) {
-      case ChatIntentType.LOG_EXPENSE:
-      case ChatIntentType.LOG_INCOME:
-        response = await this.handleLogTransaction(userId, parsed.entities as TransactionEntities, parsed, userMessage.id);
-        break;
-      case ChatIntentType.QUERY_SPENDING:
-      case ChatIntentType.QUERY_INCOME:
-        response = await this.handleQuerySpending(userId, parsed.entities as QueryEntities);
-        break;
-      case ChatIntentType.QUERY_BUDGET:
-        response = await this.handleQueryBudget(userId);
-        break;
-      case ChatIntentType.SET_BUDGET:
-        response = await this.handleSetBudget(userId, parsed.entities as BudgetEntities);
-        break;
-      case ChatIntentType.GET_ADVICE:
-        response = await this.handleGetAdvice(userId, parsed.fallbackMessage || content);
-        break;
-      case ChatIntentType.GENERAL_CHAT:
-        response = this.makeResponse(parsed.fallbackMessage || "I can help you log transactions, check spending, manage budgets, or get financial advice. What would you like to do?");
-        await this.fsm.transition(userId, 'RESPONSE_SENT');
-        break;
-      default:
-        response = this.makeResponse(
-          parsed.fallbackMessage || 'I can help with expense logging, income logging, budget status, and monthly summaries. Try "Spent 400 on burger", "60000 salary", "Check budget", or "Monthly summary".',
-          { suggestedChips: ['Log expense', 'Log income', 'Check budget', 'Monthly summary', 'Get advice'] }
+      const singleParsedLine = this.parseBulkTransactionLine(content, 'expense', null);
+      if (singleParsedLine) {
+        return this.handleLogTransaction(
+          userId,
+          {
+            amount: singleParsedLine.amount,
+            description: singleParsedLine.description,
+            category: singleParsedLine.categoryHint || null,
+            type: singleParsedLine.type,
+            date: null,
+          },
+          { isFallback: true },
+          userMessage.id
         );
-        await this.fsm.transition(userId, 'RESPONSE_SENT');
+      }
+
+      // Normalize so "50   dosa" parses like "50 dosa"
+      const contextMessages = await this.contextManager.buildContextWindow(userId, content);
+      const parsed = await this.intentParser.parse(normalizedContent, contextMessages);
+
+      let response: ChatResponsePayload;
+
+      switch (parsed.intent) {
+        case ChatIntentType.LOG_EXPENSE:
+        case ChatIntentType.LOG_INCOME:
+          response = await this.handleLogTransaction(
+            userId,
+            parsed.entities as TransactionEntities,
+            parsed,
+            userMessage.id
+          );
+          break;
+        case ChatIntentType.QUERY_SPENDING:
+        case ChatIntentType.QUERY_INCOME:
+          response = await this.handleQuerySpending(userId, parsed.entities as QueryEntities);
+          break;
+        case ChatIntentType.QUERY_BUDGET:
+          response = await this.handleQueryBudget(userId);
+          break;
+        case ChatIntentType.SET_BUDGET:
+          response = await this.handleSetBudget(userId, parsed.entities as BudgetEntities, userMessage.id);
+          break;
+        case ChatIntentType.GET_ADVICE:
+          response = await this.handleGetAdvice(userId, parsed.fallbackMessage || content);
+          break;
+        case ChatIntentType.GENERAL_CHAT:
+          response = this.makeResponse(
+            parsed.fallbackMessage ||
+              'I can help you log transactions, check spending, manage budgets, or get financial advice. What would you like to do?'
+          );
+          await this.fsm.transition(userId, 'RESPONSE_SENT');
+          break;
+        default:
+          response = this.makeResponse(
+            parsed.fallbackMessage ||
+              'I can help with expense logging, income logging, budget status, and monthly summaries. Try "Spent 400 on burger", "60000 salary", "Check budget", or "Monthly summary".',
+            {
+              suggestedChips: ['Log expense', 'Log income', 'Check budget', 'Monthly summary', 'Get advice'],
+            }
+          );
+          await this.fsm.transition(userId, 'RESPONSE_SENT');
+      }
+
+      response.isFallbackMode = parsed.isFallback || false;
+
+      // Persist assistant message only if handler did not already create one for confirmation state.
+      if (!response.confirmationCard) {
+        await prisma.chatMessage.create({
+          data: {
+            userId,
+            role: 'ASSISTANT',
+            content: response.message,
+            intent: parsed.intent,
+            metadata: null,
+            tokenCount: Math.ceil(response.message.split(/\s+/).length / 0.75),
+          },
+        });
+      }
+
+      return response;
+    } catch (error) {
+      if (processingStarted) await this.fsm.resetToIdle(userId);
+      throw error;
     }
-
-    response.isFallbackMode = parsed.isFallback || false;
-
-    // Persist assistant message only if handler did not already create one for confirmation state.
-    if (!response.confirmationCard) {
-      await prisma.chatMessage.create({
-        data: {
-          userId,
-          role: 'ASSISTANT',
-          content: response.message,
-          intent: parsed.intent,
-          metadata: null,
-          tokenCount: Math.ceil(response.message.split(/\s+/).length / 0.75),
-        },
-      });
-    }
-
-    return response;
   }
 
   async confirmAction(userId: string, confirmationId: string): Promise<ChatResponsePayload> {
+    const now = new Date();
     const pending = await prisma.pendingConfirmation.findFirst({
-      where: { id: confirmationId, userId, status: 'PENDING' },
+      where: { id: confirmationId, userId, status: 'PENDING', expiresAt: { gt: now } },
     });
 
     if (!pending) {
@@ -184,106 +221,119 @@ export class ChatService {
     }
 
     const data = JSON.parse(pending.data);
+    let message: string;
+    let intent: ChatIntentType;
 
     if (pending.type === 'transaction') {
       const txnData = data as TransactionEntities;
-      await createTransactionRecord(userId, {
-        amount: txnData.amount,
-        description: txnData.description,
-        category: txnData.category || 'Uncategorized',
-        type: txnData.type === 'income' ? 'INCOME' : 'EXPENSE',
-        source: 'chat',
-        date: txnData.date ? new Date(txnData.date) : new Date(),
-      });
-
-      await prisma.pendingConfirmation.update({
-        where: { id: confirmationId },
-        data: { status: 'CONFIRMED', resolvedAt: new Date() },
-      });
-
-      await this.fsm.transition(userId, 'CONFIRMED');
-
-      const message = `Logged ₹${txnData.amount.toLocaleString('en-IN')} as ${txnData.category || 'Uncategorized'}\n${txnData.description} · Today`;
-      await prisma.chatMessage.create({
-        data: {
-          userId,
-          role: 'ASSISTANT',
-          content: message,
-          intent: txnData.type === 'income' ? ChatIntentType.LOG_INCOME : ChatIntentType.LOG_EXPENSE,
-          metadata: null,
-          tokenCount: Math.ceil(message.split(/\s+/).length / 0.75),
-        },
-      });
-
-      return this.makeResponse(message, { suggestedChips: ['Log another', 'Check budget', 'Monthly summary'] });
+      message = `Logged ₹${txnData.amount.toLocaleString('en-IN')} as ${txnData.category || 'Uncategorized'}\n${txnData.description}, today`;
+      intent = txnData.type === 'income' ? ChatIntentType.LOG_INCOME : ChatIntentType.LOG_EXPENSE;
+    } else if (pending.type === 'budget') {
+      const budgetData = data as BudgetEntities;
+      message = `Budget set. ${budgetData.category}: ₹${budgetData.amount.toLocaleString('en-IN')} per ${budgetData.period}.`;
+      intent = ChatIntentType.SET_BUDGET;
+    } else if (pending.type === 'bulk_transaction') {
+      const bulkData = data as BulkTransactionEntities;
+      message = this.buildBulkLogSuccessMessage(bulkData.items, bulkData.skippedLines || []);
+      intent = bulkData.items.every(item => item.type === 'income')
+        ? ChatIntentType.LOG_INCOME
+        : ChatIntentType.LOG_EXPENSE;
+    } else {
+      return this.makeResponse('Unknown confirmation type.');
     }
 
-    if (pending.type === 'budget') {
-      const budgetData = data as BudgetEntities;
-      await prisma.budget.create({
-        data: {
+    const claimed = await prisma.$transaction(async tx => {
+      const claim = await tx.pendingConfirmation.updateMany({
+        where: { id: confirmationId, userId, status: 'PENDING', expiresAt: { gt: now } },
+        data: { status: 'CONFIRMED', resolvedAt: now },
+      });
+      if (claim.count !== 1) return false;
+
+      if (pending.type === 'transaction') {
+        const txnData = data as TransactionEntities;
+        await createTransactionRecord(
           userId,
-          name: budgetData.category,
-          categoryKey: normalizeCategory(budgetData.category, 'expense')?.key || null,
-          amount: budgetData.amount,
-          period: budgetData.period === 'weekly' ? 'WEEKLY' : 'MONTHLY',
-        },
-      });
+          {
+            amount: txnData.amount,
+            description: txnData.description,
+            category: txnData.category || 'Uncategorized',
+            type: txnData.type === 'income' ? 'INCOME' : 'EXPENSE',
+            source: 'chat',
+            date: txnData.date ? new Date(txnData.date) : now,
+          },
+          tx
+        );
+      } else if (pending.type === 'budget') {
+        const budgetData = data as BudgetEntities;
+        await tx.budget.create({
+          data: {
+            userId,
+            name: budgetData.category,
+            categoryKey: normalizeCategory(budgetData.category, 'expense')?.key || null,
+            amount: budgetData.amount,
+            period: budgetData.period === 'weekly' ? 'WEEKLY' : 'MONTHLY',
+          },
+        });
+      } else {
+        const bulkData = data as BulkTransactionEntities;
+        for (const transaction of [...bulkData.items].reverse()) {
+          await createTransactionRecord(
+            userId,
+            {
+              amount: transaction.amount,
+              description: transaction.description,
+              category: transaction.category || 'Uncategorized',
+              type: transaction.type === 'income' ? 'INCOME' : 'EXPENSE',
+              source: 'chat',
+              date: transaction.date ? new Date(transaction.date) : now,
+            },
+            tx
+          );
+        }
+      }
 
-      await prisma.pendingConfirmation.update({
-        where: { id: confirmationId },
-        data: { status: 'CONFIRMED', resolvedAt: new Date() },
-      });
-
-      await this.fsm.transition(userId, 'CONFIRMED');
-
-      const message = `✅ Budget set! ${budgetData.category}: ₹${budgetData.amount.toLocaleString('en-IN')} per ${budgetData.period}.`;
-      await prisma.chatMessage.create({
+      await tx.chatMessage.create({
         data: {
           userId,
           role: 'ASSISTANT',
           content: message,
-          intent: ChatIntentType.SET_BUDGET,
+          intent,
           metadata: null,
           tokenCount: Math.ceil(message.split(/\s+/).length / 0.75),
         },
       });
+      return true;
+    });
 
-      return this.makeResponse(message);
+    if (!claimed) {
+      return this.makeResponse('No pending action found. It may have already been confirmed.');
     }
 
     if (pending.type === 'bulk_transaction') {
       const bulkData = data as BulkTransactionEntities;
-      await this.saveBulkTransactions(userId, bulkData.items);
+      for (const transaction of bulkData.items) {
+        await this.learnCategoryMapping(userId, transaction.description, transaction.category || 'Miscellaneous');
+      }
+    }
 
-      await prisma.pendingConfirmation.update({
-        where: { id: confirmationId },
-        data: { status: 'CONFIRMED', resolvedAt: new Date() },
-      });
-
+    try {
       await this.fsm.transition(userId, 'CONFIRMED');
-
-      const message = this.buildBulkLogSuccessMessage(bulkData.items, bulkData.skippedLines || []);
-      await prisma.chatMessage.create({
-        data: {
-          userId,
-          role: 'ASSISTANT',
-          content: message,
-          intent: bulkData.items.every((item) => item.type === 'income') ? ChatIntentType.LOG_INCOME : ChatIntentType.LOG_EXPENSE,
-          metadata: null,
-          tokenCount: Math.ceil(message.split(/\s+/).length / 0.75),
-        },
-      });
-
-      return this.makeResponse(message, {
-        suggestedChips: ['Monthly summary', 'Check budget', 'Log more'],
+    } catch (error: unknown) {
+      logger.warn('Confirmed financial write but could not clear chat state', {
+        userId,
+        confirmationId,
+        error: error instanceof Error ? error.message : 'unknown',
       });
     }
 
-    return this.makeResponse('Unknown confirmation type.');
+    return this.makeResponse(message);
   }
 
-  async editAction(userId: string, confirmationId: string, updates: Partial<TransactionEntities | BudgetEntities>): Promise<ChatResponsePayload> {
+  async editAction(
+    userId: string,
+    confirmationId: string,
+    updates: Partial<TransactionEntities | BudgetEntities>
+  ): Promise<ChatResponsePayload> {
     const pending = await prisma.pendingConfirmation.findFirst({
       where: { id: confirmationId, userId, status: 'PENDING' },
     });
@@ -312,11 +362,7 @@ export class ChatService {
         ? this.applyTransactionUpdates(currentData as TransactionEntities, updates)
         : this.applyBudgetUpdates(currentData as BudgetEntities, updates);
 
-    if (
-      pending.type === 'transaction' &&
-      'description' in updates &&
-      !('category' in updates)
-    ) {
+    if (pending.type === 'transaction' && 'description' in updates && !('category' in updates)) {
       const txnData = updatedData as TransactionEntities;
       const inferredCategory = await this.inferCategory(userId, txnData);
       txnData.category =
@@ -379,11 +425,34 @@ export class ChatService {
   }
 
   async getHistory(userId: string, limit: number = 50, offset: number = 0) {
-    const messages = await prisma.chatMessage.findMany({
-      where: { userId, role: { not: 'SYSTEM' }, pendingConfirmation: null },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-      skip: offset,
+    const now = new Date();
+    const [messages, pending] = await Promise.all([
+      prisma.chatMessage.findMany({
+        where: { userId, role: { not: 'SYSTEM' }, pendingConfirmation: null },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+        select: {
+          id: true,
+          role: true,
+          content: true,
+          intent: true,
+          metadata: true,
+          createdAt: true,
+        },
+      }),
+      offset === 0
+        ? prisma.pendingConfirmation.findFirst({
+            where: { userId, status: 'PENDING', expiresAt: { gt: now } },
+            orderBy: { createdAt: 'desc' },
+          })
+        : Promise.resolve(null),
+    ]);
+    const visibleMessages = messages.reverse().filter(message => !this.isHiddenFromChat(message.metadata));
+    if (!pending) return visibleMessages;
+
+    const confirmationMessage = await prisma.chatMessage.findFirst({
+      where: { id: pending.chatMessageId, userId, role: 'ASSISTANT' },
       select: {
         id: true,
         role: true,
@@ -393,7 +462,23 @@ export class ChatService {
         createdAt: true,
       },
     });
-    return messages.reverse().filter((message) => !this.isHiddenFromChat(message.metadata));
+    if (!confirmationMessage) return visibleMessages;
+
+    const restoredMessage = {
+      ...confirmationMessage,
+      metadata: JSON.stringify({
+        confirmationCard: {
+          id: pending.id,
+          type: pending.type,
+          data: JSON.parse(pending.data),
+          status: 'PENDING',
+        },
+      }),
+    };
+
+    return [...visibleMessages, restoredMessage]
+      .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime())
+      .slice(-limit);
   }
 
   private getSourceUserMessageId(rawData: string): string | null {
@@ -423,7 +508,7 @@ export class ChatService {
     sourceUserMessageId?: string
   ): Promise<ChatResponsePayload> {
     entities.description = this.normalizeTransactionDescription(entities.description, entities.type);
-    entities.category = this.normalizeCategoryLabel(entities.category, entities.type, entities.description);
+    entities.category = this.matchCanonicalCategory(entities.category, entities.type);
 
     if (!entities.category || this.isGenericCategory(entities.category)) {
       entities.category = await this.inferCategory(userId, entities);
@@ -434,8 +519,7 @@ export class ChatService {
 
     await this.learnCategoryMapping(userId, entities.description, entities.category || 'Miscellaneous');
 
-    const emoji = entities.type === 'income' ? '💰' : '💸';
-    const confirmationMessage = `${emoji} ₹${entities.amount.toLocaleString('en-IN')} — ${entities.category} (${entities.description}). Confirm?`;
+    const confirmationMessage = `₹${entities.amount.toLocaleString('en-IN')}, ${entities.category} (${entities.description}). Confirm?`;
 
     const card = await this.createPendingConfirmation(
       userId,
@@ -447,10 +531,10 @@ export class ChatService {
       sourceUserMessageId
     );
 
-    return this.makeResponse(
-      confirmationMessage,
-      { confirmationCard: card, conversationState: 'AWAITING_CONFIRMATION' }
-    );
+    return this.makeResponse(confirmationMessage, {
+      confirmationCard: card,
+      conversationState: 'AWAITING_CONFIRMATION',
+    });
   }
 
   private async inferCategory(userId: string, entities: TransactionEntities): Promise<string> {
@@ -492,51 +576,151 @@ export class ChatService {
     if (!normalizedKeyword) return false;
     if (normalizedText === normalizedKeyword) return true;
     if (normalizedKeyword.length >= 3 && normalizedText.includes(normalizedKeyword)) return true;
-    const keywordParts = normalizedKeyword.split(/\s+/).filter((p) => p.length >= 4);
-    return keywordParts.some((p) => normalizedText.includes(p));
+    const keywordParts = normalizedKeyword.split(/\s+/).filter(p => p.length >= 4);
+    return keywordParts.some(p => normalizedText.includes(p));
   }
 
   private fuzzyKeywordMatches(text: string, keyword: string): boolean {
     const normalizedKeyword = this.normalizeCategoryText(keyword);
     if (normalizedKeyword.length < 4) return false;
 
-    const words = this.normalizeCategoryText(text).split(/\s+/).filter((word) => word.length >= 3);
-    const candidates = normalizedKeyword.includes(' ')
-      ? [this.normalizeCategoryText(text)]
-      : words;
+    const words = this.normalizeCategoryText(text)
+      .split(/\s+/)
+      .filter(word => word.length >= 3);
+    const candidates = normalizedKeyword.includes(' ') ? [this.normalizeCategoryText(text)] : words;
     const maxDistance = normalizedKeyword.length <= 6 ? 1 : 2;
 
-    return candidates.some((candidate) =>
-      Math.abs(candidate.length - normalizedKeyword.length) <= maxDistance &&
-      this.levenshteinDistance(candidate, normalizedKeyword) <= maxDistance
+    return candidates.some(
+      candidate =>
+        Math.abs(candidate.length - normalizedKeyword.length) <= maxDistance &&
+        this.levenshteinDistance(candidate, normalizedKeyword) <= maxDistance
     );
   }
 
   private getStaticCategoryFromDescription(description: string, type: 'income' | 'expense'): string | null {
     const expenseKeywords: Record<string, string[]> = {
       Food: [
-        'food', 'meal', 'restaurant', 'hotel', 'canteen', 'dinner', 'lunch', 'breakfast', 'brunch', 'snack',
-        'taco', 'burger', 'pizza', 'sandwich', 'subway', 'idli', 'idle', 'dosa', 'masala dosa', 'uttapam',
-        'vada', 'vada pav', 'samosa', 'pav bhaji', 'roll', 'wrap', 'coffee', 'tea', 'chai', 'cold coffee',
-        'cold drink', 'juice', 'biryani', 'biriyani', 'icecream', 'ice cream', 'kulfi', 'dessert', 'sweet',
-        'sweets', 'mithai', 'cake', 'pastry', 'pani puri', 'golgappa', 'puchka', 'zomato', 'swiggy', 'grocery', 'groceries',
+        'food',
+        'meal',
+        'restaurant',
+        'hotel',
+        'canteen',
+        'dinner',
+        'lunch',
+        'breakfast',
+        'brunch',
+        'snack',
+        'taco',
+        'burger',
+        'pizza',
+        'sandwich',
+        'subway',
+        'idli',
+        'idle',
+        'dosa',
+        'masala dosa',
+        'uttapam',
+        'vada',
+        'vada pav',
+        'samosa',
+        'pav bhaji',
+        'roll',
+        'wrap',
+        'coffee',
+        'tea',
+        'chai',
+        'cold coffee',
+        'cold drink',
+        'juice',
+        'biryani',
+        'biriyani',
+        'icecream',
+        'ice cream',
+        'kulfi',
+        'dessert',
+        'sweet',
+        'sweets',
+        'mithai',
+        'cake',
+        'pastry',
+        'pani puri',
+        'golgappa',
+        'puchka',
+        'zomato',
+        'swiggy',
+        'grocery',
+        'groceries',
       ],
-      Transport: ['transport', 'travel', 'uber', 'ola', 'cab', 'taxi', 'auto', 'metro', 'bus', 'train', 'fuel', 'petrol', 'diesel', 'toll', 'parking'],
+      Transport: [
+        'transport',
+        'travel',
+        'uber',
+        'ola',
+        'cab',
+        'taxi',
+        'auto',
+        'metro',
+        'bus',
+        'train',
+        'fuel',
+        'petrol',
+        'diesel',
+        'toll',
+        'parking',
+      ],
       Shopping: ['shopping', 'shop', 'amazon', 'flipkart', 'myntra', 'clothes', 'shirt', 'shoes', 'purchase', 'bought'],
       Rent: ['rent', 'landlord', 'house rent', 'flat rent'],
       Health: ['health', 'doctor', 'hospital', 'medicine', 'medical', 'pharmacy', 'clinic'],
       Entertainment: [
-        'movie', 'cinema', 'netflix', 'hotstar', 'youtube', 'prime video', 'amazon prime',
-        'spotify', 'game', 'concert', 'party', 'entertainment',
+        'movie',
+        'cinema',
+        'netflix',
+        'hotstar',
+        'youtube',
+        'prime video',
+        'amazon prime',
+        'spotify',
+        'game',
+        'concert',
+        'party',
+        'entertainment',
       ],
       Utilities: ['electricity', 'water bill', 'internet', 'wifi', 'mobile bill', 'recharge', 'gas bill'],
       Education: ['course', 'tuition', 'fees', 'education', 'book', 'books'],
       Investment: [
-        'sip', 'systematic investment plan', 'mutual fund', 'mf', 'elss', 'etf', 'index fund',
-        'stock', 'stocks', 'share', 'shares', 'equity', 'nifty bees', 'sensex bees', 'smallcase',
-        'zerodha', 'groww', 'upstox', 'coin', 'demat', 'ppf', 'nps', 'fixed deposit', 'fd',
-        'recurring deposit', 'rd', 'gold bond', 'sovereign gold bond', 'sgb', 'crypto', 'bitcoin',
-        'ethereum', 'investment',
+        'sip',
+        'systematic investment plan',
+        'mutual fund',
+        'mf',
+        'elss',
+        'etf',
+        'index fund',
+        'stock',
+        'stocks',
+        'share',
+        'shares',
+        'equity',
+        'nifty bees',
+        'sensex bees',
+        'smallcase',
+        'zerodha',
+        'groww',
+        'upstox',
+        'coin',
+        'demat',
+        'ppf',
+        'nps',
+        'fixed deposit',
+        'fd',
+        'recurring deposit',
+        'rd',
+        'gold bond',
+        'sovereign gold bond',
+        'sgb',
+        'crypto',
+        'bitcoin',
+        'ethereum',
+        'investment',
       ],
       Savings: ['savings', 'saving', 'emergency fund', 'rainy day fund', 'sinking fund'],
       Insurance: ['insurance', 'premium', 'term plan', 'health insurance', 'life insurance', 'mediclaim'],
@@ -546,17 +730,26 @@ export class ChatService {
       Salary: ['salary', 'salay', 'sallary', 'paycheck', 'pay day', 'payslip', 'ctc'],
       Freelance: ['freelance', 'client', 'project payment', 'gig', 'consulting'],
       Business: ['business', 'sales', 'revenue', 'store payout'],
-      Investment: ['dividend', 'capital gain', 'profit booking', 'sip return', 'mutual fund return', 'investment return', 'stock profit', 'redemption'],
+      Investment: [
+        'dividend',
+        'capital gain',
+        'profit booking',
+        'sip return',
+        'mutual fund return',
+        'investment return',
+        'stock profit',
+        'redemption',
+      ],
       Interest: ['interest', 'fd interest', 'bank interest'],
       Refund: ['refund', 'cashback', 'reimbursement', 'repaid', 'money back'],
       Gift: ['gift', 'present', 'cash gift'],
     };
     const keywordMap = type === 'income' ? incomeKeywords : expenseKeywords;
     for (const [category, keywords] of Object.entries(keywordMap)) {
-      if (keywords.some((kw) => this.keywordMatches(description, kw))) return category;
+      if (keywords.some(kw => this.keywordMatches(description, kw))) return category;
     }
     for (const [category, keywords] of Object.entries(keywordMap)) {
-      if (keywords.some((kw) => this.fuzzyKeywordMatches(description, kw))) return category;
+      if (keywords.some(kw => this.fuzzyKeywordMatches(description, kw))) return category;
     }
     return null;
   }
@@ -593,13 +786,13 @@ export class ChatService {
   }
 
   private async handleQuerySpending(userId: string, entities: QueryEntities): Promise<ChatResponsePayload> {
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { timezone: true } });
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { timezone: true },
+    });
     const tz = user?.timezone || 'Asia/Kolkata';
     const { startDate, endDate } = this.dateResolver.resolveTimeRange(entities.timeRange, tz);
-    const category = this.normalizeCategoryLabel(
-      entities.category,
-      entities.type === 'income' ? 'income' : 'expense'
-    );
+    const category = this.normalizeCategoryLabel(entities.category, entities.type === 'income' ? 'income' : 'expense');
 
     const where: Prisma.TransactionWhereInput = {
       userId,
@@ -614,14 +807,20 @@ export class ChatService {
 
     // Build category breakdown for chart
     const catBreakdown: Record<string, number> = {};
-    transactions.forEach((t) => {
+    transactions.forEach(t => {
       catBreakdown[t.category] = (catBreakdown[t.category] || 0) + Number(t.amount);
     });
 
     const sorted = Object.entries(catBreakdown).sort((a, b) => b[1] - a[1]);
-    const chartData = sorted.length > 0
-      ? { type: 'bar' as const, labels: sorted.map(([c]) => c), values: sorted.map(([, v]) => v), title: `Spending by category` }
-      : null;
+    const chartData =
+      sorted.length > 0
+        ? {
+            type: 'bar' as const,
+            labels: sorted.map(([c]) => c),
+            values: sorted.map(([, v]) => v),
+            title: `Spending by category`,
+          }
+        : null;
 
     const typeLabel = entities.type === 'income' ? 'earned' : 'spent';
     const catLabel = category ? ` on ${category}` : '';
@@ -635,37 +834,21 @@ export class ChatService {
     });
   }
 
-  private async handleSetBudget(userId: string, entities: BudgetEntities): Promise<ChatResponsePayload> {
-    const confirmationMessage = `📊 Set ${entities.category} budget to ₹${entities.amount.toLocaleString('en-IN')}/${entities.period}. Confirm?`;
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
-    const assistantMsg = await prisma.chatMessage.create({
-      data: {
-        userId,
-        role: 'ASSISTANT',
-        content: confirmationMessage,
-        intent: ChatIntentType.SET_BUDGET,
-        tokenCount: 20,
-      },
-    });
-
-    const pending = await prisma.pendingConfirmation.create({
-      data: {
-        userId,
-        chatMessageId: assistantMsg.id,
-        type: 'budget',
-        data: JSON.stringify(entities),
-        expiresAt,
-      },
-    });
-
-    await this.fsm.transition(userId, 'INTENT_PARSED', { pendingConfirmationId: pending.id });
-
-    const card: ConfirmationCard = {
-      id: pending.id,
-      type: 'budget',
-      data: entities,
-      status: 'PENDING',
-    };
+  private async handleSetBudget(
+    userId: string,
+    entities: BudgetEntities,
+    sourceUserMessageId?: string
+  ): Promise<ChatResponsePayload> {
+    const confirmationMessage = `Set ${entities.category} budget to ₹${entities.amount.toLocaleString('en-IN')} per ${entities.period}. Confirm?`;
+    const card = await this.createPendingConfirmation(
+      userId,
+      confirmationMessage,
+      ChatIntentType.SET_BUDGET,
+      'budget',
+      entities,
+      Math.ceil(confirmationMessage.split(/\s+/).length / 0.75),
+      sourceUserMessageId
+    );
 
     return this.makeResponse(confirmationMessage, {
       confirmationCard: card,
@@ -682,14 +865,17 @@ export class ChatService {
 
     if (budgets.length === 0) {
       await this.fsm.transition(userId, 'RESPONSE_SENT');
-      return this.makeResponse('No active budgets found. You can set one by saying "Set food budget to 5000 this month".', {
-        suggestedChips: ['Set food budget', 'Set transport budget', 'Monthly summary'],
-      });
+      return this.makeResponse(
+        'No active budgets found. You can set one by saying "Set food budget to 5000 this month".',
+        {
+          suggestedChips: ['Set food budget', 'Set transport budget', 'Monthly summary'],
+        }
+      );
     }
 
     const projectedBudgets = await projectBudgets(userId, budgets);
     const summary = projectedBudgets
-      .map((b) => `${b.name}: ₹${Number(b.spent).toLocaleString('en-IN')} / ₹${Number(b.amount).toLocaleString('en-IN')}`)
+      .map(b => `${b.name}: ₹${Number(b.spent).toLocaleString('en-IN')} / ₹${Number(b.amount).toLocaleString('en-IN')}`)
       .join('\n');
 
     await this.fsm.transition(userId, 'RESPONSE_SENT');
@@ -707,10 +893,9 @@ export class ChatService {
       });
     } catch {
       await this.fsm.transition(userId, 'RESPONSE_SENT');
-      return this.makeResponse(
-        'Sorry, I couldn\'t generate advice right now. Please try again.',
-        { suggestedChips: ['Try again', 'Log expense', 'Check budget'] }
-      );
+      return this.makeResponse("Sorry, I couldn't generate advice right now. Please try again.", {
+        suggestedChips: ['Try again', 'Log expense', 'Check budget'],
+      });
     }
   }
 
@@ -755,14 +940,16 @@ export class ChatService {
     return this.handleLogTransaction(userId, pendingData, parsed);
   }
 
-  private async handleExpenseDetailsInput(
-    userId: string,
-    content: string
-  ): Promise<ChatResponsePayload> {
+  private async handleExpenseDetailsInput(userId: string, content: string): Promise<ChatResponsePayload> {
     const lower = content.toLowerCase().trim();
 
     await prisma.chatMessage.create({
-      data: { userId, role: 'USER', content, tokenCount: Math.ceil(content.split(/\s+/).length / 0.75) },
+      data: {
+        userId,
+        role: 'USER',
+        content,
+        tokenCount: Math.ceil(content.split(/\s+/).length / 0.75),
+      },
     });
 
     if (['cancel', 'no', 'nope', 'stop', 'never mind', 'nevermind', 'n'].includes(lower)) {
@@ -830,25 +1017,45 @@ export class ChatService {
     if (state.pendingConfirmationId) {
       if (['edit', 'change', 'update'].includes(lower)) {
         await prisma.chatMessage.create({
-          data: { userId, role: 'USER', content, tokenCount: Math.ceil(content.split(/\s+/).length / 0.75) },
+          data: {
+            userId,
+            role: 'USER',
+            content,
+            tokenCount: Math.ceil(content.split(/\s+/).length / 0.75),
+          },
         });
-        await this.fsm.transition(userId, 'EDIT_REQUESTED', { pendingConfirmationId: state.pendingConfirmationId });
+        await this.fsm.transition(userId, 'EDIT_REQUESTED', {
+          pendingConfirmationId: state.pendingConfirmationId,
+        });
 
-        return this.makeResponse('What would you like to edit? For example: "change amount to 500" or "category Transport".', {
-          conversationState: 'AWAITING_EDIT_DETAILS',
-        });
+        return this.makeResponse(
+          'What would you like to edit? For example: "change amount to 500" or "category Transport".',
+          {
+            conversationState: 'AWAITING_EDIT_DETAILS',
+          }
+        );
       }
 
       const editUpdates = this.parseConfirmationEdit(content);
       if (editUpdates) {
         await prisma.chatMessage.create({
-          data: { userId, role: 'USER', content, tokenCount: Math.ceil(content.split(/\s+/).length / 0.75) },
+          data: {
+            userId,
+            role: 'USER',
+            content,
+            tokenCount: Math.ceil(content.split(/\s+/).length / 0.75),
+          },
         });
         return this.editAction(userId, state.pendingConfirmationId, editUpdates);
       }
 
       await prisma.chatMessage.create({
-        data: { userId, role: 'USER', content, tokenCount: Math.ceil(content.split(/\s+/).length / 0.75) },
+        data: {
+          userId,
+          role: 'USER',
+          content,
+          tokenCount: Math.ceil(content.split(/\s+/).length / 0.75),
+        },
       });
 
       return this.makeResponse('You already have a pending transaction. Please Confirm, Cancel, or Edit it first.', {
@@ -868,7 +1075,10 @@ export class ChatService {
   ): Promise<ChatResponsePayload> {
     const lower = content.toLowerCase().trim();
 
-    if (['yes', 'confirm', 'confirm all', 'ok', 'done', 'add all', '✅', 'y'].includes(lower) && state.pendingConfirmationId) {
+    if (
+      ['yes', 'confirm', 'confirm all', 'ok', 'done', 'add all', '✅', 'y'].includes(lower) &&
+      state.pendingConfirmationId
+    ) {
       return this.confirmAction(userId, state.pendingConfirmationId);
     }
 
@@ -877,7 +1087,12 @@ export class ChatService {
     }
 
     await prisma.chatMessage.create({
-      data: { userId, role: 'USER', content, tokenCount: Math.ceil(content.split(/\s+/).length / 0.75) },
+      data: {
+        userId,
+        role: 'USER',
+        content,
+        tokenCount: Math.ceil(content.split(/\s+/).length / 0.75),
+      },
     });
 
     if (!state.pendingConfirmationId) {
@@ -886,10 +1101,15 @@ export class ChatService {
     }
 
     if (['edit', 'change', 'update'].includes(lower)) {
-      await this.fsm.transition(userId, 'EDIT_REQUESTED', { pendingConfirmationId: state.pendingConfirmationId });
-      return this.makeResponse('What would you like to edit? For example: "300 noodles", "500", or "category Transport".', {
-        conversationState: 'AWAITING_EDIT_DETAILS',
+      await this.fsm.transition(userId, 'EDIT_REQUESTED', {
+        pendingConfirmationId: state.pendingConfirmationId,
       });
+      return this.makeResponse(
+        'What would you like to edit? For example: "300 noodles", "500", or "category Transport".',
+        {
+          conversationState: 'AWAITING_EDIT_DETAILS',
+        }
+      );
     }
 
     const editUpdates = this.parseEditDetails(content);
@@ -897,15 +1117,15 @@ export class ChatService {
       return this.editAction(userId, state.pendingConfirmationId, editUpdates);
     }
 
-    return this.makeResponse('Please tell me what to edit, like "300 noodles", "500", "category Transport", or "description to burger meal".', {
-      conversationState: 'AWAITING_EDIT_DETAILS',
-    });
+    return this.makeResponse(
+      'Please tell me what to edit, like "300 noodles", "500", "category Transport", or "description to burger meal".',
+      {
+        conversationState: 'AWAITING_EDIT_DETAILS',
+      }
+    );
   }
 
-  private makeResponse(
-    message: string,
-    overrides?: Partial<ChatResponsePayload>
-  ): ChatResponsePayload {
+  private makeResponse(message: string, overrides?: Partial<ChatResponsePayload>): ChatResponsePayload {
     return {
       message,
       confirmationCard: null,
@@ -942,7 +1162,9 @@ export class ChatService {
   private parseExpenseDetails(content: string): TransactionEntities | null {
     const normalized = (content || '').replace(/\s+/g, ' ').trim();
     const naturalExpenseMatch =
-      normalized.match(/(?:spent|paid|bought)\s+(?:₹|rs\.?\s*|inr\s*)?([\d,]+(?:\.\d{1,2})?(?:\s*(?:k|lakh|lac))?)\s*(?:on|for|at)\s+(.+)/i) ||
+      normalized.match(
+        /(?:spent|paid|bought)\s+(?:₹|rs\.?\s*|inr\s*)?([\d,]+(?:\.\d{1,2})?(?:\s*(?:k|lakh|lac))?)\s*(?:on|for|at)\s+(.+)/i
+      ) ||
       normalized.match(/^(?:₹|rs\.?\s*|inr\s*)?([\d,]+(?:\.\d{1,2})?(?:\s*(?:k|lakh|lac))?)\s*(?:on|for|at)\s+(.+)/i);
 
     if (naturalExpenseMatch) {
@@ -978,11 +1200,13 @@ export class ChatService {
     if (!raw) return null;
 
     const updates: Partial<TransactionEntities & BudgetEntities> = {};
-    const amountMatch = raw.match(
-      /\b(?:amount|price|cost|value|total)\s*(?:to|as|=|:)?\s*(?:₹|rs\.?\s*|inr\s*)?([\d,]+(?:\.\d{1,2})?(?:\s*(?:k|lakh|lac))?)\b/i
-    ) || raw.match(
-      /\b(?:change|update|set|make)\s+(?:it\s+)?(?:to\s+)?(?:₹|rs\.?\s*|inr\s*)?([\d,]+(?:\.\d{1,2})?(?:\s*(?:k|lakh|lac))?)\b/i
-    );
+    const amountMatch =
+      raw.match(
+        /\b(?:amount|price|cost|value|total)\s*(?:to|as|=|:)?\s*(?:₹|rs\.?\s*|inr\s*)?([\d,]+(?:\.\d{1,2})?(?:\s*(?:k|lakh|lac))?)\b/i
+      ) ||
+      raw.match(
+        /\b(?:change|update|set|make)\s+(?:it\s+)?(?:to\s+)?(?:₹|rs\.?\s*|inr\s*)?([\d,]+(?:\.\d{1,2})?(?:\s*(?:k|lakh|lac))?)\b/i
+      );
 
     if (amountMatch) {
       const amount = this.parseFlexibleAmount(amountMatch[1]);
@@ -1017,7 +1241,9 @@ export class ChatService {
     if (explicitUpdates) return explicitUpdates;
 
     const raw = (content || '').trim().replace(/\s+/g, ' ');
-    const amountWithDescription = raw.match(/^(?:₹|rs\.?\s*|inr\s*)?([\d,]+(?:\.\d{1,2})?(?:\s*(?:k|lakh|lac))?)\s+(.+)$/i);
+    const amountWithDescription = raw.match(
+      /^(?:₹|rs\.?\s*|inr\s*)?([\d,]+(?:\.\d{1,2})?(?:\s*(?:k|lakh|lac))?)\s+(.+)$/i
+    );
     if (amountWithDescription) {
       const amount = this.parseFlexibleAmount(amountWithDescription[1]);
       const description = amountWithDescription[2].trim();
@@ -1057,7 +1283,7 @@ export class ChatService {
     }
 
     if ('category' in updates && typeof updates.category === 'string') {
-      const category = this.normalizeCategoryLabel(updates.category, currentType, next.description);
+      const category = this.matchCanonicalCategory(updates.category, currentType);
       if (category) {
         next.category = category;
       }
@@ -1085,7 +1311,7 @@ export class ChatService {
       next.amount = maybeAmount;
     }
     if ('category' in updates && typeof updates.category === 'string' && updates.category.trim()) {
-      next.category = this.normalizeCategoryLabel(updates.category, 'expense') || updates.category.trim();
+      next.category = this.matchCanonicalCategory(updates.category, 'expense') || next.category;
     }
     if ('period' in updates && (updates as Partial<BudgetEntities>).period) {
       const period = (updates as Partial<BudgetEntities>).period;
@@ -1143,14 +1369,11 @@ export class ChatService {
 
     return normalized
       .split(/\s+/)
-      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .map(part => part.charAt(0).toUpperCase() + part.slice(1))
       .join(' ');
   }
 
-  private matchCanonicalCategory(
-    raw: string | null | undefined,
-    type: 'income' | 'expense'
-  ): string | null {
+  private matchCanonicalCategory(raw: string | null | undefined, type: 'income' | 'expense'): string | null {
     return normalizeCategory(raw, type)?.label || null;
   }
 
@@ -1169,9 +1392,7 @@ export class ChatService {
       previous[0] = i + 1;
       for (let j = 0; j < b.length; j += 1) {
         const next = previous[j + 1];
-        previous[j + 1] = a[i] === b[j]
-          ? last
-          : Math.min(last, previous[j], previous[j + 1]) + 1;
+        previous[j + 1] = a[i] === b[j] ? last : Math.min(last, previous[j], previous[j + 1]) + 1;
         last = next;
       }
     }
@@ -1186,7 +1407,7 @@ export class ChatService {
     const normalizedTransactions = await this.normalizeBulkTransactions(userId, parsed);
     const total = normalizedTransactions.reduce((sum, item) => sum + item.amount, 0);
     const confirmationMessage = `Review ${normalizedTransactions.length} transaction item(s), total ₹${total.toLocaleString('en-IN')}. Confirm all?`;
-    const dominantIntent = normalizedTransactions.every((item) => item.type === 'income')
+    const dominantIntent = normalizedTransactions.every(item => item.type === 'income')
       ? ChatIntentType.LOG_INCOME
       : ChatIntentType.LOG_EXPENSE;
     const data: BulkTransactionEntities = {
@@ -1218,9 +1439,7 @@ export class ChatService {
     tokenCount: number,
     sourceUserMessageId?: string
   ): Promise<ConfirmationCard> {
-    const pendingData = sourceUserMessageId
-      ? { ...data, sourceUserMessageId }
-      : data;
+    const pendingData = sourceUserMessageId ? { ...data, sourceUserMessageId } : data;
 
     const assistantMsg = await prisma.chatMessage.create({
       data: {
@@ -1267,7 +1486,8 @@ export class ChatService {
         date: null,
       };
       const inferredCategory = await this.inferCategory(userId, txEntities);
-      const resolvedCategory = item.categoryHint && this.isGenericCategory(inferredCategory) ? item.categoryHint : inferredCategory;
+      const resolvedCategory =
+        item.categoryHint && this.isGenericCategory(inferredCategory) ? item.categoryHint : inferredCategory;
       txEntities.category =
         this.normalizeCategoryLabel(resolvedCategory, item.type, normalizedDescription) ||
         (item.type === 'income' ? 'Other Income' : 'Miscellaneous');
@@ -1277,35 +1497,9 @@ export class ChatService {
     return normalizedTransactions;
   }
 
-  private async saveBulkTransactions(userId: string, transactions: TransactionEntities[]): Promise<void> {
-    // Insert in reverse so default "createdAt desc" listing appears in the same order
-    // as the user typed in chat.
-    const transactionsForInsert = [...transactions].reverse();
-
-    await prisma.$transaction(async (tx) => {
-      for (const txItem of transactionsForInsert) {
-        await createTransactionRecord(userId, {
-          amount: txItem.amount,
-          description: txItem.description,
-          category: txItem.category || 'Uncategorized',
-          type: txItem.type === 'income' ? 'INCOME' : 'EXPENSE',
-          source: 'chat',
-          date: txItem.date ? new Date(txItem.date) : new Date(),
-        }, tx);
-      }
-    });
-
-    for (const txItem of transactions) {
-      await this.learnCategoryMapping(userId, txItem.description, txItem.category || 'Miscellaneous');
-    }
-  }
-
-  private buildBulkLogSuccessMessage(
-    transactions: TransactionEntities[],
-    skippedLines: string[]
-  ): string {
-    const expenseTransactions = transactions.filter((item) => item.type === 'expense');
-    const incomeTransactions = transactions.filter((item) => item.type === 'income');
+  private buildBulkLogSuccessMessage(transactions: TransactionEntities[], skippedLines: string[]): string {
+    const expenseTransactions = transactions.filter(item => item.type === 'expense');
+    const incomeTransactions = transactions.filter(item => item.type === 'income');
 
     const expenseTotal = expenseTransactions.reduce((sum, item) => sum + item.amount, 0);
     const incomeTotal = incomeTransactions.reduce((sum, item) => sum + item.amount, 0);
@@ -1321,13 +1515,19 @@ export class ChatService {
 
     const orderedPreview = transactions
       .slice(0, 10)
-      .map((item, index) => `${index + 1}. ${item.description} ₹${item.amount.toLocaleString('en-IN')} (${item.category || 'Uncategorized'})`)
+      .map(
+        (item, index) =>
+          `${index + 1}. ${item.description} ₹${item.amount.toLocaleString('en-IN')} (${item.category || 'Uncategorized'})`
+      )
       .join(', ');
     const previewSuffix = transactions.length > 10 ? ` +${transactions.length - 10} more` : '';
 
     const skippedMessage =
       skippedLines.length > 0
-        ? ` Skipped ${skippedLines.length} line(s): ${skippedLines.slice(0, 2).map((line) => `"${line}"`).join(', ')}.`
+        ? ` Skipped ${skippedLines.length} line(s): ${skippedLines
+            .slice(0, 2)
+            .map(line => `"${line}"`)
+            .join(', ')}.`
         : '';
 
     return `${summary} Added in order: ${orderedPreview}${previewSuffix}.${skippedMessage}`.trim();
@@ -1339,7 +1539,7 @@ export class ChatService {
 
     const hasLineBreaks = /\r?\n/.test(raw);
     const parts = (hasLineBreaks ? raw.split(/\r?\n/) : raw.split(/[;,]+/))
-      .map((line) =>
+      .map(line =>
         line
           .replace(/^\s*[-*\u2022]+\s*/, '')
           // Strip only true numbered-list prefixes like "1. " or "2) ".
@@ -1499,10 +1699,18 @@ export class ChatService {
 
   private detectTypeFromLine(line: string): 'income' | 'expense' | null {
     const lower = line.toLowerCase();
-    if (/\b(salary|salay|sallary|income|received|earned|credited|bonus|freelance|interest|dividend|refund|cashback|reimbursement|capital gain|profit booking|investment return)\b/.test(lower)) {
+    if (
+      /\b(salary|salay|sallary|income|received|earned|credited|bonus|freelance|interest|dividend|refund|cashback|reimbursement|capital gain|profit booking|investment return)\b/.test(
+        lower
+      )
+    ) {
       return 'income';
     }
-    if (/\b(spent|paid|bought|expense|expenses|bill|purchase|sip|mutual fund|etf|ppf|nps|insurance|premium|emi|loan|investment)\b/.test(lower)) {
+    if (
+      /\b(spent|paid|bought|expense|expenses|bill|purchase|sip|mutual fund|etf|ppf|nps|insurance|premium|emi|loan|investment)\b/.test(
+        lower
+      )
+    ) {
       return 'expense';
     }
     return null;

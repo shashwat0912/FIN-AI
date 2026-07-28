@@ -4,6 +4,7 @@ import logger from '../../config/logger';
 import { ParsedIntent, ChatIntentType, OpenAIMessage, QueryEntities } from '../../types';
 import { RegexFallbackParser } from './regexFallbackParser';
 import { hasUsableOpenAiKey } from '../../config/openai';
+import { normalizeCategory } from '../../domain/categoryRegistry';
 
 const TOOL_SCHEMAS: OpenAI.ChatCompletionTool[] = [
   {
@@ -16,9 +17,17 @@ const TOOL_SCHEMAS: OpenAI.ChatCompletionTool[] = [
         properties: {
           amount: { type: 'number', description: 'Transaction amount in INR' },
           description: { type: 'string', description: 'Short description of the transaction' },
-          category: { type: 'string', description: 'Category like Food, Transport, Shopping, Rent, Salary, Freelance, etc. Null if uncertain.', nullable: true },
+          category: {
+            type: 'string',
+            description: 'Category like Food, Transport, Shopping, Rent, Salary, Freelance, etc. Null if uncertain.',
+            nullable: true,
+          },
           type: { type: 'string', enum: ['expense', 'income'] },
-          date: { type: 'string', description: 'ISO date string if mentioned, null for today', nullable: true },
+          date: {
+            type: 'string',
+            description: 'ISO date string if mentioned, null for today',
+            nullable: true,
+          },
         },
         required: ['amount', 'description', 'type'],
       },
@@ -33,7 +42,10 @@ const TOOL_SCHEMAS: OpenAI.ChatCompletionTool[] = [
         type: 'object',
         properties: {
           category: { type: 'string', nullable: true },
-          timeRange: { type: 'string', enum: ['today', 'yesterday', 'this_week', 'last_week', 'this_month', 'last_month', 'this_year', 'custom'] },
+          timeRange: {
+            type: 'string',
+            enum: ['today', 'yesterday', 'this_week', 'last_week', 'this_month', 'last_month', 'this_year', 'custom'],
+          },
           type: { type: 'string', enum: ['income', 'expense', 'both'], default: 'expense' },
         },
         required: ['timeRange'],
@@ -71,6 +83,21 @@ const TOOL_SCHEMAS: OpenAI.ChatCompletionTool[] = [
     },
   },
 ];
+
+const QUERY_TIME_RANGES: QueryEntities['timeRange'][] = [
+  'today',
+  'yesterday',
+  'this_week',
+  'last_week',
+  'this_month',
+  'last_month',
+  'this_year',
+  'custom',
+];
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 export class IntentParser {
   private openai: OpenAI | null = null;
@@ -110,8 +137,7 @@ export class IntentParser {
     try {
       const openAiResult = await this.parseWithOpenAI(userMessage, contextMessages);
       const isGeneralOrUnclear =
-        openAiResult.intent === ChatIntentType.GENERAL_CHAT ||
-        openAiResult.intent === ChatIntentType.UNCLEAR;
+        openAiResult.intent === ChatIntentType.GENERAL_CHAT || openAiResult.intent === ChatIntentType.UNCLEAR;
       if (isGeneralOrUnclear) {
         const retryRegex = this.regexFallback.parse(normalized);
         if (retryRegex) return retryRegex;
@@ -120,10 +146,7 @@ export class IntentParser {
     } catch (error: unknown) {
       const err = error as { status?: number; code?: string; message?: string };
       const isTransient =
-        err?.status === 429 ||
-        err?.status === 503 ||
-        err?.code === 'ETIMEDOUT' ||
-        err?.code === 'ECONNRESET';
+        err?.status === 429 || err?.status === 503 || err?.code === 'ETIMEDOUT' || err?.code === 'ECONNRESET';
 
       if (isTransient) {
         logger.warn('OpenAI unavailable, falling back to regex parser', { error: err?.message });
@@ -136,7 +159,7 @@ export class IntentParser {
   }
 
   private async parseWithOpenAI(userMessage: string, contextMessages: OpenAIMessage[]): Promise<ParsedIntent> {
-    const messages: OpenAI.ChatCompletionMessageParam[] = contextMessages.map((m) => ({
+    const messages: OpenAI.ChatCompletionMessageParam[] = contextMessages.map(m => ({
       role: m.role as 'system' | 'user' | 'assistant',
       content: m.content,
     }));
@@ -159,9 +182,14 @@ export class IntentParser {
 
     // If the model invoked a tool, parse the structured output
     if (choice.message.tool_calls && choice.message.tool_calls.length > 0) {
-      const toolCall = choice.message.tool_calls[0] as any;
-      const args = JSON.parse(toolCall.function.arguments);
-      return this.toolCallToIntent(toolCall.function.name, args);
+      const toolCall = choice.message.tool_calls[0];
+      if (toolCall.type !== 'function') return this.buildUnclearResponse();
+      try {
+        const args: unknown = JSON.parse(toolCall.function.arguments);
+        return this.toolCallToIntent(toolCall.function.name, args);
+      } catch {
+        return this.buildUnclearResponse();
+      }
     }
 
     // No tool call — treat as general chat or advice
@@ -174,49 +202,71 @@ export class IntentParser {
     };
   }
 
-  private toolCallToIntent(functionName: string, args: Record<string, unknown>): ParsedIntent {
+  private toolCallToIntent(functionName: string, args: unknown): ParsedIntent {
+    if (!isRecord(args)) return this.buildUnclearResponse();
+
     switch (functionName) {
-      case 'log_transaction':
+      case 'log_transaction': {
+        const amount = typeof args.amount === 'number' ? args.amount : Number.NaN;
+        const description = typeof args.description === 'string' ? args.description.trim() : '';
+        const type = args.type === 'income' || args.type === 'expense' ? args.type : null;
+        if (!Number.isFinite(amount) || amount <= 0 || !description || !type) {
+          return this.buildUnclearResponse();
+        }
+        const category =
+          typeof args.category === 'string' ? normalizeCategory(args.category, type)?.label || null : null;
+        const date = typeof args.date === 'string' && !Number.isNaN(Date.parse(args.date)) ? args.date : null;
         return {
-          intent: args.type === 'income' ? ChatIntentType.LOG_INCOME : ChatIntentType.LOG_EXPENSE,
+          intent: type === 'income' ? ChatIntentType.LOG_INCOME : ChatIntentType.LOG_EXPENSE,
           confidence: 0.95,
-          entities: {
-            amount: args.amount as number,
-            description: args.description as string,
-            category: (args.category as string) || null,
-            type: args.type as 'income' | 'expense',
-            date: (args.date as string) || null,
-          },
+          entities: { amount, description, category, type, date },
         };
-      case 'query_spending':
+      }
+      case 'query_spending': {
+        const type = args.type === 'income' || args.type === 'both' ? args.type : 'expense';
+        const timeRange = QUERY_TIME_RANGES.includes(args.timeRange as QueryEntities['timeRange'])
+          ? (args.timeRange as QueryEntities['timeRange'])
+          : 'this_month';
+        const category =
+          typeof args.category === 'string'
+            ? normalizeCategory(args.category, type === 'income' ? 'income' : 'expense')?.label || null
+            : null;
         return {
-          intent: (args.type === 'income') ? ChatIntentType.QUERY_INCOME : ChatIntentType.QUERY_SPENDING,
+          intent: type === 'income' ? ChatIntentType.QUERY_INCOME : ChatIntentType.QUERY_SPENDING,
           confidence: 0.9,
           entities: {
-            category: (args.category as string) || null,
-            timeRange: ((args.timeRange as string) || 'this_month') as QueryEntities['timeRange'],
+            category,
+            timeRange,
             startDate: null,
             endDate: null,
-            type: (args.type as 'income' | 'expense' | 'both') || 'expense',
+            type,
           } satisfies QueryEntities,
         };
-      case 'set_budget':
+      }
+      case 'set_budget': {
+        const amount = typeof args.amount === 'number' ? args.amount : Number.NaN;
+        const period = args.period === 'weekly' || args.period === 'monthly' ? args.period : null;
+        const category =
+          typeof args.category === 'string' ? normalizeCategory(args.category, 'expense')?.label || null : null;
+        if (!Number.isFinite(amount) || amount <= 0 || !period || !category) {
+          return this.buildUnclearResponse();
+        }
         return {
           intent: ChatIntentType.SET_BUDGET,
           confidence: 0.9,
-          entities: {
-            category: args.category as string,
-            amount: args.amount as number,
-            period: (args.period as 'monthly' | 'weekly') || 'monthly',
-          },
+          entities: { category, amount, period },
         };
-      case 'get_advice':
+      }
+      case 'get_advice': {
+        const topic = typeof args.topic === 'string' ? args.topic.trim() : '';
+        if (!topic) return this.buildUnclearResponse();
         return {
           intent: ChatIntentType.GET_ADVICE,
           confidence: 0.9,
           entities: null,
-          fallbackMessage: args.topic as string,
+          fallbackMessage: topic,
         };
+      }
       default:
         return { intent: ChatIntentType.UNCLEAR, confidence: 0, entities: null };
     }
@@ -249,9 +299,9 @@ export class IntentParser {
       if (!match) continue;
 
       const captures = match.slice(1).filter(Boolean);
-      const category = captures.find((v) => /[a-z]/i.test(v) && !/(weekly|monthly)/i.test(v)) || '';
-      const rawAmount = captures.find((v) => /\d/.test(v)) || '';
-      const period = (captures.find((v) => /(weekly|monthly)/i.test(v)) || 'monthly').toLowerCase();
+      const category = captures.find(v => /[a-z]/i.test(v) && !/(weekly|monthly)/i.test(v)) || '';
+      const rawAmount = captures.find(v => /\d/.test(v)) || '';
+      const period = (captures.find(v => /(weekly|monthly)/i.test(v)) || 'monthly').toLowerCase();
       const amount = this.parseAmount(rawAmount);
 
       if (category && amount > 0) {
@@ -294,12 +344,16 @@ export class IntentParser {
     const hasQueryVerb = /\b(how much|total|summary|report|show|tell me|what is|what did)\b/i.test(text);
     const hasFinanceSignal = /\b(spend|spent|expense|expenses|income|earned|earn|received)\b/i.test(text);
     const isTimeOnlyChip = /^(today|yesterday|this week|last week|this month|last month|this year)$/i.test(text);
-    const isMonthlySummary = /\b(monthly summary|month summary|monthly spending|spent this month|this month summary|month(ly)? report|monthly stats|month stats)\b/i.test(text);
+    const isMonthlySummary =
+      /\b(monthly summary|month summary|monthly spending|spent this month|this month summary|month(ly)? report|monthly stats|month stats)\b/i.test(
+        text
+      );
 
     if ((hasQueryVerb && hasFinanceSignal) || isTimeOnlyChip || isMonthlySummary) {
-      const type: QueryEntities['type'] = /\b(income|earned|earn|received)\b/i.test(text) && !/\b(spend|spent|expense|expenses)\b/i.test(text)
-        ? 'income'
-        : 'expense';
+      const type: QueryEntities['type'] =
+        /\b(income|earned|earn|received)\b/i.test(text) && !/\b(spend|spent|expense|expenses)\b/i.test(text)
+          ? 'income'
+          : 'expense';
       const timeRange = this.extractTimeRange(text);
       const category = this.extractCategoryFromQuery(text);
 
@@ -317,7 +371,8 @@ export class IntentParser {
     }
 
     // 5) Income shorthand ("60000 salary", "salary 60000", typos included)
-    const incomePattern = /\b(got|received|salary|salay|sallary|income|credited|earned|paycheck)\b.*(?:₹|rs\.?|inr)?\s*\d+|^\s*(?:₹|rs\.?|inr)?\s*[\d,.]+(?:\.\d{1,2})?\s*(salary|salay|sallary|income|earned)\b/i;
+    const incomePattern =
+      /\b(got|received|salary|salay|sallary|income|credited|earned|paycheck)\b.*(?:₹|rs\.?|inr)?\s*\d+|^\s*(?:₹|rs\.?|inr)?\s*[\d,.]+(?:\.\d{1,2})?\s*(salary|salay|sallary|income|earned)\b/i;
     const amountMatch = text.match(/(?:₹|rs\.?\s*|inr\s*)?([\d,.]+(?:\.\d{1,2})?)/i);
     if (incomePattern.test(text) && amountMatch) {
       const amount = this.parseAmount(amountMatch[1]);
@@ -376,7 +431,7 @@ export class IntentParser {
       .trim()
       .replace(/\s+/g, ' ')
       .split(' ')
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
       .join(' ');
   }
 }

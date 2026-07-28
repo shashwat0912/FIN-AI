@@ -1,12 +1,16 @@
 import logger from '../../config/logger';
 import { getRedisClient } from '../../config/redis';
-import { ConversationState, ConversationStateType, ChatIntentType } from '../../types';
+import { ConversationState, ChatIntentType } from '../../types';
 
 const STATE_PREFIX = 'conv:state:';
 const LOCK_PREFIX = 'conv:lock:';
 const STATE_TTL_SECONDS = 300; // 5 minutes
 const LOCK_TTL_SECONDS = 5;
 const MAX_CLARIFICATION_ATTEMPTS = 3;
+
+function conversationConflict(message: string): Error & { statusCode: number } {
+  return Object.assign(new Error(message), { statusCode: 409 });
+}
 
 function defaultState(userId: string): ConversationState {
   return {
@@ -39,11 +43,14 @@ export class ConversationStateMachine {
     // Acquire lock
     const acquired = await redis.set(lockKey, '1', 'EX', LOCK_TTL_SECONDS, 'NX');
     if (!acquired) {
-      logger.warn(`Could not acquire lock for user ${userId}, proceeding anyway`);
+      throw conversationConflict('Another chat state transition is already in progress.');
     }
 
     try {
       const current = await this.getState(userId);
+      if (current.state === 'PROCESSING' && event === 'MESSAGE_RECEIVED') {
+        throw conversationConflict('A chat request is already being processed.');
+      }
       const next = this.computeNextState(current, event, data);
 
       const nextComparable = { ...next, stateEnteredAt: current.stateEnteredAt };

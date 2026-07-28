@@ -213,7 +213,7 @@ export interface ConversationState {
 }
 
 export interface IdempotencyCheckResult {
-  status: 'new' | 'processing' | 'completed';
+  status: 'new' | 'processing' | 'completed' | 'conflict';
   cachedResponse: string | null;
   requestHash: string | null;
 }

@@ -171,7 +171,10 @@ export const chatSchemas = {
   }),
   edit: Joi.object({
     confirmationId: Joi.string().required(),
-    data: Joi.object().required(),
+    data: Joi.object({
+      amount: Joi.number().positive(),
+      description: Joi.string().trim().min(1).max(255),
+    }).min(1).unknown(false).required(),
   }),
 };
 
