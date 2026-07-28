@@ -1,8 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { Send } from 'lucide-react';
 
 interface ChatInputBarProps {
-  onSend: (message: string) => void;
+  onSend: (message: string) => Promise<void> | void;
   disabled?: boolean;
   isRateLimited?: boolean;
 }
@@ -10,41 +10,63 @@ interface ChatInputBarProps {
 export default function ChatInputBar({ onSend, disabled, isRateLimited }: ChatInputBarProps) {
   const [value, setValue] = useState('');
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const isSubmittingRef = useRef(false);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const trimmed = value.trim();
-    if (!trimmed || disabled) return;
-    onSend(trimmed);
-    setValue('');
-    inputRef.current?.focus();
-  };
+    if (!trimmed || disabled || isRateLimited || isSubmittingRef.current) return;
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
+    isSubmittingRef.current = true;
+    setValue('');
+    if (inputRef.current) inputRef.current.style.height = 'auto';
+    try {
+      await onSend(trimmed);
+    } finally {
+      isSubmittingRef.current = false;
+      inputRef.current?.focus();
     }
   };
 
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      void handleSend();
+    }
+  };
+
+  const handleChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setValue(event.target.value);
+    event.target.style.height = 'auto';
+    event.target.style.height = `${Math.min(event.target.scrollHeight, 112)}px`;
+  };
+
   return (
-    <div className="flex items-end gap-2 border-t border-zinc-800 bg-zinc-950 p-3">
+    <div className="flex items-end gap-2 border-t border-ledger-border bg-ledger-surface px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <span id="chat-input-help" className="sr-only">
+        Press Enter to send. Press Shift and Enter for a new line.
+      </span>
       <textarea
         ref={inputRef}
+        data-chat-input
         value={value}
-        onChange={(e) => setValue(e.target.value)}
+        onChange={handleChange}
         onKeyDown={handleKeyDown}
         placeholder={isRateLimited ? 'Please wait...' : 'Type a message...'}
         disabled={disabled || isRateLimited}
+        aria-label="Message Finance Chat"
+        aria-describedby="chat-input-help"
+        maxLength={2000}
         rows={1}
-        className="min-h-11 flex-1 resize-none rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-2.5 text-sm text-white placeholder:text-zinc-500 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-50"
-        style={{ maxHeight: '100px' }}
+        className="min-h-11 max-h-28 flex-1 resize-none overflow-y-auto rounded-control border border-border-strong bg-surface-strong px-3 py-2.5 text-sm leading-6 text-ink placeholder:text-ink-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-not-allowed disabled:opacity-50"
       />
       <button
-        onClick={handleSend}
+        type="button"
+        onClick={() => void handleSend()}
         disabled={disabled || isRateLimited || !value.trim()}
-        className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-zinc-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
+        aria-label="Send message"
+        className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-control border border-accent bg-accent text-surface-strong transition-[background-color,border-color,color,transform] duration-150 ease-out hover:border-accent-hover hover:bg-accent-hover active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-canvas disabled:cursor-not-allowed disabled:opacity-40 motion-reduce:transition-none"
       >
-        <Send className="w-4 h-4" />
+        <Send className="h-4 w-4" strokeWidth={1.75} />
       </button>
     </div>
   );

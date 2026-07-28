@@ -79,13 +79,11 @@ export const useChatStore = create<ChatState>((set, get) => {
   };
 
   const executeEdit = async (cardId: string, data: Record<string, unknown>) => {
-    const editedCard = get().pendingConfirmation;
     set({ isLoading: true, toast: null, lastAction: { type: 'edit', cardId, data } });
 
     try {
       const payload = await chatApi.editAction(cardId, data);
       applyPayload(set, get, payload);
-      if (isTransactionCard(editedCard)) dispatchTransactionsUpdated();
     } catch (err: unknown) {
       set({ toast: buildChatToast(err, 'Unable to update this action right now.'), isLoading: false });
     }
@@ -121,13 +119,23 @@ export const useChatStore = create<ChatState>((set, get) => {
     loadHistory: async () => {
       try {
         const history = await chatApi.getHistory(50, 0);
+        const restored = getPendingConfirmationFromHistory(history);
         set((state) => {
           // Avoid clobbering an active in-flight conversation when the drawer
           // opens and history loads slightly later.
           if (state.messages.length > 0) {
-            return { historyLoaded: true };
+            return {
+              historyLoaded: true,
+              pendingConfirmation: state.pendingConfirmation || restored?.card || null,
+            };
           }
-          return { messages: history, historyLoaded: true };
+          return {
+            messages: restored
+              ? history.filter((message) => message.id !== restored.messageId)
+              : history,
+            pendingConfirmation: restored?.card || null,
+            historyLoaded: true,
+          };
         });
       } catch (err: unknown) {
         set({ toast: buildChatToast(err, 'Unable to load chat history right now.') });
@@ -198,6 +206,15 @@ function buildChatToast(error: unknown, fallback: string): ChatToast {
       kind: 'validation',
       title: 'Request rejected',
       message,
+    };
+  }
+
+  if (status === 429) {
+    return {
+      id: `toast-${Date.now()}`,
+      kind: 'validation',
+      title: 'Too many requests',
+      message: 'Finance Chat is receiving requests too quickly. Wait a moment and try again.',
     };
   }
 
@@ -280,4 +297,34 @@ function getHiddenMessageId(metadata?: string | null): string | null {
   } catch {
     return null;
   }
+}
+
+function getPendingConfirmationFromHistory(
+  messages: ChatMessage[]
+): { card: ConfirmationCard; messageId: string } | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (!message.metadata) continue;
+
+    try {
+      const parsed = JSON.parse(message.metadata) as { confirmationCard?: unknown };
+      const candidate = parsed.confirmationCard as Partial<ConfirmationCard> | undefined;
+      if (
+        candidate &&
+        typeof candidate.id === 'string' &&
+        candidate.status === 'PENDING' &&
+        (candidate.type === 'transaction' ||
+          candidate.type === 'bulk_transaction' ||
+          candidate.type === 'budget') &&
+        candidate.data &&
+        typeof candidate.data === 'object'
+      ) {
+        return { card: candidate as ConfirmationCard, messageId: message.id };
+      }
+    } catch {
+      // Ignore malformed historical metadata and keep scanning.
+    }
+  }
+
+  return null;
 }

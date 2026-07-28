@@ -18,6 +18,7 @@ import {
   SkeletonRow,
 } from '../components/ui/PrivateLedger';
 import { ledgerControlClass } from '../styles/tokens';
+import { onTransactionsUpdated } from '../lib/appEvents';
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('en-IN', {
@@ -92,6 +93,7 @@ export default function Transactions() {
 
   useEffect(() => {
     loadTransactions();
+    return onTransactionsUpdated(loadTransactions);
   }, []);
 
   const handleAddTransaction = async (event: React.FormEvent) => {

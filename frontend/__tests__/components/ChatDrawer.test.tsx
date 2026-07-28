@@ -17,19 +17,21 @@ vi.mock('../../lib/api', () => ({
 }));
 
 function resetChatStore() {
-  useChatStore.setState({
-    messages: [],
-    isLoading: false,
-    isOpen: false,
-    pendingConfirmation: null,
-    suggestedChips: [],
-    conversationState: 'IDLE',
-    rateLimitInfo: null,
-    isRateLimited: false,
-    isFallbackMode: false,
-    historyLoaded: false,
-    toast: null,
-    lastAction: null,
+  act(() => {
+    useChatStore.setState({
+      messages: [],
+      isLoading: false,
+      isOpen: false,
+      pendingConfirmation: null,
+      suggestedChips: [],
+      conversationState: 'IDLE',
+      rateLimitInfo: null,
+      isRateLimited: false,
+      isFallbackMode: false,
+      historyLoaded: false,
+      toast: null,
+      lastAction: null,
+    });
   });
 }
 
@@ -76,13 +78,9 @@ describe('ChatDrawer integration', () => {
     const user = userEvent.setup();
     render(<ChatFAB />);
 
-    await act(async () => {
-      await user.click(screen.getByRole('button', { name: /open chat/i }));
-    });
+    await user.click(screen.getByRole('button', { name: /open chat/i }));
     await waitFor(() => expect(mockApiClient.get).toHaveBeenCalled());
-    await act(async () => {
-      await sendChatMessage(user, '60000 salary');
-    });
+    await sendChatMessage(user, '60000 salary');
 
     await waitFor(() => {
       expect(screen.getByText('60000 salary')).toBeInTheDocument();
@@ -100,7 +98,7 @@ describe('ChatDrawer integration', () => {
         headers: {
           'X-Idempotency-Key': 'idem-key-123',
         },
-      }
+      },
     );
   });
 
@@ -123,13 +121,9 @@ describe('ChatDrawer integration', () => {
     const user = userEvent.setup();
     render(<ChatFAB />);
 
-    await act(async () => {
-      await user.click(screen.getByRole('button', { name: /open chat/i }));
-    });
+    await user.click(screen.getByRole('button', { name: /open chat/i }));
     await waitFor(() => expect(mockApiClient.get).toHaveBeenCalled());
-    await act(async () => {
-      await sendChatMessage(user, 'Log expense');
-    });
+    await sendChatMessage(user, 'Log expense');
 
     await waitFor(() => {
       expect(screen.getByText('Log expense')).toBeInTheDocument();
@@ -144,7 +138,7 @@ describe('ChatDrawer integration', () => {
         headers: {
           'X-Idempotency-Key': 'idem-key-123',
         },
-      }
+      },
     );
   });
 
@@ -193,13 +187,9 @@ describe('ChatDrawer integration', () => {
     const user = userEvent.setup();
     render(<ChatFAB />);
 
-    await act(async () => {
-      await user.click(screen.getByRole('button', { name: /open chat/i }));
-    });
+    await user.click(screen.getByRole('button', { name: /open chat/i }));
     await waitFor(() => expect(mockApiClient.get).toHaveBeenCalled());
-    await act(async () => {
-      await sendChatMessage(user, 'spent 500 on food');
-    });
+    await sendChatMessage(user, 'spent 500 on food');
 
     await waitFor(() => {
       expect(screen.getByText('spent 500 on food')).toBeInTheDocument();
@@ -267,13 +257,9 @@ describe('ChatDrawer integration', () => {
     const user = userEvent.setup();
     render(<ChatFAB />);
 
-    await act(async () => {
-      await user.click(screen.getByRole('button', { name: /open chat/i }));
-    });
+    await user.click(screen.getByRole('button', { name: /open chat/i }));
     await waitFor(() => expect(mockApiClient.get).toHaveBeenCalled());
-    await act(async () => {
-      await sendChatMessage(user, 'coffee 400');
-    });
+    await sendChatMessage(user, 'coffee 400');
 
     await waitFor(() => {
       expect(screen.getByText('coffee 400')).toBeInTheDocument();
@@ -294,7 +280,7 @@ describe('ChatDrawer integration', () => {
         headers: {
           'X-Idempotency-Key': 'idem-key-123',
         },
-      }
+      },
     );
   });
 
@@ -310,9 +296,27 @@ describe('ChatDrawer integration', () => {
             type: 'bulk_transaction',
             data: {
               items: [
-                { amount: 500, description: 'chai', category: 'Food', type: 'expense', date: null },
-                { amount: 300, description: 'coffee', category: 'Food', type: 'expense', date: null },
-                { amount: 500, description: 'uber', category: 'Transport', type: 'expense', date: null },
+                {
+                  amount: 500,
+                  description: 'chai',
+                  category: 'Food',
+                  type: 'expense',
+                  date: null,
+                },
+                {
+                  amount: 300,
+                  description: 'coffee',
+                  category: 'Food',
+                  type: 'expense',
+                  date: null,
+                },
+                {
+                  amount: 500,
+                  description: 'uber',
+                  category: 'Transport',
+                  type: 'expense',
+                  date: null,
+                },
               ],
               skippedLines: [],
             },
@@ -330,7 +334,8 @@ describe('ChatDrawer integration', () => {
         success: true,
         message: 'ok',
         data: {
-          message: 'Logged 3 expense item(s), total ₹1,300. Added in order: 1. chai ₹500 (Food), 2. coffee ₹300 (Food), 3. uber ₹500 (Transport).',
+          message:
+            'Logged 3 expense item(s), total ₹1,300. Added in order: 1. chai ₹500 (Food), 2. coffee ₹300 (Food), 3. uber ₹500 (Transport).',
           confirmationCard: null,
           chartData: null,
           suggestedChips: [],
@@ -344,13 +349,9 @@ describe('ChatDrawer integration', () => {
     const user = userEvent.setup();
     render(<ChatFAB />);
 
-    await act(async () => {
-      await user.click(screen.getByRole('button', { name: /open chat/i }));
-    });
+    await user.click(screen.getByRole('button', { name: /open chat/i }));
     await waitFor(() => expect(mockApiClient.get).toHaveBeenCalled());
-    await act(async () => {
-      await sendChatMessage(user, '500 chai 300 coffee 500 uber');
-    });
+    await sendChatMessage(user, '500 chai 300 coffee 500 uber');
 
     await waitFor(() => {
       expect(screen.getByText('500 chai 300 coffee 500 uber')).toBeInTheDocument();
@@ -432,22 +433,159 @@ describe('ChatDrawer integration', () => {
     await waitFor(() => {
       expect(mockApiClient.post).toHaveBeenCalledWith(
         '/chat/edit',
-        { confirmationId: 'pending-1', data: { amount: 300, description: 'noodles' } },
+        {
+          confirmationId: 'pending-1',
+          data: { amount: 300, description: 'noodles' },
+        },
         {
           headers: {
             'X-Idempotency-Key': 'idem-key-123',
           },
-        }
+        },
       );
     });
     expect(screen.queryByRole('heading', { name: 'Edit transaction' })).not.toBeInTheDocument();
     expect(screen.queryByText('What would you like to edit?')).not.toBeInTheDocument();
   });
 
+  it('traps focus in the dialog, closes with Escape, and restores the launcher', async () => {
+    const user = userEvent.setup();
+    render(<ChatFAB />);
+
+    const launcher = screen.getByRole('button', { name: 'Open chat' });
+    await user.click(launcher);
+
+    const dialog = screen.getByRole('dialog', { name: 'Finance Chat' });
+    expect(dialog).toHaveClass('bg-ledger-surface');
+    expect(dialog).not.toHaveClass('bg-zinc-950');
+    const input = screen.getByLabelText('Message Finance Chat');
+    await waitFor(() => expect(input).toHaveFocus());
+    await user.type(input, 'x');
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'Send message' })).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'Close Finance Chat' })).toHaveFocus();
+
+    await user.keyboard('{Escape}');
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Open chat' })).toHaveFocus());
+    expect(screen.queryByRole('dialog', { name: 'Finance Chat' })).not.toBeInTheDocument();
+  });
+
+  it('keeps invalid confirmation edits open and does not call the API', async () => {
+    act(() => {
+      useChatStore.setState({
+        isOpen: true,
+        historyLoaded: true,
+        pendingConfirmation: {
+          id: 'pending-invalid',
+          type: 'transaction',
+          data: {
+            amount: 400,
+            description: 'burger',
+            category: 'Food',
+            type: 'expense',
+            date: null,
+          },
+          status: 'PENDING',
+        },
+      });
+    });
+    const user = userEvent.setup();
+    render(<ChatFAB />);
+
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+    await user.clear(screen.getByLabelText('Amount'));
+    await user.type(screen.getByLabelText('Amount'), '0');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(screen.getByText('Enter an amount greater than zero.')).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Edit transaction' })).toBeInTheDocument();
+    expect(mockApiClient.post).not.toHaveBeenCalled();
+  });
+
+  it('restores an active pending confirmation from chat history', async () => {
+    mockApiClient.get.mockResolvedValue({
+      success: true,
+      message: 'ok',
+      data: [
+        {
+          id: 'user-message',
+          role: 'USER',
+          content: '400 coffee',
+          metadata: null,
+          createdAt: new Date().toISOString(),
+        },
+        {
+          id: 'confirm-message',
+          role: 'ASSISTANT',
+          content: 'Confirm this transaction?',
+          metadata: JSON.stringify({
+            confirmationCard: {
+              id: 'pending-refresh',
+              type: 'transaction',
+              data: {
+                amount: 400,
+                description: 'coffee',
+                category: 'Food',
+                type: 'expense',
+                date: null,
+              },
+              status: 'PENDING',
+            },
+          }),
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      timestamp: new Date().toISOString(),
+    });
+    const user = userEvent.setup();
+    render(<ChatFAB />);
+
+    await user.click(screen.getByRole('button', { name: 'Open chat' }));
+
+    await waitFor(() => expect(screen.getByText('₹400')).toBeInTheDocument());
+    expect(screen.getByText('400 coffee')).toBeInTheDocument();
+    expect(screen.queryByText('Confirm this transaction?')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Confirm' })).toBeInTheDocument();
+  });
+
+  it('suppresses duplicate sends while the first request is in flight', async () => {
+    let resolveRequest: ((value: unknown) => void) | undefined;
+    mockApiClient.post.mockReturnValue(
+      new Promise((resolve) => {
+        resolveRequest = resolve;
+      }),
+    );
+    const user = userEvent.setup();
+    render(<ChatFAB />);
+    await user.click(screen.getByRole('button', { name: 'Open chat' }));
+
+    const input = screen.getByLabelText('Message Finance Chat');
+    await user.type(input, '400 coffee{enter}{enter}');
+
+    expect(mockApiClient.post).toHaveBeenCalledTimes(1);
+    resolveRequest?.({
+      success: true,
+      message: 'ok',
+      data: {
+        message: 'Recorded.',
+        confirmationCard: null,
+        chartData: null,
+        suggestedChips: [],
+        conversationState: 'IDLE',
+        rateLimitInfo: null,
+        isFallbackMode: false,
+      },
+      timestamp: new Date().toISOString(),
+    });
+    await waitFor(() => expect(screen.getByText('Recorded.')).toBeInTheDocument());
+  });
+
   it('shows a backend-unavailable toast after retries are exhausted', async () => {
     const networkError = Object.assign(
       new Error('Cannot connect to backend server. Please make sure the backend is running on http://localhost:3000'),
-      { isNetworkError: true }
+      { isNetworkError: true },
     );
 
     mockApiClient.post.mockRejectedValue(networkError);
@@ -455,18 +593,17 @@ describe('ChatDrawer integration', () => {
     const user = userEvent.setup();
     render(<ChatFAB />);
 
-    await act(async () => {
-      await user.click(screen.getByRole('button', { name: /open chat/i }));
-    });
+    await user.click(screen.getByRole('button', { name: /open chat/i }));
     await waitFor(() => expect(mockApiClient.get).toHaveBeenCalled());
-    await act(async () => {
-      await sendChatMessage(user, '60000 salary');
-    });
+    await sendChatMessage(user, '60000 salary');
 
-    await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent('Backend unavailable');
-      expect(screen.getByRole('alert')).toHaveTextContent('could not reach the backend');
-    }, { timeout: 2500 });
+    await waitFor(
+      () => {
+        expect(screen.getByRole('alert')).toHaveTextContent('Backend unavailable');
+        expect(screen.getByRole('alert')).toHaveTextContent('could not reach the backend');
+      },
+      { timeout: 2500 },
+    );
 
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
   });
@@ -482,29 +619,19 @@ describe('ChatDrawer integration', () => {
     const user = userEvent.setup();
     render(<ChatFAB />);
 
-    await act(async () => {
-      await user.click(screen.getByRole('button', { name: /open chat/i }));
-    });
+    await user.click(screen.getByRole('button', { name: /open chat/i }));
     await waitFor(() => expect(mockApiClient.get).toHaveBeenCalled());
-    await act(async () => {
-      await sendChatMessage(user, '60000 salary');
-    });
+    await sendChatMessage(user, '60000 salary');
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent('Session expired');
       expect(screen.getByRole('alert')).toHaveTextContent('Sign in again and retry');
     });
 
-    mockApiClient.post.mockRejectedValueOnce(
-      Object.assign(new Error('CSRF token missing'), { status: 403 })
-    );
+    mockApiClient.post.mockRejectedValueOnce(Object.assign(new Error('CSRF token missing'), { status: 403 }));
 
-    await act(async () => {
-      await user.click(screen.getByRole('button', { name: 'Dismiss chat toast' }));
-    });
-    await act(async () => {
-      await sendChatMessage(user, 'Log expense');
-    });
+    await user.click(screen.getByRole('button', { name: 'Dismiss chat notice' }));
+    await sendChatMessage(user, 'Log expense');
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent('Request rejected');
