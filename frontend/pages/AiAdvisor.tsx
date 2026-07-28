@@ -1,244 +1,266 @@
-import React, { useState, useEffect } from 'react';
-import { Send, MessageCircle, TrendingUp, DollarSign, Target, AlertCircle } from 'lucide-react';
-import { apiClient } from '../lib/api';
-import { useLanguage } from '../context/LanguageContext';
-import { logger } from '../utils/logger';
+import React, { useEffect, useState } from "react";
+import { MessageCircle, Send } from "lucide-react";
+import { apiClient, type AiHistoryItem } from "../lib/api";
+import { useLanguage } from "../context/LanguageContext";
+import { logger } from "../utils/logger";
+import {
+  Button,
+  EmptyState,
+  FolioHeader,
+  InlineNotice,
+} from "../components/ui/PrivateLedger";
+import { ledgerControlClass } from "../styles/tokens";
+import type { AiAdvice } from "../types";
 
-interface AiAdvice {
-  advice: string;
-  category: string;
-  sessionId: string;
-}
+const QUICK_QUESTIONS = [
+  "Summarize this month",
+  "Why is food spending high?",
+  "How can I reduce spending?",
+];
 
-interface AiSession {
-  id: string;
-  query: string;
-  response: string;
-  category: string;
-  createdAt: string;
-}
+const formatSessionDate = (value: string) =>
+  new Intl.DateTimeFormat(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
+
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error ? error.message : fallback;
 
 export default function AiAdvisor() {
   const { t } = useLanguage();
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const [advice, setAdvice] = useState<AiAdvice | null>(null);
-  const [sessions, setSessions] = useState<AiSession[]>([]);
+  const [sessions, setSessions] = useState<AiHistoryItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const loadAiHistory = async () => {
+      try {
+        setError(null);
+        const history = await apiClient.getAiHistory();
+        setSessions(history || []);
+      } catch (requestError: unknown) {
+        logger.error(
+          "Error loading AI history",
+          requestError instanceof Error ? requestError : undefined,
+        );
+        setError(t("failed-load-ai-history"));
+        setSessions([]);
+      }
+    };
+
     loadAiHistory();
-  }, []);
+  }, [t]);
 
-  const loadAiHistory = async () => {
-    try {
-      setError(null);
-      // Load AI history from API
-      const response = await apiClient.getAiHistory();
-      setSessions(response.data || []);
-    } catch (error: any) {
-      logger.error('Error loading AI history', error);
-      setError(t('failed-load-ai-history'));
-      // Set empty array on error
-      setSessions([]);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!query.trim()) return;
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery || loading) return;
 
     try {
       setLoading(true);
       setError(null);
-      
-      // Get real AI advice from backend
-      const response = await apiClient.getAiAdvice(query);
+      const response = await apiClient.getAiAdvice(trimmedQuery);
       setAdvice(response);
-      
-      // Add to sessions
-      const newSession: AiSession = {
-        id: Date.now().toString(),
-        query: query,
-        response: response.advice,
-        category: response.category,
-        createdAt: new Date().toISOString(),
-      };
-      setSessions(prev => [newSession, ...prev]);
-      
-      setQuery('');
-    } catch (error: any) {
-      logger.error('Error getting AI advice', error);
-      setError(error?.message || t('failed-get-ai-advice'));
+      setSessions((current) => [
+        {
+          id: Date.now().toString(),
+          query: trimmedQuery,
+          response: response.advice,
+          category: response.category,
+          createdAt: new Date().toISOString(),
+        },
+        ...current,
+      ]);
+      setQuery("");
+    } catch (requestError: unknown) {
+      logger.error(
+        "Error getting AI advice",
+        requestError instanceof Error ? requestError : undefined,
+      );
+      setError(getErrorMessage(requestError, t("failed-get-ai-advice")));
     } finally {
       setLoading(false);
     }
   };
 
-  const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case 'savings': return <DollarSign className="w-5 h-5" />;
-      case 'investment': return <TrendingUp className="w-5 h-5" />;
-      case 'emergency': return <AlertCircle className="w-5 h-5" />;
-      case 'budget': return <Target className="w-5 h-5" />;
-      default: return <MessageCircle className="w-5 h-5" />;
-    }
-  };
-
-  const getCategoryColor = (category: string) => {
-    switch (category) {
-      case 'emergency': return 'border-red-500/20 bg-red-500/10 text-red-300';
-      case 'savings':
-      case 'investment':
-      case 'budget': return 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300';
-      default: return 'border-zinc-700 bg-zinc-800/70 text-zinc-300';
-    }
-  };
-
   return (
-    <div className="mx-auto w-full max-w-[1080px] space-y-6 text-white">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight text-white">AI Advisor</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-400">
-          Ask questions about your spending, budgets, and financial activity.
-        </p>
-      </div>
+    <div className="space-y-8" aria-busy={loading}>
+      <FolioHeader
+        title="AI Advisor"
+        description="Ask focused questions about your spending, budgets, and recorded financial activity."
+      />
 
-      {/* Query Form */}
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4 sm:p-6">
-        <form onSubmit={handleSubmit} className="space-y-4">
+      <section aria-labelledby="advisor-workspace-heading">
+        <div className="flex flex-col gap-3 border-b border-ledger-border pb-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <label className="mb-2 block text-sm font-medium text-zinc-300">
-              {t('ask-financial-question')}
-            </label>
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={t('ai-question-placeholder')}
-                className="min-h-12 flex-1 rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm text-white placeholder:text-zinc-500 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-60"
-                disabled={loading}
-              />
-              <button
-                type="submit"
-                disabled={loading || !query.trim()}
-                className="flex min-h-12 w-full items-center justify-center rounded-xl bg-emerald-500 px-6 py-3 text-sm font-semibold text-zinc-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-              >
-                {loading ? (
-                  <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-zinc-950"></div>
-                ) : (
-                  <>
-                    <Send className="w-5 h-5 mr-2" />
-                    Ask FinanceAI
-                  </>
-                )}
-              </button>
-            </div>
+            <p className="text-sm font-medium text-accent">Advisor workspace</p>
+            <h2
+              id="advisor-workspace-heading"
+              className="mt-1 text-xl font-semibold tracking-[-0.02em] text-ink"
+            >
+              What would you like to understand?
+            </h2>
           </div>
-        </form>
+          <p className="text-xs text-ink-muted">
+            Uses your FinanceAI activity · {sessions.length.toLocaleString()}{" "}
+            previous {sessions.length === 1 ? "conversation" : "conversations"}
+          </p>
+        </div>
 
-        {/* Quick Questions */}
-        <div className="mt-6">
-          <p className="mb-3 text-sm font-medium text-zinc-300">{t('quick-questions')}:</p>
-          <div className="flex flex-wrap gap-2">
-            {[
-              'Summarize this month',
-              'Why is Food high?',
-              'How can I reduce spending?'
-            ].map((question) => (
+        <form
+          onSubmit={handleSubmit}
+          className="border-b border-ledger-border py-5"
+        >
+          <label htmlFor="advisor-question" className="sr-only">
+            {t("ask-financial-question")}
+          </label>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <input
+              id="advisor-question"
+              type="text"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Ask about this month, a budget, or your next financial step"
+              className={`${ledgerControlClass} flex-1`}
+              disabled={loading}
+              autoComplete="off"
+            />
+            <Button
+              type="submit"
+              disabled={loading || !query.trim()}
+              className="w-full sm:w-auto"
+            >
+              <Send className="h-4 w-4" aria-hidden="true" />
+              {loading ? "Preparing advice…" : "Ask FinanceAI"}
+            </Button>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+            <span className="text-xs text-ink-muted">Suggested</span>
+            {QUICK_QUESTIONS.map((question) => (
               <button
                 key={question}
+                type="button"
                 onClick={() => setQuery(question)}
-                className="rounded-full border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-sm text-zinc-300 hover:border-emerald-500/40 hover:text-emerald-200"
+                disabled={loading}
+                className="min-h-11 rounded-control px-2 text-left text-sm font-medium text-ink-secondary transition-colors duration-150 ease-out hover:bg-accent-soft hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
               >
                 {question}
               </button>
             ))}
           </div>
-        </div>
-      </div>
+        </form>
+      </section>
 
-      {/* Error Message */}
-      {error && (
-        <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4">
-          <p className="text-sm text-red-300">{error}</p>
-        </div>
-      )}
+      {error && <InlineNotice>{error}</InlineNotice>}
 
-      {/* Current Advice */}
       {advice && (
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4 sm:p-6">
-          <div className="flex items-start space-x-3">
-            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-2">
-              <MessageCircle className="h-5 w-5 text-emerald-300" />
+        <section
+          className="border-b border-ledger-border pb-8"
+          aria-labelledby="current-advice-heading"
+        >
+          <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[minmax(0,7fr)_minmax(14rem,3fr)] lg:gap-10">
+            <div>
+              <p className="text-sm font-medium capitalize text-accent">
+                {advice.category} recommendation
+              </p>
+              <h2
+                id="current-advice-heading"
+                className="mt-2 text-xl font-semibold tracking-[-0.02em] text-ink"
+              >
+                Current recommendation
+              </h2>
+              <p className="mt-3 max-w-[72ch] whitespace-pre-wrap text-sm leading-7 text-ink-secondary">
+                {advice.advice}
+              </p>
             </div>
-            <div className="flex-1">
-              <h3 className="mb-2 text-base font-semibold text-white">{t('ai-advice')}</h3>
-              <p className="leading-relaxed text-zinc-300">{advice.advice}</p>
-              <div className="mt-3">
-                <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${getCategoryColor(advice.category)}`}>
-                  {getCategoryIcon(advice.category)}
-                  <span className="ml-1 capitalize">{advice.category}</span>
-                </span>
-              </div>
-            </div>
+            <aside className="border-t border-ledger-border pt-5 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
+              <p className="text-xs font-medium uppercase tracking-[0.08em] text-ink-muted">
+                Advisor note
+              </p>
+              <p className="mt-2 text-sm leading-6 text-ink-secondary">
+                Treat this as guidance. Review the recorded amounts and your own
+                priorities before acting.
+              </p>
+            </aside>
           </div>
-        </div>
+        </section>
       )}
 
-      {/* AI History */}
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40">
-        <div className="border-b border-zinc-800 p-4 sm:p-6">
-          <h3 className="text-lg font-semibold text-white">{t('recent-conversations')}</h3>
-          <p className="mt-1 text-sm text-zinc-500">{t('previous-ai-interactions')}</p>
-        </div>
-        
-        <div className="divide-y divide-zinc-800">
-          {sessions.length === 0 ? (
-            <div className="p-6 text-center">
-              <MessageCircle className="mx-auto mb-4 h-10 w-10 text-zinc-600" />
-              <h3 className="mb-2 text-base font-medium text-white">{t('no-conversations-yet')}</h3>
-              <p className="text-sm text-zinc-500">{t('start-asking-question')}</p>
-            </div>
-          ) : (
-            sessions.map((session) => (
-              <div key={session.id} className="p-4 hover:bg-zinc-900/70 sm:p-6">
-                <div className="space-y-4">
-                  <div className="flex items-start gap-3">
-                    <div className="rounded-xl border border-zinc-700 bg-zinc-800/70 p-2">
-                      <MessageCircle className="h-4 w-4 text-zinc-300" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium text-white">{session.query}</p>
-                      <p className="mt-1 text-xs text-zinc-500">
-                        {new Date(session.createdAt).toLocaleDateString()} at{' '}
-                        {new Date(session.createdAt).toLocaleTimeString()}
-                      </p>
-                    </div>
-                    <span className={`hidden items-center rounded-full border px-2.5 py-1 text-xs font-medium sm:inline-flex ${getCategoryColor(session.category)}`}>
-                      {getCategoryIcon(session.category)}
-                      <span className="ml-1 capitalize">{session.category}</span>
-                    </span>
-                  </div>
-                  
-                  <div className="sm:ml-11">
-                    <div className="flex items-start gap-3">
-                      <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-2">
-                        <MessageCircle className="h-4 w-4 text-emerald-300" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="leading-relaxed text-zinc-300">{session.response}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))
+      <section aria-labelledby="advisor-history-heading">
+        <div className="flex items-baseline justify-between gap-4 border-b border-ledger-border pb-4">
+          <div>
+            <h2
+              id="advisor-history-heading"
+              className="text-xl font-semibold tracking-[-0.02em] text-ink"
+            >
+              {t("recent-conversations")}
+            </h2>
+            <p className="mt-1 text-sm text-ink-secondary">
+              Questions and guidance from this account.
+            </p>
+          </div>
+          {sessions.length > 0 && (
+            <p className="shrink-0 text-sm tabular-nums text-ink-secondary">
+              {sessions.length.toLocaleString()} shown
+            </p>
           )}
         </div>
-      </div>
+
+        {sessions.length === 0 ? (
+          <EmptyState
+            title={t("no-conversations-yet")}
+            description="Ask about recent spending, a budget, or the next step toward a goal."
+          />
+        ) : (
+          <div>
+            {sessions.map((session) => (
+              <article
+                key={session.id}
+                className="border-b border-ledger-border py-6"
+              >
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between sm:gap-6">
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium uppercase tracking-[0.08em] text-ink-muted">
+                      You asked
+                    </p>
+                    <h3 className="mt-1 text-base font-semibold leading-6 text-ink">
+                      {session.query}
+                    </h3>
+                  </div>
+                  <time
+                    dateTime={session.createdAt}
+                    className="shrink-0 text-xs tabular-nums text-ink-muted"
+                  >
+                    {formatSessionDate(session.createdAt)}
+                  </time>
+                </div>
+
+                <div className="mt-4 border-l border-accent pl-4 sm:ml-4 sm:pl-5">
+                  <div className="flex items-center gap-2">
+                    <MessageCircle
+                      className="h-4 w-4 text-accent"
+                      aria-hidden="true"
+                    />
+                    <p className="text-xs font-medium capitalize text-accent">
+                      FinanceAI · {session.category}
+                    </p>
+                  </div>
+                  <p className="mt-2 max-w-[76ch] whitespace-pre-wrap text-sm leading-7 text-ink-secondary">
+                    {session.response}
+                  </p>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
