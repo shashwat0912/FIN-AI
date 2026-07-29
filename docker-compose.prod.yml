@@ -1,5 +1,3 @@
-version: '3.8'
-
 # This compose file is currently used for local Docker + EC2 HTTP demos.
 # True production should use NODE_ENV=production, HTTPS/domain CORS, and real secrets.
 services:
