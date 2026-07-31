@@ -180,7 +180,11 @@ export class OtpService {
       },
     });
 
-    logger.info(`OTP generated for ${type}: ${normalizedIdentifier}`);
+    logger.info('OTP generated', {
+      event: 'otp_generated',
+      channel: type,
+      outcome: 'stored',
+    });
 
     return { otp, type };
   }
@@ -254,7 +258,11 @@ export class OtpService {
     // Delete the OTP record after successful verification
     await prisma.otp.delete({ where: { id: otpRecord.id } });
 
-    logger.info(`OTP verified successfully for ${type}: ${normalizedIdentifier}`);
+    logger.info('OTP verified', {
+      event: 'otp_verified',
+      channel: type,
+      outcome: 'success',
+    });
 
     return { identifier: normalizedIdentifier, type };
   }
@@ -276,4 +284,3 @@ export class OtpService {
     }
   }
 }
-

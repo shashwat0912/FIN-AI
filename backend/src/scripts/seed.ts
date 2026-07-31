@@ -18,7 +18,7 @@ async function seedDatabase() {
       name: 'Test User',
     });
 
-    logger.info(`✅ Test user created: ${testUser.user.email}`);
+    logger.info('✅ Test user created');
 
     // Create sample transactions
     const sampleTransactions = [
@@ -154,9 +154,6 @@ async function seedDatabase() {
     logger.info('✅ Sample AI sessions created');
 
     logger.info('🎉 Database seeding completed successfully!');
-    logger.info(`📧 Test user email: ${testUser.user.email}`);
-    logger.info('🔑 Test user password: Test123!@');
-
   } catch (error) {
     logger.error('❌ Database seeding failed:', error);
     process.exit(1);

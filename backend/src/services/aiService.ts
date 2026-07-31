@@ -60,7 +60,6 @@ export class AiService {
       } catch (ragError: unknown) {
         logger.warn('RAG retrieval failed, continuing without retrieved chunks', {
           error: errorMessage(ragError),
-          userId,
         });
       }
 
@@ -97,14 +96,12 @@ export class AiService {
           advice = this.postProcessAdvice(advice);
           
           logger.info('RAG-enhanced advice generated', {
-            userId,
             retrievedChunks: retrievedChunks.length,
             topSimilarity: retrievedChunks[0]?.similarity || 0,
           });
         } catch (openaiError: unknown) {
           logger.warn('OpenAI advice generation failed. Falling back to deterministic grounded advice.', {
             error: errorMessage(openaiError),
-            userId,
           });
           advice = this.generateGroundedLocalAdvice(query, enhancedContext, retrievedChunks);
         }
@@ -123,7 +120,7 @@ export class AiService {
         },
       });
 
-      logger.info(`AI advice generated for user: ${userId}, session: ${aiSession.id}`);
+      logger.info('AI advice generated', { event: 'ai_advice_generated', outcome: 'success' });
 
       return {
         advice,
@@ -169,7 +166,7 @@ export class AiService {
       where: { id: sessionId },
     });
 
-    logger.info(`AI session deleted: ${sessionId} for user: ${userId}`);
+    logger.info('AI session deleted', { event: 'ai_session_deleted', outcome: 'success' });
 
     return { success: true, message: 'AI session deleted successfully' };
   }

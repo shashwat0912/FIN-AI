@@ -320,9 +320,7 @@ export class ChatService {
       await this.fsm.transition(userId, 'CONFIRMED');
     } catch (error: unknown) {
       logger.warn('Confirmed financial write but could not clear chat state', {
-        userId,
-        confirmationId,
-        error: error instanceof Error ? error.message : 'unknown',
+        errorCategory: error instanceof Error ? error.name : 'unknown',
       });
     }
 
@@ -777,10 +775,7 @@ export class ChatService {
       }
     } catch (error: unknown) {
       logger.warn('Could not persist category mapping', {
-        userId,
-        keyword,
-        category,
-        error: error instanceof Error ? error.message : 'unknown',
+        errorCategory: error instanceof Error ? error.name : 'unknown',
       });
     }
   }

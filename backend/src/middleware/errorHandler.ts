@@ -19,8 +19,9 @@ export const errorHandler = (
   error: Error | AppError,
   req: Request,
   res: Response<ApiResponse>,
-  next: NextFunction
+  _next: NextFunction
 ): void => {
+  void _next;
   let statusCode = 500;
   let message = 'Internal Server Error';
 
@@ -39,13 +40,13 @@ export const errorHandler = (
   }
 
   // Log error
-  logger.error('Error occurred:', {
-    error: error.message,
-    stack: error.stack,
-    url: req.url,
+  logger.error('Request failed', {
+    event: 'request_failed',
+    outcome: 'failed',
+    errorCategory: error.name,
+    statusCode,
+    path: req.path,
     method: req.method,
-    ip: req.ip,
-    userAgent: req.get('User-Agent'),
   });
 
   res.status(statusCode).json({
@@ -59,8 +60,9 @@ export const errorHandler = (
 export const notFoundHandler = (
   req: Request,
   res: Response<ApiResponse>,
-  next: NextFunction
+  _next: NextFunction
 ): void => {
+  void _next;
   res.status(404).json({
     success: false,
     message: `Route ${req.originalUrl} not found`,
