@@ -48,7 +48,7 @@ export class TransactionService {
       },
     });
 
-    logger.info(`Transaction created: ${transaction.id} for user: ${userId}`);
+    logger.info('Transaction created', { event: 'transaction_created', outcome: 'success' });
 
     return transaction;
   }
@@ -164,7 +164,7 @@ export class TransactionService {
       },
     });
 
-    logger.info(`Transaction updated: ${transactionId} for user: ${userId}`);
+    logger.info('Transaction updated', { event: 'transaction_updated', outcome: 'success' });
 
     return transaction;
   }
@@ -185,7 +185,7 @@ export class TransactionService {
       where: { id: transactionId },
     });
 
-    logger.info(`Transaction deleted: ${transactionId} for user: ${userId}`);
+    logger.info('Transaction deleted', { event: 'transaction_deleted', outcome: 'success' });
 
     return { success: true, message: 'Transaction deleted successfully' };
   }

@@ -1,10 +1,13 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import type { User } from '@prisma/client';
 import { config } from '../config/env';
 import prisma from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { LoginRequest, RegisterRequest, JwtPayload } from '../types';
 import logger from '../config/logger';
+
+type AuthUser = Pick<User, 'id' | 'email' | 'name' | 'role' | 'avatar' | 'createdAt'>;
 
 export class AuthService {
   async register(data: RegisterRequest) {
@@ -63,7 +66,7 @@ export class AuthService {
       },
     });
 
-    logger.info(`User registered: ${user.email}`);
+    logger.info('User registered', { event: 'user_registered', outcome: 'success' });
 
     return {
       user,
@@ -111,7 +114,7 @@ export class AuthService {
       },
     });
 
-    logger.info(`User logged in: ${user.email}`);
+    logger.info('User logged in', { event: 'user_login', outcome: 'success' });
 
     return {
       user: {
@@ -169,10 +172,10 @@ export class AuthService {
       where: { userId },
     });
 
-    logger.info(`All sessions logged out for user: ${userId}`);
+    logger.info('All user sessions logged out', { event: 'user_logout_all', outcome: 'success' });
   }
 
-  public generateAccessToken(user: any): string {
+  public generateAccessToken(user: Pick<User, 'id' | 'email' | 'role'>): string {
     const payload: JwtPayload = {
       userId: user.id,
       email: user.email,
@@ -184,7 +187,7 @@ export class AuthService {
     } as jwt.SignOptions);
   }
 
-  public generateRefreshToken(user: any): string {
+  public generateRefreshToken(user: Pick<User, 'id' | 'email' | 'role'>): string {
     const payload: JwtPayload = {
       userId: user.id,
       email: user.email,
@@ -217,7 +220,7 @@ export class AuthService {
       data: { password: hashedPassword },
     });
 
-    logger.info(`Password set for user: ${userId}`);
+    logger.info('Password set', { event: 'password_set', outcome: 'success' });
   }
 
   async changePassword(userId: string, currentPassword: string, newPassword: string) {
@@ -256,7 +259,7 @@ export class AuthService {
       data: { password: hashedPassword },
     });
 
-    logger.info(`Password changed for user: ${userId}`);
+    logger.info('Password changed', { event: 'password_changed', outcome: 'success' });
   }
 
   private async cleanupOldRefreshTokens(userId: string): Promise<void> {
@@ -313,23 +316,18 @@ export class AuthService {
    * Find user by email or phone number.
    * Tries exact match and, for phone-like identifiers, multiple stored formats.
    */
-  async findUserByIdentifier(identifier: string): Promise<any | null> {
-    logger.info(`Looking up user with identifier: ${identifier}`);
-    
+  async findUserByIdentifier(identifier: string): Promise<AuthUser | null> {
     // Exact match first
     let user = await prisma.user.findUnique({
       where: { email: identifier },
     });
 
     if (user) {
-      logger.info(`Found user with exact match: ${identifier}`);
       return user;
     }
 
     // For phone-like identifiers, try all common stored formats
     const variants = this.getPhoneLookupVariants(identifier);
-    logger.info(`Trying phone variants: ${variants.join(', ')}`);
-    
     if (variants.length > 1) {
       user = await prisma.user.findFirst({
         where: {
@@ -337,11 +335,6 @@ export class AuthService {
         },
       });
       
-      if (user) {
-        logger.info(`Found user with variant match. Stored as: ${user.email}`);
-      } else {
-        logger.info(`No user found with any variant`);
-      }
     }
 
     return user;
@@ -350,7 +343,11 @@ export class AuthService {
   /**
    * Create a new user with OTP authentication
    */
-  async createUserWithOtp(identifier: string, name: string, type: 'email' | 'phone'): Promise<any> {
+  async createUserWithOtp(
+    identifier: string,
+    name: string,
+    type: 'email' | 'phone'
+  ): Promise<AuthUser> {
     // For phone-based registration, use the phone number as email
     // In a production system, you might want a separate phone field
     const email = type === 'email' ? identifier : identifier;
@@ -371,7 +368,11 @@ export class AuthService {
       },
     });
 
-    logger.info(`User created via OTP: ${email}`);
+    logger.info('User created via OTP', {
+      event: 'otp_user_created',
+      channel: type,
+      outcome: 'success',
+    });
 
     return user;
   }

@@ -6,8 +6,18 @@ const logFormat = winston.format.combine(
   winston.format.json()
 );
 
-// Sentry Winston transport for production error monitoring
-let sentryTransport: winston.transport | null = null;
+const isProduction = process.env.NODE_ENV === 'production';
+const transports: winston.transport[] = [
+  new winston.transports.Console({ stderrLevels: ['error'] }),
+];
+
+if (!isProduction && process.env.LOG_FILE) {
+  transports.push(new winston.transports.File({
+    filename: process.env.LOG_FILE,
+    maxsize: 5242880,
+    maxFiles: 5,
+  }));
+}
 
 async function initSentryTransport(): Promise<winston.transport | null> {
   const sentryDsn = process.env.SENTRY_DSN;
@@ -45,32 +55,15 @@ async function initSentryTransport(): Promise<winston.transport | null> {
 
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
-  format: logFormat,
+  format: isProduction
+    ? logFormat
+    : winston.format.combine(
+        winston.format.colorize(),
+        winston.format.simple()
+      ),
   defaultMeta: { service: 'finance-ai-backend' },
-  transports: [
-    new winston.transports.File({ 
-      filename: 'logs/error.log', 
-      level: 'error',
-      maxsize: 5242880, // 5MB
-      maxFiles: 5,
-    }),
-    new winston.transports.File({ 
-      filename: 'logs/combined.log',
-      maxsize: 5242880, // 5MB
-      maxFiles: 5,
-    }),
-  ],
+  transports,
 });
-
-// Add console transport for development
-if (process.env.NODE_ENV !== 'production') {
-  logger.add(new winston.transports.Console({
-    format: winston.format.combine(
-      winston.format.colorize(),
-      winston.format.simple()
-    )
-  }));
-}
 
 // Initialize Sentry in production (async)
 if (process.env.NODE_ENV === 'production') {

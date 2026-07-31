@@ -2,15 +2,39 @@ import { Request, Response } from 'express';
 import { AuthService } from '../services/authService';
 import { OtpService } from '../services/otpService';
 import { NotificationService } from '../services/notificationService';
-import { ApiResponse } from '../types';
+import {
+  ApiError,
+  ApiResponse,
+  AuthenticatedRequest,
+  LoginRequest,
+  RegisterRequest,
+  SendOtpRequest,
+  VerifyOtpRequest,
+} from '../types';
 import logger from '../config/logger';
+
+type BodyRequest<T> = Request<Record<string, never>, ApiResponse, T>;
+type RefreshTokenBody = { refreshToken?: string };
+type SetPasswordBody = { password?: string };
+type ChangePasswordBody = { currentPassword?: string; newPassword?: string };
 
 const authService = new AuthService();
 const otpService = new OtpService();
 const notificationService = new NotificationService();
 
+const logAuthError = (event: string, error: unknown): void => {
+  logger.error('Authentication request failed', {
+    event,
+    outcome: 'failed',
+    errorCategory: error instanceof Error ? error.name : 'unknown',
+  });
+};
+
+const getApiError = (error: unknown): ApiError | undefined =>
+  error instanceof Error ? error as ApiError : undefined;
+
 export class AuthController {
-  async register(req: Request, res: Response<ApiResponse>) {
+  async register(req: BodyRequest<RegisterRequest>, res: Response<ApiResponse>) {
     try {
       const result = await authService.register(req.body);
       
@@ -21,18 +45,19 @@ export class AuthController {
         timestamp: new Date().toISOString(),
       });
       return;
-    } catch (error: any) {
-      logger.error('Registration error:', error);
-      res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+      logAuthError('registration_failed', error);
+      const apiError = getApiError(error);
+      res.status(apiError?.statusCode || 500).json({
         success: false,
-        message: error.message || 'Registration failed',
+        message: apiError?.message || 'Registration failed',
         timestamp: new Date().toISOString(),
       });
       return;
     }
   }
 
-  async login(req: Request, res: Response<ApiResponse>) {
+  async login(req: BodyRequest<LoginRequest>, res: Response<ApiResponse>) {
     try {
       const result = await authService.login(req.body);
       
@@ -43,18 +68,19 @@ export class AuthController {
         timestamp: new Date().toISOString(),
       });
       return;
-    } catch (error: any) {
-      logger.error('Login error:', error);
-      res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+      logAuthError('login_failed', error);
+      const apiError = getApiError(error);
+      res.status(apiError?.statusCode || 500).json({
         success: false,
-        message: error.message || 'Login failed',
+        message: apiError?.message || 'Login failed',
         timestamp: new Date().toISOString(),
       });
       return;
     }
   }
 
-  async refreshToken(req: Request, res: Response<ApiResponse>) {
+  async refreshToken(req: BodyRequest<RefreshTokenBody>, res: Response<ApiResponse>) {
     try {
       const { refreshToken } = req.body;
       
@@ -76,18 +102,19 @@ export class AuthController {
         timestamp: new Date().toISOString(),
       });
       return;
-    } catch (error: any) {
-      logger.error('Token refresh error:', error);
-      res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+      logAuthError('token_refresh_failed', error);
+      const apiError = getApiError(error);
+      res.status(apiError?.statusCode || 500).json({
         success: false,
-        message: error.message || 'Token refresh failed',
+        message: apiError?.message || 'Token refresh failed',
         timestamp: new Date().toISOString(),
       });
       return;
     }
   }
 
-  async logout(req: Request, res: Response<ApiResponse>) {
+  async logout(req: BodyRequest<RefreshTokenBody>, res: Response<ApiResponse>) {
     try {
       const { refreshToken } = req.body;
       
@@ -101,11 +128,12 @@ export class AuthController {
         timestamp: new Date().toISOString(),
       });
       return;
-    } catch (error: any) {
-      logger.error('Logout error:', error);
-      res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+      logAuthError('logout_failed', error);
+      const apiError = getApiError(error);
+      res.status(apiError?.statusCode || 500).json({
         success: false,
-        message: error.message || 'Logout failed',
+        message: apiError?.message || 'Logout failed',
         timestamp: new Date().toISOString(),
       });
       return;
@@ -114,7 +142,7 @@ export class AuthController {
 
   async logoutAll(req: Request, res: Response<ApiResponse>) {
     try {
-      const userId = (req as any).user.id;
+      const userId = (req as AuthenticatedRequest).user!.id;
       await authService.logoutAll(userId);
       
       res.json({
@@ -123,20 +151,21 @@ export class AuthController {
         timestamp: new Date().toISOString(),
       });
       return;
-    } catch (error: any) {
-      logger.error('Logout all error:', error);
-      res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+      logAuthError('logout_all_failed', error);
+      const apiError = getApiError(error);
+      res.status(apiError?.statusCode || 500).json({
         success: false,
-        message: error.message || 'Logout all failed',
+        message: apiError?.message || 'Logout all failed',
         timestamp: new Date().toISOString(),
       });
       return;
     }
   }
 
-  async setPassword(req: Request, res: Response<ApiResponse>) {
+  async setPassword(req: BodyRequest<SetPasswordBody>, res: Response<ApiResponse>) {
     try {
-      const userId = (req as any).user.id;
+      const userId = (req as AuthenticatedRequest).user!.id;
       const { password } = req.body;
       
       if (!password) {
@@ -156,20 +185,21 @@ export class AuthController {
         timestamp: new Date().toISOString(),
       });
       return;
-    } catch (error: any) {
-      logger.error('Set password error:', error);
-      res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+      logAuthError('password_set_failed', error);
+      const apiError = getApiError(error);
+      res.status(apiError?.statusCode || 500).json({
         success: false,
-        message: error.message || 'Set password failed',
+        message: apiError?.message || 'Set password failed',
         timestamp: new Date().toISOString(),
       });
       return;
     }
   }
 
-  async changePassword(req: Request, res: Response<ApiResponse>) {
+  async changePassword(req: BodyRequest<ChangePasswordBody>, res: Response<ApiResponse>) {
     try {
-      const userId = (req as any).user.id;
+      const userId = (req as AuthenticatedRequest).user!.id;
       const { currentPassword, newPassword } = req.body;
       
       if (!currentPassword || !newPassword) {
@@ -189,18 +219,19 @@ export class AuthController {
         timestamp: new Date().toISOString(),
       });
       return;
-    } catch (error: any) {
-      logger.error('Change password error:', error);
-      res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+      logAuthError('password_change_failed', error);
+      const apiError = getApiError(error);
+      res.status(apiError?.statusCode || 500).json({
         success: false,
-        message: error.message || 'Change password failed',
+        message: apiError?.message || 'Change password failed',
         timestamp: new Date().toISOString(),
       });
       return;
     }
   }
 
-  async sendOtp(req: Request, res: Response<ApiResponse>) {
+  async sendOtp(req: BodyRequest<SendOtpRequest>, res: Response<ApiResponse>) {
     try {
       const { identifier } = req.body;
 
@@ -238,18 +269,19 @@ export class AuthController {
         timestamp: new Date().toISOString(),
       });
       return;
-    } catch (error: any) {
-      logger.error('Send OTP error:', error);
-      res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+      logAuthError('otp_send_failed', error);
+      const apiError = getApiError(error);
+      res.status(apiError?.statusCode || 500).json({
         success: false,
-        message: error.message || 'Failed to send OTP',
+        message: apiError?.message || 'Failed to send OTP',
         timestamp: new Date().toISOString(),
       });
       return;
     }
   }
 
-  async verifyOtp(req: Request, res: Response<ApiResponse>) {
+  async verifyOtp(req: BodyRequest<VerifyOtpRequest>, res: Response<ApiResponse>) {
     try {
       const { identifier, otp, name } = req.body;
 
@@ -272,7 +304,11 @@ export class AuthController {
         }
 
         user = await authService.createUserWithOtp(normalizedIdentifier, name, type);
-        logger.info(`New user created via OTP: ${normalizedIdentifier}`);
+        logger.info('New user created via OTP', {
+          event: 'otp_user_created',
+          channel: type,
+          outcome: 'success',
+        });
       }
 
       // Generate tokens
@@ -299,11 +335,12 @@ export class AuthController {
         timestamp: new Date().toISOString(),
       });
       return;
-    } catch (error: any) {
-      logger.error('Verify OTP error:', error);
-      res.status(error.statusCode || 500).json({
+    } catch (error: unknown) {
+      logAuthError('otp_verify_failed', error);
+      const apiError = getApiError(error);
+      res.status(apiError?.statusCode || 500).json({
         success: false,
-        message: error.message || 'Failed to verify OTP',
+        message: apiError?.message || 'Failed to verify OTP',
         timestamp: new Date().toISOString(),
       });
       return;

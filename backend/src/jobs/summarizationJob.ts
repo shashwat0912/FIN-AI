@@ -74,9 +74,17 @@ export function startSummarizationJob(): void {
             create: { userId: uc.userId, summary: newSummary, messageCountAtSummary: currentCount, tokenCount },
           });
 
-          logger.info(`Summarized conversation for user ${uc.userId} (${currentCount} messages)`);
+          logger.info('Conversation summarized', {
+            event: 'conversation_summarized',
+            messageCount: currentCount,
+            outcome: 'success',
+          });
         } catch (err) {
-          logger.error(`Summarization failed for user ${uc.userId}:`, err);
+          logger.error('Conversation summarization failed', {
+            event: 'conversation_summarization_failed',
+            outcome: 'failed',
+            errorCategory: err instanceof Error ? err.name : 'unknown',
+          });
         }
       }
     } catch (err) {

@@ -1,6 +1,6 @@
 import nodemailer from 'nodemailer';
-import { config } from '../config/env';
 import logger from '../config/logger';
+import { AppError } from '../middleware/errorHandler';
 
 export class NotificationService {
   private transporter: nodemailer.Transporter | null = null;
@@ -15,7 +15,13 @@ export class NotificationService {
   private initializeEmailTransporter(): void {
     if (process.env.NODE_ENV === 'test') {
       // Keep tests deterministic and fast: never attempt external SMTP during automated runs.
-      logger.info('Test environment detected. Email sending will be simulated.');
+      logger.info('OTP delivery provider configured', {
+        event: 'otp_delivery_provider',
+        channel: 'email',
+        provider: 'smtp',
+        outcome: 'simulated',
+        environment: 'test',
+      });
       this.transporter = null;
       return;
     }
@@ -37,12 +43,31 @@ export class NotificationService {
             pass: smtpPass,
           },
         });
-        logger.info('Email transporter initialized successfully');
+        logger.info('OTP delivery provider configured', {
+          event: 'otp_delivery_provider',
+          channel: 'email',
+          provider: 'smtp',
+          outcome: 'available',
+          environment: process.env.NODE_ENV || 'development',
+        });
       } catch (error) {
-        logger.error('Failed to initialize email transporter:', error);
+        logger.error('OTP delivery provider unavailable', {
+          event: 'otp_delivery_provider',
+          channel: 'email',
+          provider: 'smtp',
+          outcome: 'unavailable',
+          environment: process.env.NODE_ENV || 'development',
+          errorCategory: error instanceof Error ? error.name : 'unknown',
+        });
       }
     } else {
-      logger.warn('SMTP credentials not configured. Email sending will be simulated.');
+      logger.warn('OTP delivery provider unavailable', {
+        event: 'otp_delivery_provider',
+        channel: 'email',
+        provider: 'smtp',
+        outcome: process.env.NODE_ENV === 'production' ? 'unavailable' : 'simulated',
+        environment: process.env.NODE_ENV || 'development',
+      });
     }
   }
 
@@ -175,24 +200,47 @@ export class NotificationService {
           subject,
           html,
         });
-        logger.info(`OTP email sent successfully to ${email}`);
+        logger.info('OTP delivery attempt', {
+          event: 'otp_delivery_attempt',
+          channel: 'email',
+          provider: 'smtp',
+          outcome: 'sent',
+          environment: process.env.NODE_ENV || 'development',
+        });
         return; // Successfully sent, exit early
       } catch (error) {
-        logger.error(`Failed to send OTP email to ${email}:`, error);
-        logger.warn(`Falling back to simulated email sending for ${email}`);
-        // Fall through to simulated sending instead of throwing error
+        logger.error('OTP delivery attempt', {
+          event: 'otp_delivery_attempt',
+          channel: 'email',
+          provider: 'smtp',
+          outcome: 'failed',
+          environment: process.env.NODE_ENV || 'development',
+          errorCategory: error instanceof Error ? error.name : 'unknown',
+        });
+        if (process.env.NODE_ENV === 'production') {
+          throw new AppError('OTP delivery is currently unavailable', 503);
+        }
       }
     }
-    
-    // Simulated email sending (fallback or when transporter not configured)
-    {
-      logger.info(`[SIMULATED EMAIL] OTP sent to ${email}: ${otp}`);
-      logger.info(`To enable actual email sending, configure SMTP settings in .env file`);
-      // Only show console output in development
-      if (process.env.NODE_ENV === 'development') {
-        logger.info(`📧 OTP EMAIL (SIMULATED) - To: ${email}, OTP: ${otp}, Valid for: 5 minutes`);
-      }
+
+    if (process.env.NODE_ENV === 'production') {
+      logger.error('OTP delivery attempt', {
+        event: 'otp_delivery_attempt',
+        channel: 'email',
+        provider: 'smtp',
+        outcome: 'unavailable',
+        environment: 'production',
+      });
+      throw new AppError('OTP delivery is currently unavailable', 503);
     }
+
+    logger.info('OTP delivery attempt', {
+      event: 'otp_delivery_attempt',
+      channel: 'email',
+      provider: 'smtp',
+      outcome: 'simulated',
+      environment: process.env.NODE_ENV || 'development',
+    });
   }
 
   /**
@@ -200,27 +248,28 @@ export class NotificationService {
    * Note: This is a placeholder. Integrate with actual SMS provider (Twilio, AWS SNS, etc.)
    */
   async sendOtpSms(phone: string, otp: string): Promise<void> {
-    // TODO: Integrate with SMS provider (Twilio, AWS SNS, MSG91, etc.)
-    // For now, we'll simulate SMS sending
-    
-    const message = `Your Finance AI login OTP is: ${otp}. Valid for 5 minutes. Do not share this code with anyone.`;
+    void phone;
+    void otp;
+    const provider = process.env.SMS_PROVIDER || 'unconfigured';
 
-    // Check if SMS provider is configured
-    const smsProvider = process.env.SMS_PROVIDER;
-    const smsApiKey = process.env.SMS_API_KEY;
-
-    if (smsProvider && smsApiKey) {
-      // TODO: Implement actual SMS sending based on provider
-      logger.info(`SMS sent via ${smsProvider} to ${phone}`);
-    } else {
-      // Simulate SMS sending in development
-      logger.info(`[SIMULATED SMS] OTP sent to ${phone}: ${otp}`);
-      logger.info(`To enable actual SMS sending, configure SMS provider settings in .env file`);
-      // Only show detailed output in development
-      if (process.env.NODE_ENV === 'development') {
-        logger.info(`📱 OTP SMS (SIMULATED) - To: ${phone}, OTP: ${otp}, Valid for: 5 minutes`);
-      }
+    if (process.env.NODE_ENV === 'production') {
+      logger.error('OTP delivery attempt', {
+        event: 'otp_delivery_attempt',
+        channel: 'sms',
+        provider,
+        outcome: 'unavailable',
+        environment: 'production',
+      });
+      throw new AppError('OTP delivery is currently unavailable', 503);
     }
+
+    logger.info('OTP delivery attempt', {
+      event: 'otp_delivery_attempt',
+      channel: 'sms',
+      provider,
+      outcome: 'simulated',
+      environment: process.env.NODE_ENV || 'development',
+    });
 
     // For actual implementation, you would use something like:
     /*

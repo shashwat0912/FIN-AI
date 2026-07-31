@@ -1,15 +1,15 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { ApiResponse } from '../types';
 import logger from '../config/logger';
 
-const prisma = new PrismaClient();
+const errorMessage = (error: unknown, fallback: string): string =>
+  error instanceof Error ? error.message : fallback;
 
 export class SettingsController {
   // Get user settings
   async getSettings(req: Request, res: Response<ApiResponse>) {
     try {
-      const userId = (req as any).user.id;
+      void req;
 
       // For now, return default settings since we don't have a settings table
       // In a real app, you'd have a UserSettings model
@@ -62,11 +62,11 @@ export class SettingsController {
         timestamp: new Date().toISOString(),
       });
       return;
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         success: false,
         message: 'Failed to retrieve settings',
-        error: error.message,
+        error: errorMessage(error, 'Failed to retrieve settings'),
         timestamp: new Date().toISOString(),
       });
       return;
@@ -76,7 +76,6 @@ export class SettingsController {
   // Update user settings
   async updateSettings(req: Request, res: Response<ApiResponse>) {
     try {
-      const userId = (req as any).user.id;
       const { section, settings } = req.body;
 
       // Debug logging removed for production
@@ -207,7 +206,11 @@ export class SettingsController {
       // });
 
       // Log the update for debugging
-      logger.info(`User ${userId} updated ${section} settings`);
+      logger.info('User settings updated', {
+        event: 'user_settings_updated',
+        section,
+        outcome: 'success',
+      });
 
       res.json({
         success: true,
@@ -216,12 +219,16 @@ export class SettingsController {
         timestamp: new Date().toISOString(),
       });
       return;
-    } catch (error: any) {
-      logger.error('Error updating settings:', error);
+    } catch (error: unknown) {
+      logger.error('Settings update failed', {
+        event: 'user_settings_update_failed',
+        outcome: 'failed',
+        errorCategory: error instanceof Error ? error.name : 'unknown',
+      });
       res.status(500).json({
         success: false,
         message: 'Failed to update settings',
-        error: error.message,
+        error: errorMessage(error, 'Failed to update settings'),
         timestamp: new Date().toISOString(),
       });
       return;
@@ -231,7 +238,7 @@ export class SettingsController {
   // Get preferences
   async getPreferences(req: Request, res: Response<ApiResponse>) {
     try {
-      const userId = (req as any).user.id;
+      void req;
 
       const preferences = {
         theme: 'system',
@@ -250,11 +257,11 @@ export class SettingsController {
         timestamp: new Date().toISOString(),
       });
       return;
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         success: false,
         message: 'Failed to retrieve preferences',
-        error: error.message,
+        error: errorMessage(error, 'Failed to retrieve preferences'),
         timestamp: new Date().toISOString(),
       });
       return;
@@ -264,7 +271,6 @@ export class SettingsController {
   // Update preferences
   async updatePreferences(req: Request, res: Response<ApiResponse>) {
     try {
-      const userId = (req as any).user.id;
       const preferences = req.body;
 
       // Validate preferences
@@ -326,11 +332,11 @@ export class SettingsController {
         timestamp: new Date().toISOString(),
       });
       return;
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         success: false,
         message: 'Failed to update preferences',
-        error: error.message,
+        error: errorMessage(error, 'Failed to update preferences'),
         timestamp: new Date().toISOString(),
       });
       return;
@@ -340,7 +346,7 @@ export class SettingsController {
   // Get notification settings
   async getNotificationSettings(req: Request, res: Response<ApiResponse>) {
     try {
-      const userId = (req as any).user.id;
+      void req;
 
       const notifications = {
         email: true,
@@ -360,11 +366,11 @@ export class SettingsController {
         timestamp: new Date().toISOString(),
       });
       return;
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         success: false,
         message: 'Failed to retrieve notification settings',
-        error: error.message,
+        error: errorMessage(error, 'Failed to retrieve notification settings'),
         timestamp: new Date().toISOString(),
       });
       return;
@@ -374,7 +380,6 @@ export class SettingsController {
   // Update notification settings
   async updateNotificationSettings(req: Request, res: Response<ApiResponse>) {
     try {
-      const userId = (req as any).user.id;
       const notifications = req.body;
 
       res.json({
@@ -384,11 +389,11 @@ export class SettingsController {
         timestamp: new Date().toISOString(),
       });
       return;
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         success: false,
         message: 'Failed to update notification settings',
-        error: error.message,
+        error: errorMessage(error, 'Failed to update notification settings'),
         timestamp: new Date().toISOString(),
       });
       return;
