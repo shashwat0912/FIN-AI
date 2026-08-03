@@ -1,6 +1,8 @@
+import Redis from 'ioredis';
 import logger from './logger';
 
-let redisClient: any = null;
+let redisClient: Redis | InMemoryRedis | null = null;
+let redisConnection: Redis | null = null;
 let usingFallback = false;
 
 class InMemoryRedis {
@@ -16,7 +18,7 @@ class InMemoryRedis {
     return entry.value;
   }
 
-  async set(key: string, value: string, ...args: any[]): Promise<string | null> {
+  async set(key: string, value: string, ...args: (string | number)[]): Promise<string | null> {
     let expireAt: number | undefined;
     const exIdx = args.indexOf('EX');
     if (exIdx !== -1 && args[exIdx + 1] != null) {
@@ -24,8 +26,8 @@ class InMemoryRedis {
     }
     const nxMode = args.includes('NX');
     if (nxMode && this.store.has(key)) {
-      const existing = this.store.get(key)!;
-      if (!existing.expireAt || Date.now() < existing.expireAt) return null;
+      const existing = this.store.get(key);
+      if (existing && (!existing.expireAt || Date.now() < existing.expireAt)) return null;
     }
     this.store.set(key, { value, expireAt });
     return 'OK';
@@ -36,20 +38,21 @@ class InMemoryRedis {
   }
 }
 
-export function getRedisClient(): any {
+export function getRedisClient(): Redis | InMemoryRedis {
   if (redisClient) return redisClient;
 
   try {
-    const Redis = require('ioredis');
     const url = process.env.REDIS_URL || 'redis://localhost:6379';
 
-    redisClient = new Redis(url, {
+    const client = new Redis(url, {
       maxRetriesPerRequest: 3,
       retryStrategy(times: number) {
         if (times > 3) {
           logger.warn('Redis unavailable after retries, falling back to in-memory state');
-          redisClient = new InMemoryRedis();
-          usingFallback = true;
+          if (redisClient === client) {
+            redisClient = new InMemoryRedis();
+            usingFallback = true;
+          }
           return null;
         }
         return Math.min(times * 200, 2000);
@@ -57,20 +60,24 @@ export function getRedisClient(): any {
       lazyConnect: true,
       connectTimeout: 3000,
     });
+    redisClient = client;
+    redisConnection = client;
 
-    redisClient.on('connect', () => logger.info('Redis connected'));
-    redisClient.on('error', () => {
-      if (!usingFallback) {
+    client.on('connect', () => logger.info('Redis connected'));
+    client.on('error', () => {
+      if (!usingFallback && redisClient === client) {
         logger.warn('Redis unavailable, using in-memory fallback for conversation state');
         redisClient = new InMemoryRedis();
         usingFallback = true;
       }
     });
 
-    redisClient.connect().catch(() => {
-      logger.warn('Redis not available, using in-memory fallback for conversation state');
-      redisClient = new InMemoryRedis();
-      usingFallback = true;
+    client.connect().catch(() => {
+      if (redisClient === client) {
+        logger.warn('Redis not available, using in-memory fallback for conversation state');
+        redisClient = new InMemoryRedis();
+        usingFallback = true;
+      }
     });
   } catch {
     logger.warn('ioredis not installed, using in-memory fallback for conversation state');
@@ -79,6 +86,26 @@ export function getRedisClient(): any {
   }
 
   return redisClient;
+}
+
+export async function shutdownRedis(): Promise<void> {
+  const connection = redisConnection;
+  const fallback = usingFallback;
+  redisClient = null;
+  redisConnection = null;
+  usingFallback = false;
+  if (!connection) return;
+
+  if (fallback) {
+    try {
+      connection.disconnect();
+    } catch {
+      // The fallback is already independent of the abandoned real connection.
+    }
+    return;
+  }
+
+  await connection.quit();
 }
 
 export default getRedisClient;
