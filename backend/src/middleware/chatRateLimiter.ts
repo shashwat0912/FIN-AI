@@ -1,15 +1,12 @@
 import rateLimit from 'express-rate-limit';
-import { AuthenticatedRequest } from '../types';
-
-function userKeyGenerator(req: any): string {
-  const authReq = req as AuthenticatedRequest;
-  return authReq.user?.id || req.ip || 'anonymous';
-}
+import { createRateLimitStore, rateLimitKey } from '../services/securityStateService';
 
 export const chatMessageLimiter = rateLimit({
+  store: createRateLimitStore('chat-message'),
+  keyGenerator: rateLimitKey,
+  passOnStoreError: false,
   windowMs: 60 * 1000,
   max: 30,
-  keyGenerator: (req) => `chat:msg:${userKeyGenerator(req)}`,
   standardHeaders: true,
   legacyHeaders: false,
   handler: (_req, res) => {
@@ -23,9 +20,11 @@ export const chatMessageLimiter = rateLimit({
 });
 
 export const chatConfirmLimiter = rateLimit({
+  store: createRateLimitStore('chat-confirm'),
+  keyGenerator: rateLimitKey,
+  passOnStoreError: false,
   windowMs: 60 * 1000,
   max: 60,
-  keyGenerator: (req) => `chat:confirm:${userKeyGenerator(req)}`,
   standardHeaders: true,
   legacyHeaders: false,
   handler: (_req, res) => {
@@ -39,9 +38,11 @@ export const chatConfirmLimiter = rateLimit({
 });
 
 export const chatHistoryLimiter = rateLimit({
+  store: createRateLimitStore('chat-history'),
+  keyGenerator: rateLimitKey,
+  passOnStoreError: false,
   windowMs: 60 * 1000,
   max: 20,
-  keyGenerator: (req) => `chat:history:${userKeyGenerator(req)}`,
   standardHeaders: true,
   legacyHeaders: false,
 });

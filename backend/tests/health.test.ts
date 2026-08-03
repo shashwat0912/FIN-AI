@@ -25,6 +25,7 @@ vi.mock('../src/config/redis', () => ({
   getRedisState: mocks.getRedisState,
   isRedisReady: mocks.isRedisReady,
   pingRedis: mocks.pingRedis,
+  runRedisOperation: vi.fn(),
   closeRedisConnection: vi.fn().mockResolvedValue(undefined),
 }));
 

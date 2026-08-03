@@ -4,7 +4,7 @@ import logger from './logger';
 
 export type RedisState = 'connected' | 'connecting' | 'unavailable' | 'fallback' | 'shutting_down';
 
-export type RedisClient = Pick<Redis, 'get' | 'set' | 'del'>;
+export type RedisClient = Pick<Redis, 'get' | 'set' | 'del' | 'call' | 'eval' | 'pttl'>;
 
 export class RedisUnavailableError extends Error {
   readonly statusCode = 503;

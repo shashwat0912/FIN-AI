@@ -5,9 +5,7 @@ import { authLimiter } from '../middleware/rateLimiter';
 import { 
   authRateLimiter, 
   accountLockout, 
-  recordFailedAttempt, 
   clearFailedAttempts,
-  clearFailedAttemptsOnSuccess,
   perUserRateLimiter 
 } from '../middleware/security';
 import { authenticateToken } from '../middleware/auth';
@@ -30,8 +28,6 @@ router.post('/login',
   authRateLimiter, 
   authLimiter, 
   validate(authSchemas.login), 
-  recordFailedAttempt(),
-  clearFailedAttemptsOnSuccess,
   authController.login
 );
 
@@ -40,25 +36,25 @@ router.post('/refresh-token', authRateLimiter, authController.refreshToken);
 // Protected routes with per-user rate limiting
 router.post('/logout', 
   authenticateToken, 
-  perUserRateLimiter(5, 5 * 60 * 1000), // 5 requests per 5 minutes
+  perUserRateLimiter(5, 5 * 60 * 1000, 'logout'), // 5 requests per 5 minutes
   authController.logout
 );
 
 router.post('/logout-all', 
   authenticateToken, 
-  perUserRateLimiter(3, 5 * 60 * 1000), // 3 requests per 5 minutes
+  perUserRateLimiter(3, 5 * 60 * 1000, 'logout-all'), // 3 requests per 5 minutes
   authController.logoutAll
 );
 
 router.post('/set-password', 
   authenticateToken, 
-  perUserRateLimiter(3, 10 * 60 * 1000), // 3 requests per 10 minutes
+  perUserRateLimiter(3, 10 * 60 * 1000, 'set-password'), // 3 requests per 10 minutes
   authController.setPassword
 );
 
 router.post('/change-password', 
   authenticateToken, 
-  perUserRateLimiter(3, 10 * 60 * 1000), // 3 requests per 10 minutes
+  perUserRateLimiter(3, 10 * 60 * 1000, 'change-password'), // 3 requests per 10 minutes
   authController.changePassword
 );
 

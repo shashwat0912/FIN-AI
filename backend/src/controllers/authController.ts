@@ -12,6 +12,12 @@ import {
   VerifyOtpRequest,
 } from '../types';
 import logger from '../config/logger';
+import {
+  LOGIN_LOCKOUT_MS,
+  LOGIN_MAX_ATTEMPTS,
+  loginSecurityIdentifier,
+  securityStateService,
+} from '../services/securityStateService';
 
 type BodyRequest<T> = Request<Record<string, never>, ApiResponse, T>;
 type RefreshTokenBody = { refreshToken?: string };
@@ -58,8 +64,10 @@ export class AuthController {
   }
 
   async login(req: BodyRequest<LoginRequest>, res: Response<ApiResponse>) {
+    const securityIdentifier = loginSecurityIdentifier(req);
     try {
       const result = await authService.login(req.body);
+      await securityStateService.clearLoginFailures(securityIdentifier);
       
       res.json({
         success: true,
@@ -69,8 +77,20 @@ export class AuthController {
       });
       return;
     } catch (error: unknown) {
-      logAuthError('login_failed', error);
-      const apiError = getApiError(error);
+      let responseError = error;
+      if (getApiError(error)?.statusCode === 401) {
+        try {
+          await securityStateService.incrementLoginFailure(
+            securityIdentifier,
+            LOGIN_MAX_ATTEMPTS,
+            LOGIN_LOCKOUT_MS
+          );
+        } catch (stateError: unknown) {
+          responseError = stateError;
+        }
+      }
+      logAuthError('login_failed', responseError);
+      const apiError = getApiError(responseError);
       res.status(apiError?.statusCode || 500).json({
         success: false,
         message: apiError?.message || 'Login failed',

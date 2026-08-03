@@ -28,6 +28,9 @@ export const errorHandler = (
   if (error instanceof AppError) {
     statusCode = error.statusCode;
     message = error.message;
+  } else if (error.name === 'RedisUnavailableError') {
+    statusCode = 503;
+    message = 'Shared state service is temporarily unavailable';
   } else if (error.name === 'ValidationError') {
     statusCode = 400;
     message = 'Validation Error';
