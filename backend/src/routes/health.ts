@@ -3,6 +3,7 @@ import prisma from '../config/database';
 import { config } from '../config/env';
 import logger from '../config/logger';
 import { getRedisClient } from '../config/redis';
+import { isShuttingDown } from '../lifecycle';
 
 type Dependency = 'database' | 'redis';
 type ErrorCategory = 'fallback' | 'timeout' | 'unavailable';
@@ -83,6 +84,15 @@ router.get('/livez', (_req, res) => {
 });
 
 router.get('/readyz', async (_req, res) => {
+  if (isShuttingDown()) {
+    res.status(503).json({
+      status: 'not_ready',
+      reason: 'shutting_down',
+      checks: { database: 'up', redis: 'up' },
+    });
+    return;
+  }
+
   const [database, redis] = await Promise.all([checkDatabase(), checkRedis()]);
 
   if (database.status === 'down') {

@@ -1,4 +1,5 @@
 import cron from 'node-cron';
+import type { ScheduledTask } from 'node-cron';
 import prisma from '../config/database';
 import logger from '../config/logger';
 import OpenAI from 'openai';
@@ -6,8 +7,8 @@ import { config } from '../config/env';
 
 const SUMMARIZATION_THRESHOLD = 20;
 
-export function startSummarizationJob(): void {
-  cron.schedule('* * * * *', async () => {
+export function startSummarizationJob(): ScheduledTask {
+  const task = cron.schedule('* * * * *', async () => {
     if (!config.OPENAI_API_KEY) return;
 
     try {
@@ -88,9 +89,14 @@ export function startSummarizationJob(): void {
         }
       }
     } catch (err) {
-      logger.error('Summarization job error:', err);
+      logger.error('Summarization job failed', {
+        event: 'summarization_job_failed',
+        outcome: 'failure',
+        errorCategory: err instanceof Error ? err.name : 'unknown',
+      });
     }
   });
 
   logger.info('Summarization job scheduled (every 60s)');
+  return task;
 }

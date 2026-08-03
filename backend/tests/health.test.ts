@@ -30,6 +30,7 @@ vi.mock('../src/config/logger', () => ({ default: mocks.logger }));
 
 import app from '../src/index';
 import { config } from '../src/config/env';
+import { beginShutdown } from '../src/lifecycle';
 
 const originalNodeEnv = config.NODE_ENV;
 
@@ -138,5 +139,21 @@ describe('health probes', () => {
 
     expect(responses.every((response) => response.status === 200)).toBe(true);
     expect(responses.every((response) => response.headers['ratelimit-limit'] === undefined)).toBe(true);
+  });
+
+  it('becomes not ready immediately during shutdown while remaining live', async () => {
+    expect(beginShutdown()).toBe(true);
+
+    const readiness = await request(app).get('/readyz').expect(503);
+    const liveness = await request(app).get('/livez').expect(200);
+
+    expect(readiness.body).toEqual({
+      status: 'not_ready',
+      reason: 'shutting_down',
+      checks: { database: 'up', redis: 'up' },
+    });
+    expect(liveness.body).toEqual({ status: 'alive' });
+    expect(mocks.databaseQuery).not.toHaveBeenCalled();
+    expect(mocks.getRedisClient).not.toHaveBeenCalled();
   });
 });

@@ -19,6 +19,9 @@ import healthRoutes from './routes/health';
 import { startStateExpiryJob } from './jobs/stateExpiryJob';
 import { startIdempotencyCleanupJob } from './jobs/idempotencyCleanupJob';
 import { startSummarizationJob } from './jobs/summarizationJob';
+import prisma from './config/database';
+import { shutdownRedis } from './config/redis';
+import { createShutdownCoordinator } from './shutdown';
 
 const app = express();
 
@@ -85,33 +88,29 @@ app.use(errorHandler);
 
 export function startServer() {
   const PORT = config.PORT;
-  return app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     logger.info(`🚀 Finance AI Backend running on port ${PORT}`);
     logger.info(`📊 Environment: ${config.NODE_ENV}`);
     logger.info(`🔗 API Base URL: http://localhost:${PORT}/api/${config.API_VERSION}`);
     logger.info('Health probes enabled');
-
-    // Start background jobs
-    startStateExpiryJob();
-    startIdempotencyCleanupJob();
-    startSummarizationJob();
   });
+
+  const jobs = [startStateExpiryJob(), startIdempotencyCleanupJob(), startSummarizationJob()];
+  const shutdown = createShutdownCoordinator({
+    server,
+    jobs,
+    disconnectPrisma: () => prisma.$disconnect(),
+    shutdownRedis,
+  });
+
+  process.on('SIGTERM', () => void shutdown('SIGTERM'));
+  process.on('SIGINT', () => void shutdown('SIGINT'));
+
+  return server;
 }
 
-// Prevent opening a network port during tests/imported usage.
-if (!process.env.VITEST && process.env.NODE_ENV !== 'test') {
+if (require.main === module) {
   startServer();
 }
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM received, shutting down gracefully');
-  process.exit(0);
-});
-
-process.on('SIGINT', () => {
-  logger.info('SIGINT received, shutting down gracefully');
-  process.exit(0);
-});
 
 export default app;
