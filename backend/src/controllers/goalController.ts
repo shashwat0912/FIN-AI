@@ -1,11 +1,12 @@
 import { Request, Response } from 'express';
-import { Goal, Prisma, PrismaClient } from '@prisma/client';
+import { Goal, Prisma } from '@prisma/client';
 import { ApiResponse, PaginatedApiResponse } from '../types';
+import prisma from '../config/database';
 
-const prisma = new PrismaClient();
 type AuthenticatedRequest = Request & { user: { id: string } };
 const getUserId = (req: Request) => (req as AuthenticatedRequest).user.id;
-const getErrorMessage = (error: unknown) => error instanceof Error ? error.message : 'Something went wrong';
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : 'Something went wrong';
 
 export class GoalController {
   // Get all goals for a user
@@ -72,7 +73,7 @@ export class GoalController {
           message: 'Goal not found',
           timestamp: new Date().toISOString(),
         });
-      return;
+        return;
       }
 
       res.json({
@@ -97,7 +98,14 @@ export class GoalController {
   async createGoal(req: Request, res: Response<ApiResponse>) {
     try {
       const userId = getUserId(req);
-      const { name, description, targetAmount, currentAmount = 0, targetDate, status = 'ACTIVE' } = req.body;
+      const {
+        name,
+        description,
+        targetAmount,
+        currentAmount = 0,
+        targetDate,
+        status = 'ACTIVE',
+      } = req.body;
 
       const goal = await prisma.goal.create({
         data: {
@@ -147,7 +155,7 @@ export class GoalController {
           message: 'Goal not found',
           timestamp: new Date().toISOString(),
         });
-      return;
+        return;
       }
 
       // Handle targetDate conversion
@@ -195,7 +203,7 @@ export class GoalController {
           message: 'Goal not found',
           timestamp: new Date().toISOString(),
         });
-      return;
+        return;
       }
 
       await prisma.goal.delete({
@@ -238,13 +246,15 @@ export class GoalController {
 
       const totalTargetAmount = goals.reduce((sum, goal) => sum + Number(goal.targetAmount), 0);
       const totalCurrentAmount = goals.reduce((sum, goal) => sum + Number(goal.currentAmount), 0);
-      const overallProgress = totalTargetAmount > 0 ? (totalCurrentAmount / totalTargetAmount) * 100 : 0;
+      const overallProgress =
+        totalTargetAmount > 0 ? (totalCurrentAmount / totalTargetAmount) * 100 : 0;
 
       // Goals nearing completion (80%+ progress)
       const nearingCompletion = goals.filter(goal => {
-        const progress = Number(goal.targetAmount) > 0 
-          ? (Number(goal.currentAmount) / Number(goal.targetAmount)) * 100 
-          : 0;
+        const progress =
+          Number(goal.targetAmount) > 0
+            ? (Number(goal.currentAmount) / Number(goal.targetAmount)) * 100
+            : 0;
         return progress >= 80 && goal.status === 'ACTIVE';
       });
 
@@ -269,12 +279,15 @@ export class GoalController {
         nearingCompletion: nearingCompletion.length,
         upcomingDeadlines: upcomingDeadlines.length,
         goals: goals.map(goal => {
-          const progress = Number(goal.targetAmount) > 0 
-            ? (Number(goal.currentAmount) / Number(goal.targetAmount)) * 100 
-            : 0;
+          const progress =
+            Number(goal.targetAmount) > 0
+              ? (Number(goal.currentAmount) / Number(goal.targetAmount)) * 100
+              : 0;
           const remaining = Number(goal.targetAmount) - Number(goal.currentAmount);
-          const daysUntilDeadline = goal.targetDate 
-            ? Math.ceil((new Date(goal.targetDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+          const daysUntilDeadline = goal.targetDate
+            ? Math.ceil(
+                (new Date(goal.targetDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+              )
             : null;
 
           return {
@@ -282,7 +295,8 @@ export class GoalController {
             progress: Math.round(progress * 100) / 100,
             remaining,
             daysUntilDeadline,
-            isOverdue: daysUntilDeadline !== null && daysUntilDeadline < 0 && goal.status === 'ACTIVE',
+            isOverdue:
+              daysUntilDeadline !== null && daysUntilDeadline < 0 && goal.status === 'ACTIVE',
           };
         }),
       };

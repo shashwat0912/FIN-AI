@@ -1,15 +1,18 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { ApiResponse } from '../types';
 import bcrypt from 'bcryptjs';
+import prisma from '../config/database';
 
-const prisma = new PrismaClient();
+type AuthenticatedRequest = Request & { user: { id: string } };
+const getUserId = (req: Request) => (req as AuthenticatedRequest).user.id;
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : 'Something went wrong';
 
 export class UserController {
   // Get user profile
   async getProfile(req: Request, res: Response<ApiResponse>) {
     try {
-      const userId = (req as any).user.id;
+      const userId = getUserId(req);
 
       const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -32,7 +35,7 @@ export class UserController {
           message: 'User not found',
           timestamp: new Date().toISOString(),
         });
-      return;
+        return;
       }
 
       res.json({
@@ -42,11 +45,11 @@ export class UserController {
         timestamp: new Date().toISOString(),
       });
       return;
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         success: false,
         message: 'Failed to retrieve profile',
-        error: error.message,
+        error: getErrorMessage(error),
         timestamp: new Date().toISOString(),
       });
       return;
@@ -56,7 +59,7 @@ export class UserController {
   // Update user profile
   async updateProfile(req: Request, res: Response<ApiResponse>) {
     try {
-      const userId = (req as any).user.id;
+      const userId = getUserId(req);
       const { name, email } = req.body;
 
       // Check if email is already taken by another user
@@ -64,7 +67,7 @@ export class UserController {
         const existingUser = await prisma.user.findFirst({
           where: { email, id: { not: userId } },
         });
-      return;
+        return;
 
         if (existingUser) {
           return res.status(400).json({
@@ -72,7 +75,7 @@ export class UserController {
             message: 'Email is already taken',
             timestamp: new Date().toISOString(),
           });
-      return;
+          return;
         }
       }
 
@@ -99,11 +102,11 @@ export class UserController {
         timestamp: new Date().toISOString(),
       });
       return;
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         success: false,
         message: 'Failed to update profile',
-        error: error.message,
+        error: getErrorMessage(error),
         timestamp: new Date().toISOString(),
       });
       return;
@@ -113,7 +116,7 @@ export class UserController {
   // Upload avatar
   async uploadAvatar(req: Request, res: Response<ApiResponse>) {
     try {
-      const userId = (req as any).user.id;
+      const userId = getUserId(req);
       const { avatarUrl } = req.body;
 
       if (!avatarUrl) {
@@ -122,7 +125,7 @@ export class UserController {
           message: 'Avatar URL is required',
           timestamp: new Date().toISOString(),
         });
-      return;
+        return;
       }
 
       const user = await prisma.user.update({
@@ -148,11 +151,11 @@ export class UserController {
         timestamp: new Date().toISOString(),
       });
       return;
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         success: false,
         message: 'Failed to update avatar',
-        error: error.message,
+        error: getErrorMessage(error),
         timestamp: new Date().toISOString(),
       });
       return;
@@ -162,7 +165,7 @@ export class UserController {
   // Delete avatar
   async deleteAvatar(req: Request, res: Response<ApiResponse>) {
     try {
-      const userId = (req as any).user.id;
+      const userId = getUserId(req);
 
       const user = await prisma.user.update({
         where: { id: userId },
@@ -187,11 +190,11 @@ export class UserController {
         timestamp: new Date().toISOString(),
       });
       return;
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         success: false,
         message: 'Failed to delete avatar',
-        error: error.message,
+        error: getErrorMessage(error),
         timestamp: new Date().toISOString(),
       });
       return;
@@ -201,7 +204,7 @@ export class UserController {
   // Change password
   async changePassword(req: Request, res: Response<ApiResponse>) {
     try {
-      const userId = (req as any).user.id;
+      const userId = getUserId(req);
       const { currentPassword, newPassword } = req.body;
 
       // Get user with password
@@ -216,7 +219,7 @@ export class UserController {
           message: 'Password not set for this account',
           timestamp: new Date().toISOString(),
         });
-      return;
+        return;
       }
 
       // Verify current password
@@ -227,7 +230,7 @@ export class UserController {
           message: 'Current password is incorrect',
           timestamp: new Date().toISOString(),
         });
-      return;
+        return;
       }
 
       // Hash new password
@@ -246,11 +249,11 @@ export class UserController {
         timestamp: new Date().toISOString(),
       });
       return;
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         success: false,
         message: 'Failed to change password',
-        error: error.message,
+        error: getErrorMessage(error),
         timestamp: new Date().toISOString(),
       });
       return;
@@ -260,7 +263,7 @@ export class UserController {
   // Get user statistics
   async getUserStats(req: Request, res: Response<ApiResponse>) {
     try {
-      const userId = (req as any).user.id;
+      const userId = getUserId(req);
 
       const [transactionCount, budgetCount, goalCount, aiSessionCount] = await Promise.all([
         prisma.transaction.count({ where: { userId } }),
@@ -299,16 +302,14 @@ export class UserController {
         timestamp: new Date().toISOString(),
       });
       return;
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         success: false,
         message: 'Failed to retrieve user statistics',
-        error: error.message,
+        error: getErrorMessage(error),
         timestamp: new Date().toISOString(),
       });
       return;
     }
   }
 }
-
-

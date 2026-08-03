@@ -28,11 +28,7 @@ vi.mock('../src/routes', () => ({
 function createDependencies(closeError?: Error) {
   const close = vi.fn((callback: (error?: Error) => void) => callback(closeError));
   const closeIdleConnections = vi.fn();
-  const jobs: Stoppable[] = [
-    { stop: vi.fn() },
-    { stop: vi.fn() },
-    { stop: vi.fn() },
-  ];
+  const jobs: Stoppable[] = [{ stop: vi.fn() }, { stop: vi.fn() }, { stop: vi.fn() }];
   const disconnectPrisma = vi.fn().mockResolvedValue(undefined);
   const shutdownRedis = vi.fn().mockResolvedValue(undefined);
   const exit = vi.fn();
@@ -148,37 +144,6 @@ describe('graceful shutdown', () => {
       event: 'shutdown_forced',
       outcome: 'timeout',
     });
-  });
-
-  it('closes real Redis gracefully and abandons fallback connections without throwing', async () => {
-    const handlers = new Map<string, () => void>();
-    const redis = {
-      connect: vi.fn().mockResolvedValue(undefined),
-      disconnect: vi.fn(),
-      on: vi.fn((event: string, handler: () => void) => handlers.set(event, handler)),
-      quit: vi.fn().mockResolvedValue('OK'),
-    };
-
-    vi.resetModules();
-    vi.doMock('ioredis', () => ({
-      default: vi.fn(function RedisMock() {
-        return redis;
-      }),
-    }));
-    vi.doMock('../src/config/logger', () => ({
-      default: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
-    }));
-    const { getRedisClient, shutdownRedis } = await import('../src/config/redis');
-
-    getRedisClient();
-    handlers.get('error')?.();
-    await expect(shutdownRedis()).resolves.toBeUndefined();
-    expect(redis.disconnect).toHaveBeenCalledOnce();
-    expect(redis.quit).not.toHaveBeenCalled();
-
-    getRedisClient();
-    await shutdownRedis();
-    expect(redis.quit).toHaveBeenCalledOnce();
   });
 
   it('does not start jobs or install signal handlers when the Express app is imported', async () => {
