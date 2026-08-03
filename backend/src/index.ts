@@ -15,6 +15,7 @@ import {
   validateCsrfToken
 } from './middleware/security';
 import routes from './routes';
+import healthRoutes from './routes/health';
 import { startStateExpiryJob } from './jobs/stateExpiryJob';
 import { startIdempotencyCleanupJob } from './jobs/idempotencyCleanupJob';
 import { startSummarizationJob } from './jobs/summarizationJob';
@@ -26,6 +27,7 @@ app.set('trust proxy', 1);
 
 // Enhanced Security middleware
 app.use(securityHeaders);
+app.use(healthRoutes);
 app.use(environmentValidator);
 app.use(securityLogger);
 
@@ -87,7 +89,7 @@ export function startServer() {
     logger.info(`🚀 Finance AI Backend running on port ${PORT}`);
     logger.info(`📊 Environment: ${config.NODE_ENV}`);
     logger.info(`🔗 API Base URL: http://localhost:${PORT}/api/${config.API_VERSION}`);
-    logger.info(`💊 Health Check: http://localhost:${PORT}/api/${config.API_VERSION}/health`);
+    logger.info('Health probes enabled');
 
     // Start background jobs
     startStateExpiryJob();
