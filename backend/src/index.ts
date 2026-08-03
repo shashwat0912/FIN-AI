@@ -4,15 +4,15 @@ import cookieParser from 'cookie-parser';
 import { config } from './config/env';
 import logger from './config/logger';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
-import { 
-  securityHeaders, 
-  rateLimiter, 
-  validateRequest, 
-  corsOptions, 
-  securityLogger, 
+import {
+  securityHeaders,
+  rateLimiter,
+  validateRequest,
+  corsOptions,
+  securityLogger,
   environmentValidator,
   generateCsrfToken,
-  validateCsrfToken
+  validateCsrfToken,
 } from './middleware/security';
 import routes from './routes';
 import healthRoutes from './routes/health';
@@ -20,7 +20,7 @@ import { startStateExpiryJob } from './jobs/stateExpiryJob';
 import { startIdempotencyCleanupJob } from './jobs/idempotencyCleanupJob';
 import { startSummarizationJob } from './jobs/summarizationJob';
 import prisma from './config/database';
-import { shutdownRedis } from './config/redis';
+import { closeRedisConnection } from './config/redis';
 import { createShutdownCoordinator } from './shutdown';
 
 const app = express();
@@ -100,7 +100,7 @@ export function startServer() {
     server,
     jobs,
     disconnectPrisma: () => prisma.$disconnect(),
-    shutdownRedis,
+    shutdownRedis: closeRedisConnection,
   });
 
   process.on('SIGTERM', () => void shutdown('SIGTERM'));

@@ -1,5 +1,5 @@
 import logger from '../../config/logger';
-import { getRedisClient } from '../../config/redis';
+import { runRedisOperation } from '../../config/redis';
 import { ConversationState, ChatIntentType } from '../../types';
 
 const STATE_PREFIX = 'conv:state:';
@@ -26,55 +26,60 @@ function defaultState(userId: string): ConversationState {
 
 export class ConversationStateMachine {
   async getState(userId: string): Promise<ConversationState> {
-    try {
-      const redis = getRedisClient();
+    return runRedisOperation(async redis => {
       const raw = await redis.get(`${STATE_PREFIX}${userId}`);
       if (!raw) return defaultState(userId);
       return JSON.parse(raw);
-    } catch {
-      return defaultState(userId);
-    }
+    });
   }
 
-  async transition(userId: string, event: string, data?: Partial<ConversationState>): Promise<ConversationState> {
-    const redis = getRedisClient();
-    const lockKey = `${LOCK_PREFIX}${userId}`;
+  async transition(
+    userId: string,
+    event: string,
+    data?: Partial<ConversationState>
+  ): Promise<ConversationState> {
+    return runRedisOperation(async redis => {
+      const lockKey = `${LOCK_PREFIX}${userId}`;
 
-    // Acquire lock
-    const acquired = await redis.set(lockKey, '1', 'EX', LOCK_TTL_SECONDS, 'NX');
-    if (!acquired) {
-      throw conversationConflict('Another chat state transition is already in progress.');
-    }
-
-    try {
-      const current = await this.getState(userId);
-      if (current.state === 'PROCESSING' && event === 'MESSAGE_RECEIVED') {
-        throw conversationConflict('A chat request is already being processed.');
-      }
-      const next = this.computeNextState(current, event, data);
-
-      const nextComparable = { ...next, stateEnteredAt: current.stateEnteredAt };
-      const hasChanged = JSON.stringify(nextComparable) !== JSON.stringify(current);
-      const shouldRefreshState = event === 'EDIT_APPLIED';
-
-      if (hasChanged || shouldRefreshState) {
-        next.stateEnteredAt = new Date().toISOString();
-        await redis.set(`${STATE_PREFIX}${userId}`, JSON.stringify(next), 'EX', STATE_TTL_SECONDS);
+      // Acquire lock
+      const acquired = await redis.set(lockKey, '1', 'EX', LOCK_TTL_SECONDS, 'NX');
+      if (!acquired) {
+        throw conversationConflict('Another chat state transition is already in progress.');
       }
 
-      return next;
-    } finally {
-      await redis.del(lockKey).catch(() => {});
-    }
+      try {
+        const raw = await redis.get(`${STATE_PREFIX}${userId}`);
+        const current = raw ? (JSON.parse(raw) as ConversationState) : defaultState(userId);
+        if (current.state === 'PROCESSING' && event === 'MESSAGE_RECEIVED') {
+          throw conversationConflict('A chat request is already being processed.');
+        }
+        const next = this.computeNextState(current, event, data);
+
+        const nextComparable = { ...next, stateEnteredAt: current.stateEnteredAt };
+        const hasChanged = JSON.stringify(nextComparable) !== JSON.stringify(current);
+        const shouldRefreshState = event === 'EDIT_APPLIED';
+
+        if (hasChanged || shouldRefreshState) {
+          next.stateEnteredAt = new Date().toISOString();
+          await redis.set(
+            `${STATE_PREFIX}${userId}`,
+            JSON.stringify(next),
+            'EX',
+            STATE_TTL_SECONDS
+          );
+        }
+
+        return next;
+      } finally {
+        await redis.del(lockKey);
+      }
+    });
   }
 
   async resetToIdle(userId: string): Promise<void> {
-    try {
-      const redis = getRedisClient();
+    await runRedisOperation(async redis => {
       await redis.del(`${STATE_PREFIX}${userId}`);
-    } catch {
-      // Non-critical
-    }
+    });
   }
 
   async expireStaleStates(): Promise<void> {
@@ -126,7 +131,8 @@ export class ConversationStateMachine {
 
       case 'AWAITING_EXPENSE_DETAILS':
         if (event === 'EXPENSE_DETAILS_RECEIVED') return { ...merged, state: 'PROCESSING' };
-        if (event === 'CANCELLED' || event === 'EXPIRED') return { ...defaultState(current.userId) };
+        if (event === 'CANCELLED' || event === 'EXPIRED')
+          return { ...defaultState(current.userId) };
         if (event === 'START_LOG_EXPENSE') {
           return {
             ...merged,

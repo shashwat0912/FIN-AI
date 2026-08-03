@@ -2,7 +2,7 @@ import { Router } from 'express';
 import prisma from '../config/database';
 import { config } from '../config/env';
 import logger from '../config/logger';
-import { getRedisClient } from '../config/redis';
+import { getRedisState, isRedisReady, pingRedis } from '../config/redis';
 import { isShuttingDown } from '../lifecycle';
 
 type Dependency = 'database' | 'redis';
@@ -48,18 +48,23 @@ async function checkDatabase(): Promise<CheckResult> {
 }
 
 async function checkRedis(): Promise<CheckResult> {
+  const state = getRedisState();
+  if (state === 'fallback') {
+    return config.NODE_ENV === 'production'
+      ? { status: 'down', errorCategory: 'fallback' }
+      : { status: 'up' };
+  }
+  if (state === 'shutting_down') {
+    return { status: 'down', errorCategory: 'unavailable' };
+  }
+
   try {
-    const client = getRedisClient() as { ping?: () => Promise<string> };
-
-    if (!client.ping) {
-      return config.NODE_ENV === 'production'
-        ? { status: 'down', errorCategory: 'fallback' }
-        : { status: 'up' };
-    }
-
-    await withTimeout(client.ping());
-    return { status: 'up' };
+    await withTimeout(pingRedis());
+    return isRedisReady() ? { status: 'up' } : { status: 'down', errorCategory: 'unavailable' };
   } catch (error: unknown) {
+    if (getRedisState() === 'fallback' && config.NODE_ENV !== 'production') {
+      return { status: 'up' };
+    }
     return { status: 'down', errorCategory: errorCategory(error) };
   }
 }
@@ -88,7 +93,7 @@ router.get('/readyz', async (_req, res) => {
     res.status(503).json({
       status: 'not_ready',
       reason: 'shutting_down',
-      checks: { database: 'up', redis: 'up' },
+      checks: { database: 'up', redis: 'down' },
     });
     return;
   }

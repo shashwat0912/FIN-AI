@@ -2,12 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 
 const mocks = vi.hoisted(() => {
-  const redisPing = vi.fn();
-
   return {
     databaseQuery: vi.fn(),
-    redisPing,
-    getRedisClient: vi.fn(() => ({ ping: redisPing })),
+    redisState: { value: 'connected' },
+    getRedisState: vi.fn(() => 'connected'),
+    isRedisReady: vi.fn(() => true),
+    pingRedis: vi.fn(),
     logger: {
       debug: vi.fn(),
       error: vi.fn(),
@@ -22,8 +22,10 @@ vi.mock('../src/config/database', () => ({
 }));
 
 vi.mock('../src/config/redis', () => ({
-  default: mocks.getRedisClient,
-  getRedisClient: mocks.getRedisClient,
+  getRedisState: mocks.getRedisState,
+  isRedisReady: mocks.isRedisReady,
+  pingRedis: mocks.pingRedis,
+  closeRedisConnection: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('../src/config/logger', () => ({ default: mocks.logger }));
@@ -38,8 +40,10 @@ describe('health probes', () => {
   beforeEach(() => {
     config.NODE_ENV = originalNodeEnv;
     mocks.databaseQuery.mockReset().mockResolvedValue([{ '?column?': 1 }]);
-    mocks.redisPing.mockReset().mockResolvedValue('PONG');
-    mocks.getRedisClient.mockReset().mockReturnValue({ ping: mocks.redisPing });
+    mocks.redisState.value = 'connected';
+    mocks.getRedisState.mockReset().mockImplementation(() => mocks.redisState.value);
+    mocks.isRedisReady.mockReset().mockReturnValue(true);
+    mocks.pingRedis.mockReset().mockResolvedValue(undefined);
     mocks.logger.warn.mockClear();
   });
 
@@ -54,7 +58,8 @@ describe('health probes', () => {
     expect(response.headers['x-csrf-token']).toBeUndefined();
     expect(response.headers['ratelimit-limit']).toBeUndefined();
     expect(mocks.databaseQuery).not.toHaveBeenCalled();
-    expect(mocks.getRedisClient).not.toHaveBeenCalled();
+    expect(mocks.getRedisState).not.toHaveBeenCalled();
+    expect(mocks.pingRedis).not.toHaveBeenCalled();
     expect(mocks.logger.info).not.toHaveBeenCalledWith('Request processed', expect.anything());
   });
 
@@ -66,8 +71,8 @@ describe('health probes', () => {
       checks: { database: 'up', redis: 'up' },
     });
     expect(mocks.databaseQuery).toHaveBeenCalledOnce();
-    expect(mocks.getRedisClient).toHaveBeenCalledOnce();
-    expect(mocks.redisPing).toHaveBeenCalledOnce();
+    expect(mocks.getRedisState).toHaveBeenCalled();
+    expect(mocks.pingRedis).toHaveBeenCalledOnce();
     expect(mocks.logger.warn).not.toHaveBeenCalled();
   });
 
@@ -95,7 +100,8 @@ describe('health probes', () => {
 
   it('requires a real Redis connection in production', async () => {
     config.NODE_ENV = 'production';
-    mocks.getRedisClient.mockReturnValue({});
+    mocks.redisState.value = 'fallback';
+    mocks.isRedisReady.mockReturnValue(false);
 
     const response = await request(app).get('/readyz').expect(503);
 
@@ -103,11 +109,29 @@ describe('health probes', () => {
       status: 'not_ready',
       checks: { database: 'up', redis: 'down' },
     });
+    expect(mocks.pingRedis).not.toHaveBeenCalled();
+  });
+
+  it('reports unavailable production Redis as down without exposing provider details', async () => {
+    const sensitiveError = 'redis://user:password@private-host:6379';
+    config.NODE_ENV = 'production';
+    mocks.redisState.value = 'unavailable';
+    mocks.isRedisReady.mockReturnValue(false);
+    mocks.pingRedis.mockRejectedValue(new Error(sensitiveError));
+
+    const response = await request(app).get('/readyz').expect(503);
+
+    expect(response.body).toEqual({
+      status: 'not_ready',
+      checks: { database: 'up', redis: 'down' },
+    });
+    expect(JSON.stringify(response.body)).not.toContain(sensitiveError);
+    expect(JSON.stringify(mocks.logger.warn.mock.calls)).not.toContain(sensitiveError);
   });
 
   it('preserves the existing Redis fallback semantics outside production', async () => {
     config.NODE_ENV = 'test';
-    mocks.getRedisClient.mockReturnValue({});
+    mocks.redisState.value = 'fallback';
 
     const response = await request(app).get('/readyz').expect(200);
 
@@ -115,11 +139,12 @@ describe('health probes', () => {
       status: 'ready',
       checks: { database: 'up', redis: 'up' },
     });
+    expect(mocks.pingRedis).not.toHaveBeenCalled();
   });
 
   it('bounds dependency checks that do not settle', async () => {
     mocks.databaseQuery.mockReturnValue(new Promise(() => undefined));
-    mocks.redisPing.mockReturnValue(new Promise(() => undefined));
+    mocks.pingRedis.mockReturnValue(new Promise(() => undefined));
     const startedAt = Date.now();
 
     const response = await request(app).get('/readyz').expect(503);
@@ -137,8 +162,10 @@ describe('health probes', () => {
       ...Array.from({ length: 110 }, () => request(app).get('/readyz')),
     ]);
 
-    expect(responses.every((response) => response.status === 200)).toBe(true);
-    expect(responses.every((response) => response.headers['ratelimit-limit'] === undefined)).toBe(true);
+    expect(responses.every(response => response.status === 200)).toBe(true);
+    expect(responses.every(response => response.headers['ratelimit-limit'] === undefined)).toBe(
+      true
+    );
   });
 
   it('becomes not ready immediately during shutdown while remaining live', async () => {
@@ -150,10 +177,11 @@ describe('health probes', () => {
     expect(readiness.body).toEqual({
       status: 'not_ready',
       reason: 'shutting_down',
-      checks: { database: 'up', redis: 'up' },
+      checks: { database: 'up', redis: 'down' },
     });
     expect(liveness.body).toEqual({ status: 'alive' });
     expect(mocks.databaseQuery).not.toHaveBeenCalled();
-    expect(mocks.getRedisClient).not.toHaveBeenCalled();
+    expect(mocks.getRedisState).not.toHaveBeenCalled();
+    expect(mocks.pingRedis).not.toHaveBeenCalled();
   });
 });
