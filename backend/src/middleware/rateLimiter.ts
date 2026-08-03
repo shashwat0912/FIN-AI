@@ -1,7 +1,11 @@
 import rateLimit from 'express-rate-limit';
 import { config } from '../config/env';
+import { createRateLimitStore, rateLimitKey } from '../services/securityStateService';
 
 export const generalLimiter = rateLimit({
+  store: createRateLimitStore('general'),
+  keyGenerator: rateLimitKey,
+  passOnStoreError: false,
   windowMs: config.RATE_LIMIT_WINDOW_MS,
   max: config.RATE_LIMIT_MAX_REQUESTS,
   message: {
@@ -15,6 +19,9 @@ export const generalLimiter = rateLimit({
 
 // Protect authentication work without charging successful ledger requests to a shared IP bucket.
 export const financeLedgerAuthLimiter = rateLimit({
+  store: createRateLimitStore('finance-ledger-auth'),
+  keyGenerator: rateLimitKey,
+  passOnStoreError: false,
   windowMs: config.RATE_LIMIT_WINDOW_MS,
   max: config.RATE_LIMIT_MAX_REQUESTS,
   skipSuccessfulRequests: true,
@@ -28,6 +35,9 @@ export const financeLedgerAuthLimiter = rateLimit({
 });
 
 export const authLimiter = rateLimit({
+  store: createRateLimitStore('auth-route'),
+  keyGenerator: rateLimitKey,
+  passOnStoreError: false,
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: config.NODE_ENV === 'development' ? 100 : 10, // Much more lenient in development
   message: {
@@ -40,6 +50,9 @@ export const authLimiter = rateLimit({
 });
 
 export const aiLimiter = rateLimit({
+  store: createRateLimitStore('ai'),
+  keyGenerator: rateLimitKey,
+  passOnStoreError: false,
   windowMs: 60 * 1000, // 1 minute
   max: 10, // 10 AI requests per minute
   message: {

@@ -18,6 +18,11 @@ export const config = {
   JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET!,
   JWT_REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
 
+  // Shared security state
+  SECURITY_STATE_HMAC_SECRET:
+    process.env.SECURITY_STATE_HMAC_SECRET ||
+    (process.env.NODE_ENV === 'production' ? '' : process.env.JWT_SECRET!),
+
   // CORS
   CORS_ORIGIN: process.env.CORS_ORIGIN || 'http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176',
   CORS_CREDENTIALS: process.env.CORS_CREDENTIALS === 'true',
@@ -61,16 +66,6 @@ const requiredEnvVars = [
   'DATABASE_URL',
   'JWT_SECRET',
   'JWT_REFRESH_SECRET',
-];
-
-const optionalEnvVars = [
-  'OPENAI_API_KEY',
-  'STRIPE_SECRET_KEY',
-  'STRIPE_WEBHOOK_SECRET',
-  'SMTP_HOST',
-  'SMTP_USER',
-  'SMTP_PASS',
-  'REDIS_URL',
 ];
 
 // Validate required environment variables
@@ -119,6 +114,17 @@ if (weakSecrets.includes(process.env.JWT_REFRESH_SECRET)) {
 
 // Enhanced environment-specific validation
 if (config.NODE_ENV === 'production') {
+  const securityStateHmacSecret = process.env.SECURITY_STATE_HMAC_SECRET;
+  if (!securityStateHmacSecret) {
+    throw new Error('SECURITY_STATE_HMAC_SECRET is required in production');
+  }
+  if (securityStateHmacSecret.length < 64) {
+    throw new Error('SECURITY_STATE_HMAC_SECRET must be at least 64 characters long');
+  }
+  if (weakSecrets.includes(securityStateHmacSecret)) {
+    throw new Error('SECURITY_STATE_HMAC_SECRET cannot use a weak or default value');
+  }
+
   // Production-specific security validations
   if (config.CORS_ORIGIN.includes('localhost')) {
     throw new Error('CORS_ORIGIN cannot include localhost in production');

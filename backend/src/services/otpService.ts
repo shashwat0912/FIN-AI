@@ -232,12 +232,12 @@ export class OtpService {
 
     if (!isValid) {
       // Increment attempts
-      await prisma.otp.update({
+      const updatedOtp = await prisma.otp.update({
         where: { id: otpRecord.id },
-        data: { attempts: otpRecord.attempts + 1 },
+        data: { attempts: { increment: 1 } },
       });
 
-      const remainingAttempts = this.MAX_ATTEMPTS - (otpRecord.attempts + 1);
+      const remainingAttempts = this.MAX_ATTEMPTS - updatedOtp.attempts;
       if (remainingAttempts > 0) {
         throw new AppError(
           `Invalid OTP. ${remainingAttempts} attempt(s) remaining.`,

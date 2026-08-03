@@ -6,6 +6,12 @@ import { createHash } from 'crypto';
 import { config } from '../config/env';
 import logger from '../config/logger';
 import { AuthenticatedRequest } from '../types';
+import {
+  createRateLimitStore,
+  loginSecurityIdentifier,
+  rateLimitKey,
+  securityStateService,
+} from '../services/securityStateService';
 
 // CSRF protection - use a single server-side secret for stateless verification
 const csrfProtection = new csrf();
@@ -56,6 +62,9 @@ export const securityHeaders = helmet({
 
 // Rate limiting middleware
 export const rateLimiter = rateLimit({
+  store: createRateLimitStore('global'),
+  keyGenerator: rateLimitKey,
+  passOnStoreError: false,
   windowMs: config.RATE_LIMIT_WINDOW_MS,
   max: config.NODE_ENV === 'development' ? 1000 : config.RATE_LIMIT_MAX_REQUESTS, // Much more lenient in development
   skip: (req) => {
@@ -73,6 +82,9 @@ export const rateLimiter = rateLimit({
 
 // Strict rate limiting for auth endpoints
 export const authRateLimiter = rateLimit({
+  store: createRateLimitStore('auth-global'),
+  keyGenerator: rateLimitKey,
+  passOnStoreError: false,
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: config.NODE_ENV === 'development' ? 50 : 10, // More lenient in development
   message: {
@@ -86,6 +98,9 @@ export const authRateLimiter = rateLimit({
 
 // API rate limiting
 export const apiRateLimiter = rateLimit({
+  store: createRateLimitStore('api'),
+  keyGenerator: rateLimitKey,
+  passOnStoreError: false,
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // 100 requests per window
   message: {
@@ -162,10 +177,9 @@ export const securityLogger = (req: Request, res: Response, next: NextFunction) 
     const duration = Date.now() - start;
     const logData = {
       method: req.method,
-      url: req.url,
+      path: req.path,
       status: res.statusCode,
       duration: `${duration}ms`,
-      ip: req.ip,
       userAgent: req.get('User-Agent'),
       timestamp: new Date().toISOString(),
     };
@@ -181,155 +195,62 @@ export const securityLogger = (req: Request, res: Response, next: NextFunction) 
   next();
 };
 
-// Per-user rate limiting store (in production, use Redis)
-const userRateLimitStore = new Map<string, { count: number; resetTime: number }>();
-
 // Per-user rate limiting middleware
 export const perUserRateLimiter = (
   maxRequests: number = 10,
   windowMs: number = 15 * 60 * 1000,
   scope: string = 'default'
-) => {
-  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    const userId = req.user?.id;
-    if (!userId) {
-      return next(); // Skip if no user ID
-    }
-
-    const now = Date.now();
-    const key = `${scope}:user:${userId}`;
-    const userLimit = userRateLimitStore.get(key);
-
-    if (!userLimit || now > userLimit.resetTime) {
-      // Reset or create new limit
-      userRateLimitStore.set(key, {
-        count: 1,
-        resetTime: now + windowMs,
-      });
-      return next();
-    }
-
-    if (userLimit.count >= maxRequests) {
-      return res.status(429).json({
+) =>
+  rateLimit({
+    store: createRateLimitStore(`user:${scope}`),
+    keyGenerator: rateLimitKey,
+    passOnStoreError: false,
+    windowMs,
+    max: maxRequests,
+    skip: req => !(req as AuthenticatedRequest).user?.id,
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: (req, res) => {
+      const resetTime = (req as Request & { rateLimit?: { resetTime?: Date } }).rateLimit
+        ?.resetTime;
+      res.status(429).json({
         success: false,
         message: 'Too many requests from this user, please try again later.',
-        retryAfter: Math.ceil((userLimit.resetTime - now) / 1000),
+        retryAfter: resetTime
+          ? Math.max(0, Math.ceil((resetTime.getTime() - Date.now()) / 1000))
+          : 0,
         timestamp: new Date().toISOString(),
       });
-    }
-
-    userLimit.count++;
-    next();
-  };
-};
+    },
+  });
 
 // Account lockout after failed login attempts
-const failedAttempts = new Map<string, { count: number; lockoutUntil: number }>();
-
-function getAuthAttemptKey(req: Request): string {
-  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
-  const ip = req.ip || 'unknown';
-  return `${ip}:${email}`;
-}
-
-export const accountLockout = (maxAttempts: number = config.NODE_ENV === 'development' ? 20 : 5, lockoutDuration: number = 15 * 60 * 1000) => {
-  return (req: Request, res: Response, next: NextFunction) => {
-    const identifier = getAuthAttemptKey(req);
-    const now = Date.now();
-    const attempt = failedAttempts.get(identifier);
-
-    if (attempt && now < attempt.lockoutUntil) {
-      return res.status(423).json({
+export const accountLockout = () => async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const retryAfterMs = await securityStateService.getLoginLockout(loginSecurityIdentifier(req));
+    if (retryAfterMs > 0) {
+      res.status(423).json({
         success: false,
         message: 'Account temporarily locked due to too many failed attempts',
-        retryAfter: Math.ceil((attempt.lockoutUntil - now) / 1000),
+        retryAfter: Math.ceil(retryAfterMs / 1000),
         timestamp: new Date().toISOString(),
       });
+      return;
     }
-
-    // Reset if lockout period has passed.
-    if (attempt && attempt.lockoutUntil > 0 && now >= attempt.lockoutUntil) {
-      failedAttempts.delete(identifier);
-    }
-
-    // Defensive: if attempts crossed threshold but lock wasn't set for any reason, enforce now.
-    if (attempt && attempt.lockoutUntil === 0 && attempt.count >= maxAttempts) {
-      attempt.lockoutUntil = now + lockoutDuration;
-      failedAttempts.set(identifier, attempt);
-      return res.status(423).json({
-        success: false,
-        message: 'Account temporarily locked due to too many failed attempts',
-        retryAfter: Math.ceil((attempt.lockoutUntil - now) / 1000),
-        timestamp: new Date().toISOString(),
-      });
-    }
-
     next();
-    return;
-  };
-};
-
-// Record failed login attempt
-export const recordFailedAttempt = (
-  maxAttempts: number = config.NODE_ENV === 'development' ? 20 : 5,
-  lockoutDuration: number = 15 * 60 * 1000
-) => (req: Request, res: Response, next: NextFunction) => {
-  const identifier = getAuthAttemptKey(req);
-
-  res.on('finish', () => {
-    // Count only authentication failures.
-    if (res.statusCode !== 401) return;
-
-    const now = Date.now();
-    const current = failedAttempts.get(identifier);
-
-    if (!current) {
-      failedAttempts.set(identifier, {
-        count: 1,
-        lockoutUntil: 0,
-      });
-      return;
-    }
-
-    // If already locked, keep existing lock window.
-    if (current.lockoutUntil > now) return;
-
-    const nextCount = current.count + 1;
-    if (nextCount >= maxAttempts) {
-      failedAttempts.set(identifier, {
-        count: nextCount,
-        lockoutUntil: now + lockoutDuration,
-      });
-      return;
-    }
-
-    failedAttempts.set(identifier, {
-      count: nextCount,
-      lockoutUntil: 0,
-    });
-  });
-
-  next();
-};
-
-// Clear failed attempts after successful login response.
-export const clearFailedAttemptsOnSuccess = (req: Request, res: Response, next: NextFunction) => {
-  const identifier = getAuthAttemptKey(req);
-
-  res.on('finish', () => {
-    if (res.statusCode >= 200 && res.statusCode < 300) {
-      failedAttempts.delete(identifier);
-    }
-  });
-
-  next();
+  } catch (error: unknown) {
+    next(error);
+  }
 };
 
 // Clear failed attempts on successful login
-export const clearFailedAttempts = (req: Request, res: Response, next: NextFunction) => {
-  const identifier = getAuthAttemptKey(req);
-  failedAttempts.delete(identifier);
-  next();
+export const clearFailedAttempts = async (req: Request, _res: Response, next: NextFunction) => {
+  try {
+    await securityStateService.clearLoginFailures(loginSecurityIdentifier(req));
+    next();
+  } catch (error: unknown) {
+    next(error);
+  }
 };
 
 // Environment validation middleware
@@ -411,7 +332,6 @@ export const validateCsrfToken = (req: Request, res: Response, next: NextFunctio
     logger.warn('CSRF token missing', {
       path: req.path,
       method: req.method,
-      ip: req.ip,
     });
     res.status(403).json({
       success: false,
@@ -426,7 +346,6 @@ export const validateCsrfToken = (req: Request, res: Response, next: NextFunctio
     logger.warn('Invalid CSRF token', {
       path: req.path,
       method: req.method,
-      ip: req.ip,
     });
     res.status(403).json({
       success: false,
