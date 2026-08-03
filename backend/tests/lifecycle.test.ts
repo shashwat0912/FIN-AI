@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createShutdownCoordinator, SHUTDOWN_TIMEOUT_MS } from '../src/shutdown';
 import type { Stoppable } from '../src/shutdown';
 
@@ -6,6 +6,7 @@ const importMocks = vi.hoisted(() => ({
   startStateExpiryJob: vi.fn(),
   startIdempotencyCleanupJob: vi.fn(),
   startSummarizationJob: vi.fn(),
+  stopJobLeaseRenewals: vi.fn(),
 }));
 
 vi.mock('../src/jobs/stateExpiryJob', () => ({
@@ -16,6 +17,9 @@ vi.mock('../src/jobs/idempotencyCleanupJob', () => ({
 }));
 vi.mock('../src/jobs/summarizationJob', () => ({
   startSummarizationJob: importMocks.startSummarizationJob,
+}));
+vi.mock('../src/services/distributedJobLease', () => ({
+  stopJobLeaseRenewals: importMocks.stopJobLeaseRenewals,
 }));
 vi.mock('../src/routes', () => ({
   default: (
@@ -53,6 +57,10 @@ function createDependencies(closeError?: Error) {
   };
 }
 
+beforeEach(() => {
+  importMocks.stopJobLeaseRenewals.mockClear();
+});
+
 afterEach(() => {
   vi.useRealTimers();
 });
@@ -66,6 +74,7 @@ describe('graceful shutdown', () => {
     const repeated = shutdown('SIGINT');
 
     expect(repeated).toBe(first);
+    expect(importMocks.stopJobLeaseRenewals).toHaveBeenCalledOnce();
     expect(context.close).toHaveBeenCalledOnce();
     await first;
 
