@@ -1,5 +1,6 @@
 import logger from './config/logger';
 import { beginShutdown } from './lifecycle';
+import { stopJobLeaseRenewals } from './services/distributedJobLease';
 
 export const SHUTDOWN_TIMEOUT_MS = 15_000;
 
@@ -86,6 +87,7 @@ export function createShutdownCoordinator({
     if (shutdownPromise) return shutdownPromise;
 
     beginShutdown();
+    stopJobLeaseRenewals();
     log.info('Graceful shutdown started', {
       event: 'shutdown_started',
       signal,
