@@ -1,0 +1,47 @@
+# Development-only values for the disposable finance-ai-local kind cluster.
+backend:
+  replicas: 1
+  existingSecret: finance-ai-local-backend-secrets
+  image:
+    repository: finance-ai-backend
+    tag: phase-2b
+    digest: ""
+    pullPolicy: Never
+  config:
+    CORS_ORIGIN: https://finance-ai.local
+    AI_PROVIDER: local
+    EMBEDDING_PROVIDER: local
+    LOG_LEVEL: info
+  probes:
+    liveness:
+      initialDelaySeconds: 60
+      timeoutSeconds: 5
+    readiness:
+      timeoutSeconds: 5
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 384Mi
+
+frontend:
+  replicas: 1
+  image:
+    repository: finance-ai-frontend
+    tag: phase-2b
+    digest: ""
+    pullPolicy: Never
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 150m
+      memory: 128Mi
+
+ingress:
+  enabled: false
+  hosts: []
+  tls: []

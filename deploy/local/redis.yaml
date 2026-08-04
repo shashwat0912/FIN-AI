@@ -1,0 +1,81 @@
+# Development-only Redis. Production uses an external managed Redis service.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: finance-ai-local
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/instance: finance-ai-local
+    app.kubernetes.io/component: cache
+    app.kubernetes.io/part-of: finance-ai
+    app.kubernetes.io/managed-by: local-validation
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+      app.kubernetes.io/instance: finance-ai-local
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: redis
+        app.kubernetes.io/instance: finance-ai-local
+        app.kubernetes.io/component: cache
+        app.kubernetes.io/part-of: finance-ai
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - exec redis-server --save "" --appendonly no --requirepass "$REDIS_PASSWORD"
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: finance-ai-local-redis
+                  key: REDIS_PASSWORD
+          ports:
+            - name: redis
+              containerPort: 6379
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - redis-cli -a "$REDIS_PASSWORD" ping | grep -q PONG
+            initialDelaySeconds: 2
+            periodSeconds: 2
+            timeoutSeconds: 2
+            failureThreshold: 15
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: finance-ai-local
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/instance: finance-ai-local
+    app.kubernetes.io/component: cache
+    app.kubernetes.io/part-of: finance-ai
+    app.kubernetes.io/managed-by: local-validation
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/instance: finance-ai-local
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
