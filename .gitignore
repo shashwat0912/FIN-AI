@@ -40,3 +40,18 @@ server/prisma/dev.db
 # AI/editor artifacts
 .bolt/
 .cursor/
+
+# Terraform local state and runtime files
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+*.tfvars
+*.tfvars.json
+backend.hcl

@@ -1,0 +1,6 @@
+aws_region        = "us-east-1"
+state_bucket_name = "replace-with-globally-unique-state-bucket"
+
+additional_tags = {
+  owner = "replace-with-team-name"
+}
