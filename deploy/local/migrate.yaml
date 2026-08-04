@@ -1,0 +1,50 @@
+# Development-only one-off migration Job using the application image.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: finance-ai-local-migrate
+  namespace: finance-ai-local
+  labels:
+    app.kubernetes.io/name: finance-ai
+    app.kubernetes.io/instance: finance-ai-local
+    app.kubernetes.io/component: migration
+    app.kubernetes.io/managed-by: local-validation
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: finance-ai
+        app.kubernetes.io/instance: finance-ai-local
+        app.kubernetes.io/component: migration
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: finance-ai-backend:phase-2b
+          imagePullPolicy: Never
+          command:
+            - npm
+            - run
+            - db:migrate:deploy
+          envFrom:
+            - secretRef:
+                name: finance-ai-local-backend-secrets
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
