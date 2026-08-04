@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "finance-ai.frontendFullname" . }}
+  labels:
+    {{- include "finance-ai.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: {{ .Values.frontend.service.port }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "finance-ai.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
