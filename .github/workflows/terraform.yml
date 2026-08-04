@@ -1,0 +1,41 @@
+name: Terraform
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/terraform.yml"
+      - ".gitignore"
+      - "infra/terraform/**"
+      - "scripts/terraform-validate.sh"
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - ".github/workflows/terraform.yml"
+      - ".gitignore"
+      - "infra/terraform/**"
+      - "scripts/terraform-validate.sh"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Format and validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4.0.1
+        with:
+          terraform_version: 1.15.8
+          terraform_wrapper: false
+
+      - name: Validate Terraform roots
+        run: ./scripts/terraform-validate.sh
