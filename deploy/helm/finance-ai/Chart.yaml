@@ -1,0 +1,7 @@
+apiVersion: v2
+name: finance-ai
+description: Finance AI frontend and backend application
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+kubeVersion: ">=1.25.0-0"

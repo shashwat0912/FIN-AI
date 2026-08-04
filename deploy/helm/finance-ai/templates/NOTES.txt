@@ -1,0 +1,12 @@
+{{- if .Values.ingress.enabled }}
+Finance AI routes:
+{{- range .Values.ingress.hosts }}
+  https://{{ . }}/
+{{- end }}
+{{- else }}
+Ingress is disabled. To inspect the frontend locally:
+  kubectl port-forward service/{{ include "finance-ai.frontendFullname" . }} 8080:{{ .Values.frontend.service.port }}
+  open http://127.0.0.1:8080
+{{- end }}
+
+The backend expects the existing Secret {{ .Values.backend.existingSecret | quote }}.

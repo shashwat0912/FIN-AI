@@ -1,0 +1,40 @@
+backend:
+  replicas: 2
+  existingSecret: finance-ai-backend-secrets
+  image:
+    repository: finance-ai-backend
+    tag: "0.1.0"
+    digest: ""
+  config:
+    CORS_ORIGIN: https://finance-ai.example.com
+    LOG_LEVEL: info
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+frontend:
+  replicas: 2
+  image:
+    repository: finance-ai-frontend
+    tag: "0.1.0"
+    digest: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+ingress:
+  enabled: true
+  hosts:
+    - finance-ai.example.com
+  tls:
+    - secretName: finance-ai-production-tls
+      hosts:
+        - finance-ai.example.com

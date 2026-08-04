@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "finance-ai.backendFullname" . }}
+  labels:
+    {{- include "finance-ai.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+data:
+  {{- range $key, $value := .Values.backend.config }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}

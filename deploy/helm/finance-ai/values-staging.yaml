@@ -1,0 +1,40 @@
+backend:
+  replicas: 1
+  existingSecret: finance-ai-backend-secrets-staging
+  image:
+    repository: finance-ai-backend
+    tag: "0.1.0"
+    digest: ""
+  config:
+    CORS_ORIGIN: https://staging.finance-ai.example.com
+    LOG_LEVEL: info
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 384Mi
+
+frontend:
+  replicas: 1
+  image:
+    repository: finance-ai-frontend
+    tag: "0.1.0"
+    digest: ""
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 150m
+      memory: 128Mi
+
+ingress:
+  enabled: true
+  hosts:
+    - staging.finance-ai.example.com
+  tls:
+    - secretName: finance-ai-staging-tls
+      hosts:
+        - staging.finance-ai.example.com

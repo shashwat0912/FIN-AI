@@ -1,0 +1,131 @@
+nameOverride: ""
+fullnameOverride: ""
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  automount: false
+  annotations: {}
+  name: ""
+
+backend:
+  replicas: 1
+  existingSecret: finance-ai-backend-secrets
+  image:
+    repository: finance-ai-backend
+    tag: "0.1.0"
+    digest: ""
+    pullPolicy: IfNotPresent
+  containerPort: 3000
+  service:
+    port: 3000
+  config:
+    NODE_ENV: production
+    PORT: "3000"
+    API_VERSION: v1
+    JWT_EXPIRES_IN: 7d
+    JWT_REFRESH_EXPIRES_IN: 30d
+    CORS_ORIGIN: https://example.com
+    CORS_CREDENTIALS: "true"
+    RATE_LIMIT_WINDOW_MS: "900000"
+    RATE_LIMIT_MAX_REQUESTS: "100"
+    OPENAI_MODEL: gpt-3.5-turbo
+    OPENAI_MAX_TOKENS: "500"
+    OPENAI_TIMEOUT_MS: "12000"
+    AI_PROVIDER: auto
+    EMBEDDING_PROVIDER: auto
+    LOCAL_LLM_BASE_URL: http://localhost:11434
+    LOCAL_LLM_MODEL: llama3.1:8b
+    LOCAL_EMBEDDING_MODEL: nomic-embed-text
+    LOG_LEVEL: info
+  revisionHistoryLimit: 3
+  progressDeadlineSeconds: 600
+  terminationGracePeriodSeconds: 30
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    runAsGroup: 1001
+    fsGroup: 1001
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  probes:
+    liveness:
+      path: /livez
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
+    readiness:
+      path: /readyz
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
+
+frontend:
+  replicas: 1
+  image:
+    repository: finance-ai-frontend
+    tag: "0.1.0"
+    digest: ""
+    pullPolicy: IfNotPresent
+  containerPort: 80
+  service:
+    port: 80
+  revisionHistoryLimit: 3
+  progressDeadlineSeconds: 600
+  terminationGracePeriodSeconds: 30
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  # The current nginx image binds port 80 as root before its workers drop privileges.
+  securityContext:
+    runAsNonRoot: false
+    runAsUser: 0
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  probes:
+    liveness:
+      path: /health
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
+    readiness:
+      path: /health
+      initialDelaySeconds: 2
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts: []
+  tls: []
