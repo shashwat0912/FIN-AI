@@ -1,6 +1,22 @@
 aws_region   = "us-east-1"
 environment  = "staging"
 project_name = "finance-ai"
+vpc_cidr     = "10.10.0.0/16"
+
+availability_zones = ["us-east-1a", "us-east-1b"]
+public_subnet_cidrs = {
+  us-east-1a = "10.10.0.0/24"
+  us-east-1b = "10.10.1.0/24"
+}
+private_application_subnet_cidrs = {
+  us-east-1a = "10.10.10.0/24"
+  us-east-1b = "10.10.11.0/24"
+}
+private_data_subnet_cidrs = {
+  us-east-1a = "10.10.20.0/24"
+  us-east-1b = "10.10.21.0/24"
+}
+nat_mode = "single"
 
 additional_tags = {
   owner = "replace-with-team-name"

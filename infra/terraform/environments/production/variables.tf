@@ -35,3 +35,33 @@ variable "additional_tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "vpc_cidr" {
+  description = "IPv4 CIDR block for the production VPC."
+  type        = string
+}
+
+variable "availability_zones" {
+  description = "Two availability zones for production networking."
+  type        = set(string)
+}
+
+variable "public_subnet_cidrs" {
+  description = "Public subnet CIDRs keyed by availability zone."
+  type        = map(string)
+}
+
+variable "private_application_subnet_cidrs" {
+  description = "Private application subnet CIDRs keyed by availability zone."
+  type        = map(string)
+}
+
+variable "private_data_subnet_cidrs" {
+  description = "Private data subnet CIDRs keyed by availability zone."
+  type        = map(string)
+}
+
+variable "nat_mode" {
+  description = "NAT topology passed to the VPC module."
+  type        = string
+}
