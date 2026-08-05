@@ -21,4 +21,9 @@ for root in bootstrap environments/staging environments/production; do
     -input=false
   printf '==> Validating %s\n' "$root"
   TF_DATA_DIR="$data_dir" terraform -chdir="$terraform_root/$root" validate
+
+  if [[ "$root" == "environments/staging" ]]; then
+    printf '%s\n' '==> Testing VPC NAT modes with a mocked AWS provider'
+    TF_DATA_DIR="$data_dir" terraform -chdir="$terraform_root/$root" test
+  fi
 done

@@ -1,20 +1,47 @@
 # Terraform foundation
 
-This directory establishes the Phase 3A Terraform workflow without provisioning
-application infrastructure. It contains one bootstrap root for the remote-state
-bucket and separate, currently empty, roots for staging and production.
+This directory contains the remote-state bootstrap, isolated staging and
+production roots, and the repository-owned VPC module used by both environments.
 
 ## Layout
 
 ```text
 bootstrap/                S3 remote-state bucket only
-environments/staging/     staging state boundary and AWS provider
-environments/production/  production state boundary and AWS provider
+environments/staging/     staging state boundary, provider, and VPC call
+environments/production/  production state boundary, provider, and VPC call
+modules/vpc/              reusable two-AZ network
 ```
 
-The environment roots intentionally contain no VPC, EKS, database, Redis, IAM,
-DNS, certificate, secret, observability, or application resources. Those belong
-to later phases after the state boundary is reviewed.
+## Network architecture
+
+Each environment defines two public, two private application, and two private
+data subnets across two availability zones:
+
+```text
+Internet
+   |
+Internet Gateway
+   |
+Public subnets
+   |
+NAT Gateway(s)
+   |
+Private application subnets
+
+Private data subnets: isolated from default internet routing
+```
+
+Public subnets are intended for future internet-facing load balancers and NAT
+Gateways. Private application subnets are intended for future EKS workers and
+workloads. Private data subnets are intended for future RDS PostgreSQL and
+ElastiCache Redis; they have explicit route tables with no default route to an
+Internet or NAT Gateway.
+
+Staging examples use `10.10.0.0/16` and one shared NAT Gateway. Production
+examples use the non-overlapping `10.20.0.0/16` range and one NAT Gateway per AZ.
+NAT Gateways incur ongoing hourly and processing charges: `single` costs less
+but depends on one AZ, while `per_az` costs more and aligns egress by AZ. `none`
+creates no NAT or application default route.
 
 ## Prerequisites
 
@@ -81,10 +108,11 @@ or `backend.hcl` files.
 ## CI and scope
 
 `.github/workflows/terraform.yml` runs formatting, backend-free initialization,
-and validation only when Terraform workflow files change. It cannot plan, apply,
-or provision AWS resources.
+validation, and mocked NAT-mode tests only when Terraform workflow files change.
+It cannot contact AWS, apply, or provision AWS resources.
 
-The existing EC2/Docker Compose deployment remains unchanged. Migrating that
-workload, adding reusable modules, configuring the AWS estate, and deciding how
-to manage the bootstrap root's state are explicit follow-up work, not Phase 3A.
-The next planned infrastructure phase is VPC and networking.
+The existing EC2/Docker Compose deployment remains unchanged. EKS, ECR, RDS,
+Redis, IAM workload roles, load balancers, endpoints, DNS, certificates,
+security groups, flow logs, IPv6, Kubernetes resources, and Helm releases remain
+deferred. This configuration has only been statically validated; no AWS
+infrastructure has been deployed and no production-readiness claim is made.
