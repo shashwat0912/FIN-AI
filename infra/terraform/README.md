@@ -1,15 +1,17 @@
 # Terraform foundation
 
 This directory contains the remote-state bootstrap, isolated staging and
-production roots, and the repository-owned VPC module used by both environments.
+production roots, and repository-owned VPC and EKS modules used by both
+environments.
 
 ## Layout
 
 ```text
 bootstrap/                S3 remote-state bucket only
-environments/staging/     staging state boundary, provider, and VPC call
-environments/production/  production state boundary, provider, and VPC call
+environments/staging/     staging state boundary, provider, VPC, and EKS calls
+environments/production/  production state boundary, provider, VPC, and EKS calls
 modules/vpc/              reusable two-AZ network
+modules/eks/              EKS control plane and one managed node group
 ```
 
 ## Network architecture
@@ -42,6 +44,18 @@ examples use the non-overlapping `10.20.0.0/16` range and one NAT Gateway per AZ
 NAT Gateways incur ongoing hourly and processing charges: `single` costs less
 but depends on one AZ, while `per_az` costs more and aligns egress by AZ. `none`
 creates no NAT or application default route.
+
+## EKS architecture
+
+Each environment defines one EKS control plane and one managed node group using
+only the VPC module's private application subnet IDs. Private API access is
+always enabled. Public API access is optional, requires externally supplied
+restricted CIDRs, and rejects `0.0.0.0/0`.
+
+The cluster role has only `AmazonEKSClusterPolicy`. The node role has the EKS
+worker, VPC CNI, and pull-only ECR policies. An IAM OIDC provider exposes the
+future IRSA trust boundary, but no application roles exist yet. Private nodes
+depend on the configured NAT path for image pulls and external APIs.
 
 ## Prerequisites
 
@@ -108,11 +122,12 @@ or `backend.hcl` files.
 ## CI and scope
 
 `.github/workflows/terraform.yml` runs formatting, backend-free initialization,
-validation, and mocked NAT-mode tests only when Terraform workflow files change.
+validation, and mocked VPC/EKS tests only when Terraform workflow files change.
 It cannot contact AWS, apply, or provision AWS resources.
 
-The existing EC2/Docker Compose deployment remains unchanged. EKS, ECR, RDS,
-Redis, IAM workload roles, load balancers, endpoints, DNS, certificates,
-security groups, flow logs, IPv6, Kubernetes resources, and Helm releases remain
-deferred. This configuration has only been statically validated; no AWS
-infrastructure has been deployed and no production-readiness claim is made.
+The existing EC2/Docker Compose deployment remains unchanged. ECR, RDS, Redis,
+application IAM roles, KMS cluster encryption, add-ons, autoscaling, load
+balancers, endpoints, DNS, certificates, Kubernetes resources, and Helm releases
+remain deferred. This configuration has only been statically validated; no AWS
+infrastructure has been deployed and no production-readiness claim is made. The
+next phases are ECR and preparation for a reviewed AWS plan/apply workflow.

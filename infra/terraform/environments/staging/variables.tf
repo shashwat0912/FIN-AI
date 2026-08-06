@@ -65,3 +65,68 @@ variable "nat_mode" {
   description = "NAT topology passed to the VPC module."
   type        = string
 }
+
+variable "eks_cluster_name" {
+  description = "Staging EKS cluster name."
+  type        = string
+}
+
+variable "eks_kubernetes_version" {
+  description = "Staging EKS Kubernetes minor version."
+  type        = string
+}
+
+variable "eks_public_endpoint_access" {
+  description = "Whether the staging EKS API endpoint is publicly accessible."
+  type        = bool
+}
+
+variable "eks_public_endpoint_allowed_cidrs" {
+  description = "Restricted CIDRs allowed to reach the public staging EKS API endpoint."
+  type        = set(string)
+}
+
+variable "eks_control_plane_log_types" {
+  description = "Enabled staging EKS control-plane log types."
+  type        = set(string)
+}
+
+variable "eks_node_instance_types" {
+  description = "Allowed staging managed node-group instance types."
+  type        = set(string)
+}
+
+variable "eks_node_capacity_type" {
+  description = "Staging managed node-group capacity type."
+  type        = string
+}
+
+variable "eks_node_disk_size" {
+  description = "Staging managed node root-volume size in GiB."
+  type        = number
+}
+
+variable "eks_node_min_size" {
+  description = "Staging managed node-group minimum size."
+  type        = number
+}
+
+variable "eks_node_desired_size" {
+  description = "Staging managed node-group desired size."
+  type        = number
+}
+
+variable "eks_node_max_size" {
+  description = "Staging managed node-group maximum size."
+  type        = number
+}
+
+variable "eks_node_labels" {
+  description = "Kubernetes labels applied to staging managed nodes."
+  type        = map(string)
+}
+
+variable "eks_node_update_max_unavailable" {
+  description = "Maximum unavailable staging nodes during updates."
+  type        = number
+}

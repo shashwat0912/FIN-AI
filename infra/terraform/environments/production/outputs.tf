@@ -52,3 +52,55 @@ output "nat_gateway_ids" {
   description = "Production NAT Gateway IDs keyed by availability zone."
   value       = module.vpc.nat_gateway_ids
 }
+
+output "eks_cluster_name" {
+  description = "Production EKS cluster name."
+  value       = module.eks.cluster_name
+}
+
+output "eks_cluster_arn" {
+  description = "Production EKS cluster ARN."
+  value       = module.eks.cluster_arn
+}
+
+output "eks_cluster_endpoint" {
+  description = "Production EKS API endpoint."
+  value       = module.eks.cluster_endpoint
+  sensitive   = true
+}
+
+output "eks_cluster_certificate_authority_data" {
+  description = "Production EKS certificate authority data."
+  value       = module.eks.cluster_certificate_authority_data
+  sensitive   = true
+}
+
+output "eks_cluster_security_group_id" {
+  description = "Production EKS cluster security group ID."
+  value       = module.eks.cluster_security_group_id
+}
+
+output "eks_node_group_name" {
+  description = "Production EKS managed node-group name."
+  value       = module.eks.node_group_name
+}
+
+output "eks_node_iam_role_arn" {
+  description = "Production EKS node IAM role ARN."
+  value       = module.eks.node_iam_role_arn
+}
+
+output "eks_cluster_iam_role_arn" {
+  description = "Production EKS cluster IAM role ARN."
+  value       = module.eks.cluster_iam_role_arn
+}
+
+output "eks_oidc_provider_arn" {
+  description = "Production EKS IAM OIDC provider ARN."
+  value       = module.eks.oidc_provider_arn
+}
+
+output "eks_oidc_issuer_url" {
+  description = "Production EKS OIDC issuer URL."
+  value       = module.eks.oidc_issuer_url
+}
