@@ -52,3 +52,55 @@ output "nat_gateway_ids" {
   description = "Staging NAT Gateway IDs keyed by availability zone."
   value       = module.vpc.nat_gateway_ids
 }
+
+output "eks_cluster_name" {
+  description = "Staging EKS cluster name."
+  value       = module.eks.cluster_name
+}
+
+output "eks_cluster_arn" {
+  description = "Staging EKS cluster ARN."
+  value       = module.eks.cluster_arn
+}
+
+output "eks_cluster_endpoint" {
+  description = "Staging EKS API endpoint."
+  value       = module.eks.cluster_endpoint
+  sensitive   = true
+}
+
+output "eks_cluster_certificate_authority_data" {
+  description = "Staging EKS certificate authority data."
+  value       = module.eks.cluster_certificate_authority_data
+  sensitive   = true
+}
+
+output "eks_cluster_security_group_id" {
+  description = "Staging EKS cluster security group ID."
+  value       = module.eks.cluster_security_group_id
+}
+
+output "eks_node_group_name" {
+  description = "Staging EKS managed node-group name."
+  value       = module.eks.node_group_name
+}
+
+output "eks_node_iam_role_arn" {
+  description = "Staging EKS node IAM role ARN."
+  value       = module.eks.node_iam_role_arn
+}
+
+output "eks_cluster_iam_role_arn" {
+  description = "Staging EKS cluster IAM role ARN."
+  value       = module.eks.cluster_iam_role_arn
+}
+
+output "eks_oidc_provider_arn" {
+  description = "Staging EKS IAM OIDC provider ARN."
+  value       = module.eks.oidc_provider_arn
+}
+
+output "eks_oidc_issuer_url" {
+  description = "Staging EKS OIDC issuer URL."
+  value       = module.eks.oidc_issuer_url
+}

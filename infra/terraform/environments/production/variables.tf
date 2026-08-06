@@ -65,3 +65,68 @@ variable "nat_mode" {
   description = "NAT topology passed to the VPC module."
   type        = string
 }
+
+variable "eks_cluster_name" {
+  description = "Production EKS cluster name."
+  type        = string
+}
+
+variable "eks_kubernetes_version" {
+  description = "Production EKS Kubernetes minor version."
+  type        = string
+}
+
+variable "eks_public_endpoint_access" {
+  description = "Whether the production EKS API endpoint is publicly accessible."
+  type        = bool
+}
+
+variable "eks_public_endpoint_allowed_cidrs" {
+  description = "Restricted CIDRs allowed to reach the public production EKS API endpoint."
+  type        = set(string)
+}
+
+variable "eks_control_plane_log_types" {
+  description = "Enabled production EKS control-plane log types."
+  type        = set(string)
+}
+
+variable "eks_node_instance_types" {
+  description = "Allowed production managed node-group instance types."
+  type        = set(string)
+}
+
+variable "eks_node_capacity_type" {
+  description = "Production managed node-group capacity type."
+  type        = string
+}
+
+variable "eks_node_disk_size" {
+  description = "Production managed node root-volume size in GiB."
+  type        = number
+}
+
+variable "eks_node_min_size" {
+  description = "Production managed node-group minimum size."
+  type        = number
+}
+
+variable "eks_node_desired_size" {
+  description = "Production managed node-group desired size."
+  type        = number
+}
+
+variable "eks_node_max_size" {
+  description = "Production managed node-group maximum size."
+  type        = number
+}
+
+variable "eks_node_labels" {
+  description = "Kubernetes labels applied to production managed nodes."
+  type        = map(string)
+}
+
+variable "eks_node_update_max_unavailable" {
+  description = "Maximum unavailable production nodes during updates."
+  type        = number
+}

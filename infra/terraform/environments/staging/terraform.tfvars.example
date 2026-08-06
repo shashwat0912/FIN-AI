@@ -18,6 +18,31 @@ private_data_subnet_cidrs = {
 }
 nat_mode = "single"
 
+eks_cluster_name          = "finance-ai-staging"
+eks_kubernetes_version    = "1.35"
+eks_public_endpoint_access = true
+eks_public_endpoint_allowed_cidrs = [
+  "192.0.2.0/24",
+]
+eks_control_plane_log_types = [
+  "api",
+  "audit",
+  "authenticator",
+  "controllerManager",
+  "scheduler",
+]
+eks_node_instance_types         = ["t3.medium"]
+eks_node_capacity_type          = "ON_DEMAND"
+eks_node_disk_size              = 30
+eks_node_min_size               = 1
+eks_node_desired_size           = 1
+eks_node_max_size               = 2
+eks_node_update_max_unavailable = 1
+eks_node_labels = {
+  environment = "staging"
+  workload    = "general"
+}
+
 additional_tags = {
   owner = "replace-with-team-name"
 }
