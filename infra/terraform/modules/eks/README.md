@@ -42,7 +42,7 @@ for the private-only API endpoint, and select control-plane CloudWatch log
 retention. IRSA versus EKS Pod Identity must also be decided before application
 IAM roles are created.
 
-KMS envelope encryption, named EKS access entries, add-ons, autoscaling, ECR,
+KMS envelope encryption, named EKS access entries, add-ons, autoscaling,
 observability, Kubernetes objects, and application deployment remain deferred.
-No infrastructure has been deployed. The next phases are ECR and preparation
-for a reviewed, credentialed AWS plan/apply workflow.
+No infrastructure has been deployed. Later phases will add delivery access and
+prepare a reviewed, credentialed AWS plan/apply workflow.

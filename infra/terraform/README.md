@@ -1,17 +1,18 @@
 # Terraform foundation
 
 This directory contains the remote-state bootstrap, isolated staging and
-production roots, and repository-owned VPC and EKS modules used by both
+production roots, and repository-owned VPC, EKS, and ECR modules used by both
 environments.
 
 ## Layout
 
 ```text
 bootstrap/                S3 remote-state bucket only
-environments/staging/     staging state boundary, provider, VPC, and EKS calls
-environments/production/  production state boundary, provider, VPC, and EKS calls
+environments/staging/     staging state boundary and module calls
+environments/production/  production state boundary and module calls
 modules/vpc/              reusable two-AZ network
 modules/eks/              EKS control plane and one managed node group
+modules/ecr/              frontend and backend image repositories
 ```
 
 ## Network architecture
@@ -56,6 +57,14 @@ The cluster role has only `AmazonEKSClusterPolicy`. The node role has the EKS
 worker, VPC CNI, and pull-only ECR policies. An IAM OIDC provider exposes the
 future IRSA trust boundary, but no application roles exist yet. Private nodes
 depend on the configured NAT path for image pulls and external APIs.
+
+## ECR architecture
+
+Each environment owns separate `frontend` and `backend` repositories named
+`<project>-<environment>/<component>`. Repositories use immutable tags,
+scan-on-push, AES256 encryption, and safe untagged-image cleanup after 14 days.
+Repository URLs are outputs for later digest-based Helm and delivery integration;
+the existing GHCR workflow and Helm values remain unchanged.
 
 ## Prerequisites
 
@@ -122,12 +131,13 @@ or `backend.hcl` files.
 ## CI and scope
 
 `.github/workflows/terraform.yml` runs formatting, backend-free initialization,
-validation, and mocked VPC/EKS tests only when Terraform workflow files change.
+validation, and mocked VPC/EKS/ECR tests only when Terraform workflow files change.
 It cannot contact AWS, apply, or provision AWS resources.
 
-The existing EC2/Docker Compose deployment remains unchanged. ECR, RDS, Redis,
-application IAM roles, KMS cluster encryption, add-ons, autoscaling, load
-balancers, endpoints, DNS, certificates, Kubernetes resources, and Helm releases
-remain deferred. This configuration has only been statically validated; no AWS
-infrastructure has been deployed and no production-readiness claim is made. The
-next phases are ECR and preparation for a reviewed AWS plan/apply workflow.
+The existing EC2/Docker Compose deployment remains unchanged. RDS, Redis,
+application IAM roles, ECR push access, KMS cluster encryption, add-ons,
+autoscaling, load balancers, endpoints, DNS, certificates, Kubernetes resources,
+and Helm releases remain deferred. This configuration has only been statically
+validated; no AWS infrastructure or images have been created and no
+production-readiness claim is made. Later phases will add delivery access and
+prepare a reviewed AWS plan/apply workflow.

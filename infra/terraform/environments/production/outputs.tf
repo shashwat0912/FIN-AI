@@ -104,3 +104,18 @@ output "eks_oidc_issuer_url" {
   description = "Production EKS OIDC issuer URL."
   value       = module.eks.oidc_issuer_url
 }
+
+output "ecr_repository_names" {
+  description = "Production ECR repository names keyed by image component."
+  value       = module.ecr.repository_names
+}
+
+output "ecr_repository_arns" {
+  description = "Production ECR repository ARNs keyed by image component."
+  value       = module.ecr.repository_arns
+}
+
+output "ecr_repository_urls" {
+  description = "Production ECR repository URLs keyed by image component."
+  value       = module.ecr.repository_urls
+}
