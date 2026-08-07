@@ -154,3 +154,15 @@ variable "rds_max_allocated_storage" {
   type        = number
   default     = 500
 }
+
+variable "valkey_engine_version" {
+  description = "Production ElastiCache Valkey engine version; recheck before apply."
+  type        = string
+  default     = "7.2"
+}
+
+variable "valkey_node_type" {
+  description = "Production ElastiCache Valkey node type; example is not load-tested."
+  type        = string
+  default     = "cache.t4g.small"
+}

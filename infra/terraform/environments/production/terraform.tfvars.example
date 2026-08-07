@@ -46,6 +46,9 @@ rds_instance_class        = "db.m7g.large"
 rds_allocated_storage     = 100
 rds_max_allocated_storage = 500
 
+valkey_engine_version = "7.2"
+valkey_node_type      = "cache.t4g.small"
+
 additional_tags = {
   owner = "replace-with-team-name"
 }
