@@ -130,3 +130,27 @@ variable "eks_node_update_max_unavailable" {
   description = "Maximum unavailable staging nodes during updates."
   type        = number
 }
+
+variable "rds_engine_version" {
+  description = "Staging RDS PostgreSQL engine version; recheck before apply."
+  type        = string
+  default     = "15"
+}
+
+variable "rds_instance_class" {
+  description = "Staging RDS PostgreSQL instance class."
+  type        = string
+  default     = "db.t4g.micro"
+}
+
+variable "rds_allocated_storage" {
+  description = "Initial staging RDS gp3 storage in GiB."
+  type        = number
+  default     = 20
+}
+
+variable "rds_max_allocated_storage" {
+  description = "Staging RDS storage autoscaling ceiling in GiB."
+  type        = number
+  default     = 100
+}

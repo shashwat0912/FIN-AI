@@ -119,3 +119,43 @@ output "ecr_repository_urls" {
   description = "Staging ECR repository URLs keyed by image component."
   value       = module.ecr.repository_urls
 }
+
+output "rds_db_instance_identifier" {
+  description = "Staging RDS PostgreSQL instance identifier."
+  value       = module.rds_postgres.db_instance_identifier
+}
+
+output "rds_address" {
+  description = "Private staging RDS PostgreSQL hostname."
+  value       = module.rds_postgres.address
+}
+
+output "rds_port" {
+  description = "Staging PostgreSQL port."
+  value       = module.rds_postgres.port
+}
+
+output "rds_database_name" {
+  description = "Staging PostgreSQL database name."
+  value       = module.rds_postgres.database_name
+}
+
+output "rds_security_group_id" {
+  description = "Staging database security group ID."
+  value       = module.rds_postgres.security_group_id
+}
+
+output "rds_db_subnet_group_name" {
+  description = "Staging database subnet group name."
+  value       = module.rds_postgres.db_subnet_group_name
+}
+
+output "rds_db_instance_arn" {
+  description = "Staging RDS PostgreSQL instance ARN."
+  value       = module.rds_postgres.db_instance_arn
+}
+
+output "rds_master_user_secret_arn" {
+  description = "ARN of the staging RDS-managed master-user secret."
+  value       = module.rds_postgres.master_user_secret_arn
+}

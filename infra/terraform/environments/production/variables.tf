@@ -130,3 +130,27 @@ variable "eks_node_update_max_unavailable" {
   description = "Maximum unavailable production nodes during updates."
   type        = number
 }
+
+variable "rds_engine_version" {
+  description = "Production RDS PostgreSQL engine version; recheck before apply."
+  type        = string
+  default     = "15"
+}
+
+variable "rds_instance_class" {
+  description = "Production RDS PostgreSQL instance class; example is not load-tested."
+  type        = string
+  default     = "db.m7g.large"
+}
+
+variable "rds_allocated_storage" {
+  description = "Initial production RDS gp3 storage in GiB."
+  type        = number
+  default     = 100
+}
+
+variable "rds_max_allocated_storage" {
+  description = "Production RDS storage autoscaling ceiling in GiB."
+  type        = number
+  default     = 500
+}
