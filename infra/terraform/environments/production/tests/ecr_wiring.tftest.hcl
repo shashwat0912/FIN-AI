@@ -1,0 +1,39 @@
+mock_provider "aws" {}
+
+variables {
+  aws_region   = "us-east-1"
+  environment  = "production"
+  project_name = "finance-ai"
+  vpc_cidr     = "10.20.0.0/16"
+
+  availability_zones                = ["us-east-1a", "us-east-1b"]
+  public_subnet_cidrs               = { us-east-1a = "10.20.0.0/24", us-east-1b = "10.20.1.0/24" }
+  private_application_subnet_cidrs  = { us-east-1a = "10.20.10.0/24", us-east-1b = "10.20.11.0/24" }
+  private_data_subnet_cidrs         = { us-east-1a = "10.20.20.0/24", us-east-1b = "10.20.21.0/24" }
+  nat_mode                          = "per_az"
+  eks_cluster_name                  = "finance-ai-production"
+  eks_kubernetes_version            = "1.35"
+  eks_public_endpoint_access        = false
+  eks_public_endpoint_allowed_cidrs = []
+  eks_control_plane_log_types       = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
+  eks_node_instance_types           = ["m6i.large"]
+  eks_node_capacity_type            = "ON_DEMAND"
+  eks_node_disk_size                = 50
+  eks_node_min_size                 = 2
+  eks_node_desired_size             = 2
+  eks_node_max_size                 = 4
+  eks_node_labels                   = { workload = "general" }
+  eks_node_update_max_unavailable   = 1
+}
+
+run "production_ecr_wiring" {
+  command = plan
+
+  assert {
+    condition = module.ecr.repository_names == {
+      frontend = "finance-ai-production/frontend"
+      backend  = "finance-ai-production/backend"
+    }
+    error_message = "Production must own isolated frontend and backend ECR repositories."
+  }
+}
