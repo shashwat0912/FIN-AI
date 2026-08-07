@@ -159,3 +159,53 @@ output "rds_master_user_secret_arn" {
   description = "ARN of the production RDS-managed master-user secret."
   value       = module.rds_postgres.master_user_secret_arn
 }
+
+output "valkey_replication_group_id" {
+  description = "Production ElastiCache Valkey replication group identifier."
+  value       = module.elasticache_valkey.replication_group_id
+}
+
+output "valkey_primary_endpoint_address" {
+  description = "Private production Valkey primary endpoint address."
+  value       = module.elasticache_valkey.primary_endpoint_address
+}
+
+output "valkey_reader_endpoint_address" {
+  description = "Private production Valkey reader endpoint address."
+  value       = module.elasticache_valkey.reader_endpoint_address
+}
+
+output "valkey_port" {
+  description = "Production Valkey port."
+  value       = module.elasticache_valkey.port
+}
+
+output "valkey_security_group_id" {
+  description = "Production cache security group ID."
+  value       = module.elasticache_valkey.security_group_id
+}
+
+output "valkey_subnet_group_name" {
+  description = "Production ElastiCache subnet group name."
+  value       = module.elasticache_valkey.subnet_group_name
+}
+
+output "valkey_replication_group_arn" {
+  description = "Production ElastiCache Valkey replication group ARN."
+  value       = module.elasticache_valkey.replication_group_arn
+}
+
+output "valkey_application_user_id" {
+  description = "Production IAM-authenticated ElastiCache application user ID."
+  value       = module.elasticache_valkey.application_user_id
+}
+
+output "valkey_application_user_arn" {
+  description = "ARN of the production IAM-authenticated ElastiCache application user."
+  value       = module.elasticache_valkey.application_user_arn
+}
+
+output "valkey_user_group_id" {
+  description = "Production ElastiCache user group ID."
+  value       = module.elasticache_valkey.user_group_id
+}

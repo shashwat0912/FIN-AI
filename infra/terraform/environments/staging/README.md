@@ -1,9 +1,10 @@
 # Staging Terraform root
 
-This root owns the staging state boundary, AWS provider, VPC, EKS, ECR, and RDS
-PostgreSQL module calls. The example uses `10.10.0.0/16`, two AZs, one shared
-NAT Gateway, one small On-Demand managed node, and a single-AZ `db.t4g.micro`
-database with 20 GiB of gp3 storage and a 100 GiB autoscaling ceiling.
+This root owns the staging state boundary, AWS provider, VPC, EKS, ECR, RDS
+PostgreSQL, and ElastiCache Valkey module calls. The example uses
+`10.10.0.0/16`, two AZs, one shared NAT Gateway, one small On-Demand managed
+node, a single-AZ `db.t4g.micro` database with 20 GiB of gp3 storage and a 100
+GiB autoscaling ceiling, and one `cache.t4g.micro` Valkey node.
 
 After the bootstrap bucket exists:
 
@@ -25,4 +26,9 @@ Kubernetes version, node settings, and database capacity remain configurable
 through the ignored `terraform.tfvars`. RDS uses only private-data subnets and
 accepts PostgreSQL only from the EKS security group. Staging keeps seven days
 of backups, skips the final snapshot when intentionally destroyed, and uses
-30-day log retention. No infrastructure, database, or images have been created.
+30-day log retention. Valkey also uses only private-data subnets, accepts
+TLS-only TCP/6379 only from the EKS security group, retains snapshots for one
+day, and has no staging failover or Multi-AZ promise. The current EC2 Redis and
+application configuration remain unchanged; a later cutover must configure
+and validate TLS and IAM authentication. No infrastructure, database, cache,
+or images have been created.
