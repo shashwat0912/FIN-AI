@@ -3,7 +3,7 @@ locals {
   rds_application_security_group_id = module.eks.cluster_security_group_id
   rds_environment_config = {
     multi_az                      = false
-    backup_retention_period       = 7
+    backup_retention_period       = var.rds_backup_retention_period
     deletion_protection           = false
     skip_final_snapshot           = true
     final_snapshot_identifier     = null

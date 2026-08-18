@@ -34,6 +34,7 @@ variables {
   eks_node_max_size                 = 2
   eks_node_labels                   = { workload = "general" }
   eks_node_update_max_unavailable   = 1
+  rds_backup_retention_period       = 1
 }
 
 run "staging_rds_wiring" {
@@ -86,11 +87,21 @@ run "staging_rds_wiring" {
     condition = (
       module.rds_postgres.db_instance_identifier == "finance-ai-staging-postgres" &&
       !local.rds_environment_config.multi_az &&
-      local.rds_environment_config.backup_retention_period == 7 &&
+      local.rds_environment_config.backup_retention_period == var.rds_backup_retention_period &&
       !local.rds_environment_config.deletion_protection &&
       local.rds_environment_config.skip_final_snapshot &&
       local.rds_environment_config.final_snapshot_identifier == null
     )
-    error_message = "Staging RDS must use its identifier, single-AZ mode, seven-day backups, and disposable deletion settings."
+    error_message = "Staging RDS must use its identifier, single-AZ mode, configured backups, and disposable deletion settings."
   }
+}
+
+run "reject_invalid_backup_retention" {
+  command = plan
+
+  variables {
+    rds_backup_retention_period = 36
+  }
+
+  expect_failures = [var.rds_backup_retention_period]
 }

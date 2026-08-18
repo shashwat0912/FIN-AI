@@ -9,7 +9,7 @@ locals {
   tags = merge(var.common_tags, local.required_tags)
 
   application_user_id       = "${local.identifier}-app"
-  application_access_string = "on ~conv:* ~security:* ~jobs:lease:* -@all +get +set +del +pttl +incr +decr +pexpire +eval +evalsha +script|load +ping +info +quit +client|setinfo"
+  application_access_string = "on ~conv:* ~security:* ~jobs:lease:* resetchannels -@all +get +set +del +pttl +incr +decr +pexpire +eval +evalsha +script|load +ping +info +quit +client|setinfo"
 }
 
 resource "aws_elasticache_subnet_group" "this" {
