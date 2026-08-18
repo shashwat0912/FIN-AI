@@ -120,7 +120,7 @@ run "private_encrypted_valkey" {
       aws_elasticache_user.application.authentication_mode[0].type == "iam" &&
       aws_elasticache_user.application.passwords == null &&
       aws_elasticache_user.application.authentication_mode[0].passwords == null &&
-      aws_elasticache_user.application.access_string == "on ~conv:* ~security:* ~jobs:lease:* -@all +get +set +del +pttl +incr +decr +pexpire +eval +evalsha +script|load +ping +info +quit +client|setinfo" &&
+      aws_elasticache_user.application.access_string == "on ~conv:* ~security:* ~jobs:lease:* resetchannels -@all +get +set +del +pttl +incr +decr +pexpire +eval +evalsha +script|load +ping +info +quit +client|setinfo" &&
       !strcontains(aws_elasticache_user.application.access_string, "+@all") &&
       !strcontains(aws_elasticache_user.application.access_string, "~*") &&
       length(aws_elasticache_user_group.this.user_ids) == 1 &&

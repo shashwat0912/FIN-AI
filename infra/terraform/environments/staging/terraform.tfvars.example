@@ -31,7 +31,7 @@ eks_control_plane_log_types = [
   "controllerManager",
   "scheduler",
 ]
-eks_node_instance_types         = ["t3.medium"]
+eks_node_instance_types         = ["t3.small"]
 eks_node_capacity_type          = "ON_DEMAND"
 eks_node_disk_size              = 30
 eks_node_min_size               = 1
@@ -43,10 +43,11 @@ eks_node_labels = {
   workload    = "general"
 }
 
-rds_engine_version        = "15"
-rds_instance_class        = "db.t4g.micro"
-rds_allocated_storage     = 20
-rds_max_allocated_storage = 100
+rds_engine_version          = "15"
+rds_instance_class          = "db.t4g.micro"
+rds_allocated_storage       = 20
+rds_max_allocated_storage   = 100
+rds_backup_retention_period = 7
 
 valkey_engine_version = "7.2"
 valkey_node_type      = "cache.t4g.micro"

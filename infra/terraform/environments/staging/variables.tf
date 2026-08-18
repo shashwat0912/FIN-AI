@@ -155,6 +155,21 @@ variable "rds_max_allocated_storage" {
   default     = 100
 }
 
+variable "rds_backup_retention_period" {
+  description = "Staging RDS automated backup retention in days."
+  type        = number
+  default     = 7
+
+  validation {
+    condition = (
+      var.rds_backup_retention_period == floor(var.rds_backup_retention_period) &&
+      var.rds_backup_retention_period >= 0 &&
+      var.rds_backup_retention_period <= 35
+    )
+    error_message = "rds_backup_retention_period must be an integer from 0 through 35."
+  }
+}
+
 variable "valkey_engine_version" {
   description = "Staging ElastiCache Valkey engine version; recheck before apply."
   type        = string
