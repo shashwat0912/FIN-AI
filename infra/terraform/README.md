@@ -1,8 +1,8 @@
 # Terraform foundation
 
 This directory contains the remote-state bootstrap, isolated staging and
-production roots, and repository-owned VPC, EKS, and ECR modules used by both
-environments.
+production roots, shared account-level identity, and repository-owned AWS
+modules.
 
 ## Layout
 
@@ -10,6 +10,7 @@ environments.
 bootstrap/                S3 remote-state bucket only
 environments/staging/     staging state boundary and module calls
 environments/production/  production state boundary and module calls
+shared/github-actions/    GitHub OIDC and staging ECR publisher identity
 modules/vpc/              reusable two-AZ network
 modules/eks/              EKS control plane and one managed node group
 modules/ecr/              frontend and backend image repositories
@@ -64,7 +65,16 @@ Each environment owns separate `frontend` and `backend` repositories named
 `<project>-<environment>/<component>`. Repositories use immutable tags,
 scan-on-push, AES256 encryption, and safe untagged-image cleanup after 14 days.
 Repository URLs are outputs for later digest-based Helm and delivery integration;
-the existing GHCR workflow and Helm values remain unchanged.
+the existing GHCR deployment workflow and Helm values remain unchanged.
+
+## GitHub Actions identity
+
+The `shared/github-actions` root owns the account-level GitHub OIDC provider
+and a dedicated role that can publish only the staging frontend and backend
+images. It uses the existing state bucket with the independent
+`shared/github-actions/terraform.tfstate` key. The role trusts only
+`repo:shashwat0912/FIN-AI:ref:refs/heads/main`; see the root README for the
+post-apply GitHub repository variable contract.
 
 ## Prerequisites
 
@@ -131,13 +141,11 @@ or `backend.hcl` files.
 ## CI and scope
 
 `.github/workflows/terraform.yml` runs formatting, backend-free initialization,
-validation, and mocked VPC/EKS/ECR tests only when Terraform workflow files change.
-It cannot contact AWS, apply, or provision AWS resources.
+validation, and mocked tests for every Terraform root when Terraform workflow
+files change. It cannot contact AWS, apply, or provision AWS resources.
 
-The existing EC2/Docker Compose deployment remains unchanged. RDS, Redis,
-application IAM roles, ECR push access, KMS cluster encryption, add-ons,
-autoscaling, load balancers, endpoints, DNS, certificates, Kubernetes resources,
-and Helm releases remain deferred. This configuration has only been statically
-validated; no AWS infrastructure or images have been created and no
-production-readiness claim is made. Later phases will add delivery access and
-prepare a reviewed AWS plan/apply workflow.
+The staging AWS platform and shared GitHub Actions identity have been
+provisioned and validated. Application workload deployment to EKS, image
+publishing through the new ECR workflow, application IAM roles, KMS cluster
+encryption, add-ons, autoscaling, load balancers, endpoints, DNS, certificates,
+Kubernetes resources, and Helm releases remain deferred.

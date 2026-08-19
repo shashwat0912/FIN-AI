@@ -13,7 +13,7 @@ mkdir -p "$TF_PLUGIN_CACHE_DIR"
 printf '%s\n' '==> Checking Terraform formatting'
 terraform -chdir="$terraform_root" fmt -check -recursive
 
-for root in bootstrap environments/staging environments/production; do
+for root in bootstrap environments/staging environments/production shared/github-actions; do
   data_dir="$data_root/${root//\//-}"
   printf '==> Initializing %s with its backend disabled\n' "$root"
   TF_DATA_DIR="$data_dir" terraform -chdir="$terraform_root/$root" init \
