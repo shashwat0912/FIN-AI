@@ -21,8 +21,11 @@ readonly BROKEN_BACKEND_PORT="13001"
 readonly TERMINATING_BACKEND_PORT="13002"
 readonly CHART_DIR="$ROOT_DIR/deploy/helm/finance-ai"
 readonly LOCAL_VALUES="$CHART_DIR/values-local.yaml"
+readonly STAGING_VALUES="$CHART_DIR/values-staging.yaml"
+readonly PRODUCTION_VALUES="$CHART_DIR/values-production.yaml"
 readonly LOCAL_DIR="$ROOT_DIR/deploy/local"
 readonly PID_FILE="${TMPDIR:-/tmp}/finance-ai-local-port-forwards.pids"
+readonly STATIC_ONLY="${K8S_LOCAL_STATIC_ONLY:-false}"
 
 temp_dir="$(mktemp -d "${TMPDIR:-/tmp}/finance-ai-local-validation.XXXXXX")"
 readonly KUBECONFIG_FILE="$temp_dir/kubeconfig"
@@ -38,6 +41,20 @@ stage() {
 fail() {
   echo "[phase-2b] ERROR: $1" >&2
   exit 1
+}
+
+assert_contains() {
+  local file="$1"
+  local value="$2"
+  grep -Fq -- "$value" "$file" || fail "Expected rendered manifest to contain: $value"
+}
+
+assert_not_contains() {
+  local file="$1"
+  local value="$2"
+  if grep -Fq -- "$value" "$file"; then
+    fail "Rendered manifest must not contain: $value"
+  fi
 }
 
 register_pid() {
@@ -57,7 +74,9 @@ cleanup_runtime() {
   for pid in "${background_pids[@]:-}"; do
     stop_pid "$pid"
   done
-  rm -f "$PID_FILE"
+  if [[ "$STATIC_ONLY" != "true" ]]; then
+    rm -f "$PID_FILE"
+  fi
   rm -rf "$temp_dir"
 }
 trap cleanup_runtime EXIT INT TERM
@@ -130,22 +149,89 @@ safe_migration_logs() {
 }
 
 stage "Preflight"
-for command_name in docker kind kubectl helm openssl curl; do
-  command -v "$command_name" >/dev/null 2>&1 || fail "Missing required command: $command_name"
-done
-docker info >/dev/null
-docker version --format 'Docker client={{.Client.Version}} server={{.Server.Version}}'
-kind version
-kubectl version --client=true --output=yaml | grep 'gitVersion:' | head -n 1
+command -v helm >/dev/null 2>&1 || fail "Missing required command: helm"
 helm version --short
+
+if [[ "$STATIC_ONLY" != "true" ]]; then
+  for command_name in docker kind kubectl openssl curl; do
+    command -v "$command_name" >/dev/null 2>&1 || fail "Missing required command: $command_name"
+  done
+  docker info >/dev/null
+  docker version --format 'Docker client={{.Client.Version}} server={{.Server.Version}}'
+  kind version
+  kubectl version --client=true --output=yaml | grep 'gitVersion:' | head -n 1
+fi
+
+stage "Static chart validation"
+default_render="$temp_dir/default.yaml"
+staging_render="$temp_dir/staging.yaml"
+staging_backend_sa="$temp_dir/staging-backend-serviceaccount.yaml"
+staging_frontend_sa="$temp_dir/staging-frontend-serviceaccount.yaml"
+staging_backend_deployment="$temp_dir/staging-backend-deployment.yaml"
+staging_frontend_deployment="$temp_dir/staging-frontend-deployment.yaml"
+staging_backend_config="$temp_dir/staging-backend-configmap.yaml"
+local_render="$temp_dir/local.yaml"
+production_render="$temp_dir/production.yaml"
+
+helm lint "$CHART_DIR"
+helm lint "$CHART_DIR" -f "$STAGING_VALUES"
+helm lint "$CHART_DIR" -f "$LOCAL_VALUES"
+helm lint "$CHART_DIR" -f "$PRODUCTION_VALUES"
+
+helm template finance-ai "$CHART_DIR" --namespace finance-ai > "$default_render"
+helm template finance-ai-staging "$CHART_DIR" --namespace finance-ai-staging -f "$STAGING_VALUES" > "$staging_render"
+helm template finance-ai-staging "$CHART_DIR" --namespace finance-ai-staging -f "$STAGING_VALUES" \
+  --show-only templates/serviceaccount.yaml --set frontend.serviceAccount.create=false > "$staging_backend_sa"
+helm template finance-ai-staging "$CHART_DIR" --namespace finance-ai-staging -f "$STAGING_VALUES" \
+  --show-only templates/serviceaccount.yaml --set backend.serviceAccount.create=false > "$staging_frontend_sa"
+helm template finance-ai-staging "$CHART_DIR" --namespace finance-ai-staging -f "$STAGING_VALUES" \
+  --show-only templates/backend-deployment.yaml > "$staging_backend_deployment"
+helm template finance-ai-staging "$CHART_DIR" --namespace finance-ai-staging -f "$STAGING_VALUES" \
+  --show-only templates/frontend-deployment.yaml > "$staging_frontend_deployment"
+helm template finance-ai-staging "$CHART_DIR" --namespace finance-ai-staging -f "$STAGING_VALUES" \
+  --show-only templates/backend-configmap.yaml > "$staging_backend_config"
+helm template "$RELEASE" "$CHART_DIR" --namespace "$NAMESPACE" -f "$LOCAL_VALUES" > "$local_render"
+helm template finance-ai "$CHART_DIR" --namespace finance-ai -f "$PRODUCTION_VALUES" > "$production_render"
+
+assert_contains "$staging_backend_sa" "name: finance-ai-backend"
+assert_contains "$staging_backend_sa" "eks.amazonaws.com/role-arn: arn:aws:iam::765417709923:role/finance-ai-staging-backend"
+assert_contains "$staging_backend_sa" "automountServiceAccountToken: false"
+assert_contains "$staging_backend_deployment" "serviceAccountName: finance-ai-backend"
+assert_contains "$staging_backend_deployment" "automountServiceAccountToken: false"
+assert_contains "$staging_frontend_deployment" "serviceAccountName: finance-ai-staging-frontend"
+assert_contains "$staging_frontend_deployment" "automountServiceAccountToken: false"
+assert_not_contains "$staging_frontend_deployment" "serviceAccountName: finance-ai-backend"
+assert_contains "$staging_frontend_sa" "name: finance-ai-staging-frontend"
+assert_contains "$staging_frontend_sa" "automountServiceAccountToken: false"
+assert_not_contains "$staging_frontend_sa" "eks.amazonaws.com/role-arn"
+
+for value in \
+  'REDIS_AUTH_MODE: "iam"' \
+  'REDIS_HOST: "master.finance-ai-staging-valkey.zdzskp.aps1.cache.amazonaws.com"' \
+  'REDIS_PORT: "6379"' \
+  'REDIS_USERNAME: "finance-ai-staging-valkey-app"' \
+  'REDIS_IAM_CACHE_NAME: "finance-ai-staging-valkey"' \
+  'AWS_REGION: "ap-south-1"'; do
+  assert_contains "$staging_backend_config" "$value"
+done
+
+for value in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_ROLE_ARN AWS_WEB_IDENTITY_TOKEN_FILE REDIS_IAM_TOKEN REDIS_PASSWORD REDIS_URL; do
+  assert_not_contains "$staging_render" "$value"
+done
+assert_not_contains "$local_render" "eks.amazonaws.com/role-arn"
+assert_not_contains "$local_render" 'REDIS_AUTH_MODE: "iam"'
+assert_not_contains "$production_render" "eks.amazonaws.com/role-arn"
+assert_not_contains "$production_render" 'REDIS_AUTH_MODE: "iam"'
+
+if [[ "$STATIC_ONLY" == "true" ]]; then
+  echo
+  echo "[phase-2b] Static Helm validation passed"
+  exit 0
+fi
 
 if kind get clusters | grep -Fxq "$CLUSTER_NAME"; then
   fail "kind cluster $CLUSTER_NAME already exists; run scripts/k8s-local-cleanup.sh first"
 fi
-
-stage "Static chart validation"
-helm lint "$CHART_DIR" -f "$LOCAL_VALUES"
-helm template "$RELEASE" "$CHART_DIR" --namespace "$NAMESPACE" -f "$LOCAL_VALUES" >/dev/null
 
 stage "Build local application images"
 docker build --file "$ROOT_DIR/Dockerfile.frontend" --tag "$FRONTEND_IMAGE" "$ROOT_DIR"

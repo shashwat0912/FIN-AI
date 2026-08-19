@@ -1,6 +1,10 @@
 backend:
   replicas: 1
   existingSecret: finance-ai-backend-secrets-staging
+  serviceAccount:
+    name: finance-ai-backend
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::765417709923:role/finance-ai-staging-backend
   image:
     repository: finance-ai-backend
     tag: "0.1.0"
@@ -8,6 +12,12 @@ backend:
   config:
     CORS_ORIGIN: https://staging.finance-ai.example.com
     LOG_LEVEL: info
+    REDIS_AUTH_MODE: iam
+    REDIS_HOST: master.finance-ai-staging-valkey.zdzskp.aps1.cache.amazonaws.com
+    REDIS_PORT: 6379
+    REDIS_USERNAME: finance-ai-staging-valkey-app
+    REDIS_IAM_CACHE_NAME: finance-ai-staging-valkey
+    AWS_REGION: ap-south-1
   resources:
     requests:
       cpu: 100m

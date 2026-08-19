@@ -2,13 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "imagePullSecrets",
-    "serviceAccount",
-    "backend",
-    "frontend",
-    "ingress"
-  ],
+  "required": ["imagePullSecrets", "backend", "frontend", "ingress"],
   "properties": {
     "nameOverride": { "type": "string" },
     "fullnameOverride": { "type": "string" },
@@ -19,20 +13,6 @@
         "additionalProperties": false,
         "required": ["name"],
         "properties": { "name": { "type": "string", "minLength": 1 } }
-      }
-    },
-    "serviceAccount": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["create", "automount", "annotations", "name"],
-      "properties": {
-        "create": { "type": "boolean" },
-        "automount": { "type": "boolean" },
-        "annotations": {
-          "type": "object",
-          "additionalProperties": { "type": "string" }
-        },
-        "name": { "type": "string" }
       }
     },
     "backend": { "$ref": "#/definitions/backend" },
@@ -127,6 +107,35 @@
         "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
       }
     },
+    "serviceAccount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["create", "automount", "annotations", "name"],
+      "properties": {
+        "create": { "type": "boolean" },
+        "automount": { "type": "boolean" },
+        "annotations": {
+          "type": "object",
+          "properties": {
+            "eks.amazonaws.com/role-arn": {
+              "type": "string",
+              "pattern": "^arn:(aws|aws-us-gov|aws-cn):iam::[0-9]{12}:role/.+$"
+            }
+          },
+          "additionalProperties": { "type": "string", "minLength": 1 }
+        },
+        "name": {
+          "type": "string",
+          "anyOf": [
+            { "const": "" },
+            {
+              "maxLength": 63,
+              "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+            }
+          ]
+        }
+      }
+    },
     "backendConfig": {
       "type": "object",
       "additionalProperties": false,
@@ -155,11 +164,37 @@
         "LOCAL_LLM_BASE_URL": { "type": "string", "minLength": 1 },
         "LOCAL_LLM_MODEL": { "type": "string", "minLength": 1 },
         "LOCAL_EMBEDDING_MODEL": { "type": "string", "minLength": 1 },
+        "REDIS_AUTH_MODE": { "type": "string", "enum": ["url", "iam"] },
+        "REDIS_HOST": { "type": "string", "minLength": 1 },
+        "REDIS_PORT": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "REDIS_USERNAME": { "type": "string", "minLength": 1 },
+        "REDIS_IAM_CACHE_NAME": { "type": "string", "minLength": 1 },
+        "AWS_REGION": {
+          "type": "string",
+          "pattern": "^[a-z]{2}(-[a-z]+)+-[0-9]+$"
+        },
         "LOG_LEVEL": {
           "type": "string",
           "enum": ["error", "warn", "info", "http", "verbose", "debug", "silly"]
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["REDIS_AUTH_MODE"],
+            "properties": { "REDIS_AUTH_MODE": { "const": "iam" } }
+          },
+          "then": {
+            "required": [
+              "REDIS_HOST",
+              "REDIS_PORT",
+              "REDIS_USERNAME",
+              "REDIS_IAM_CACHE_NAME",
+              "AWS_REGION"
+            ]
+          }
+        }
+      ]
     },
     "backend": {
       "type": "object",
@@ -167,6 +202,7 @@
       "required": [
         "replicas",
         "existingSecret",
+        "serviceAccount",
         "image",
         "containerPort",
         "service",
@@ -182,6 +218,7 @@
       "properties": {
         "replicas": { "type": "integer", "minimum": 1 },
         "existingSecret": { "type": "string", "minLength": 1 },
+        "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
         "image": { "$ref": "#/definitions/image" },
         "containerPort": { "const": 3000 },
         "service": { "$ref": "#/definitions/service" },
@@ -200,6 +237,7 @@
       "additionalProperties": false,
       "required": [
         "replicas",
+        "serviceAccount",
         "image",
         "containerPort",
         "service",
@@ -213,6 +251,7 @@
       ],
       "properties": {
         "replicas": { "type": "integer", "minimum": 1 },
+        "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
         "image": { "$ref": "#/definitions/image" },
         "containerPort": { "const": 80 },
         "service": { "$ref": "#/definitions/service" },

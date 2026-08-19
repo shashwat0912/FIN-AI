@@ -1,6 +1,6 @@
 # Finance AI Helm chart
 
-This chart renders the existing Finance AI frontend and backend containers as Kubernetes Deployments, ClusterIP Services, ConfigMaps, a ServiceAccount, and an optional Ingress.
+This chart renders the existing Finance AI frontend and backend containers as Kubernetes Deployments, ClusterIP Services, ConfigMaps, component-specific ServiceAccounts, and an optional Ingress.
 
 ## Prerequisites
 
@@ -10,7 +10,7 @@ This chart renders the existing Finance AI frontend and backend containers as Ku
 - Built frontend and backend images
 - An existing Kubernetes Secret named by `backend.existingSecret`
 
-The production Secret must contain these keys by name:
+The production and local URL-auth Secrets must contain these keys by name:
 
 - `DATABASE_URL`
 - `REDIS_URL`
@@ -20,6 +20,8 @@ The production Secret must contain these keys by name:
 - `SECURITY_STATE_HMAC_SECRET`
 
 Add `OPENAI_API_KEY` when OpenAI-backed features are enabled. Optional provider credentials such as `SMTP_USER`, `SMTP_PASS`, Stripe keys, and `SENTRY_DSN` belong in the same existing Secret when used. Never put those values in a chart values file.
+
+Staging uses IAM-authenticated Valkey instead of `REDIS_URL`; its backend Secret must not contain a Redis IAM token or password. The non-secret Redis endpoint, username, cache name, and AWS region live in the backend ConfigMap. The `finance-ai-backend` ServiceAccount is annotated with the staging IRSA role; the frontend has a separate, unannotated ServiceAccount. Kubernetes API token automount remains disabled, while EKS injects the projected web-identity token used by the AWS SDK.
 
 ## Render
 
@@ -35,6 +37,8 @@ helm lint deploy/helm/finance-ai -f deploy/helm/finance-ai/values-production.yam
 helm template finance-ai deploy/helm/finance-ai \
   --namespace finance-ai \
   -f deploy/helm/finance-ai/values-production.yaml
+
+K8S_LOCAL_STATIC_ONLY=true ./scripts/k8s-local-validate.sh
 ```
 
 ## Install, upgrade, and roll back
