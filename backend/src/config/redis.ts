@@ -1,4 +1,5 @@
 import Redis from 'ioredis';
+import { createElastiCacheIamToken } from './elasticacheIamAuth';
 import { config } from './env';
 import logger from './logger';
 
@@ -58,6 +59,51 @@ function isProduction(): boolean {
   return config.NODE_ENV === 'production';
 }
 
+function retryDelay(times: number): number {
+  return Math.min(times * 200, 2000);
+}
+
+async function generateIamTokenWithRetry(connection: Redis): Promise<string> {
+  let attempts = 0;
+  while (redisConnection === connection && redisState !== 'shutting_down') {
+    try {
+      const token = await createElastiCacheIamToken({
+        cacheName: config.REDIS_IAM_CACHE_NAME,
+        region: config.AWS_REGION,
+        username: config.REDIS_USERNAME,
+      });
+      if (redisConnection !== connection) break;
+      return token;
+    } catch {
+      attempts += 1;
+      if (!isProduction() && attempts > 3) break;
+      await new Promise<void>(resolve => {
+        const timer = setTimeout(resolve, retryDelay(attempts));
+        timer.unref();
+      });
+    }
+  }
+  throw new RedisUnavailableError();
+}
+
+function configureFreshIamTokenForEveryConnect(connection: Redis): void {
+  const connect = connection.connect.bind(connection);
+  let pendingConnect: Promise<void> | undefined;
+
+  connection.connect = callback => {
+    if (pendingConnect) return pendingConnect;
+    pendingConnect = generateIamTokenWithRetry(connection)
+      .then(token => {
+        connection.options.password = token;
+        return connect(callback);
+      })
+      .finally(() => {
+        pendingConnect = undefined;
+      });
+    return pendingConnect;
+  };
+}
+
 function markUnavailable(connection?: Redis): void {
   if (redisState === 'shutting_down') return;
   if (connection && redisConnection !== connection) return;
@@ -104,8 +150,7 @@ export function getRedisClient(): RedisClient {
     return redisClient as RedisClient;
   }
 
-  const configuredUrl = process.env.REDIS_URL?.trim();
-  if (isProduction() && !configuredUrl) {
+  if (isProduction() && config.REDIS_AUTH_MODE === 'url' && !process.env.REDIS_URL?.trim()) {
     if (!failureLogged) {
       failureLogged = true;
       logger.warn('Redis configuration unavailable', {
@@ -118,18 +163,33 @@ export function getRedisClient(): RedisClient {
   }
 
   try {
-    const client = new Redis(configuredUrl || config.REDIS_URL, {
+    let client: Redis;
+    const options = {
       maxRetriesPerRequest: 3,
       retryStrategy(times: number) {
         if (!isProduction() && times > 3) {
           markUnavailable(client);
           return null;
         }
-        return Math.min(times * 200, 2000);
+        return retryDelay(times);
       },
       lazyConnect: true,
       connectTimeout: 3000,
-    });
+    };
+
+    if (config.REDIS_AUTH_MODE === 'iam') {
+      client = new Redis({
+        ...options,
+        host: config.REDIS_HOST,
+        port: config.REDIS_PORT,
+        username: config.REDIS_USERNAME,
+        tls: { servername: config.REDIS_HOST },
+      });
+      configureFreshIamTokenForEveryConnect(client);
+    } else {
+      client = new Redis(config.REDIS_URL, options);
+    }
+
     redisClient = client;
     redisConnection = client;
     redisState = 'connecting';
@@ -145,6 +205,7 @@ export function getRedisClient(): RedisClient {
       }
     });
     client.on('error', () => markUnavailable(client));
+    client.on('reconnecting', () => markUnavailable(client));
     client.on('end', () => markUnavailable(client));
     client.connect().catch(() => markUnavailable(client));
   } catch {
@@ -211,7 +272,11 @@ export function closeRedisConnection(): Promise<void> {
   closePromise = (async () => {
     if (!connection) return;
 
-    if (previousState === 'fallback' || previousState === 'unavailable') {
+    if (
+      previousState === 'fallback' ||
+      previousState === 'unavailable' ||
+      (config.REDIS_AUTH_MODE === 'iam' && previousState === 'connecting')
+    ) {
       try {
         connection.disconnect();
       } catch {
