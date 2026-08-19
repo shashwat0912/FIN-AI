@@ -105,6 +105,11 @@ output "eks_oidc_issuer_url" {
   value       = module.eks.oidc_issuer_url
 }
 
+output "backend_irsa_role_arn" {
+  description = "IAM role ARN for the staging backend Kubernetes ServiceAccount."
+  value       = aws_iam_role.backend.arn
+}
+
 output "ecr_repository_names" {
   description = "Staging ECR repository names keyed by image component."
   value       = module.ecr.repository_names
