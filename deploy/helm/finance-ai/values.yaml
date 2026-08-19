@@ -3,15 +3,14 @@ fullnameOverride: ""
 
 imagePullSecrets: []
 
-serviceAccount:
-  create: true
-  automount: false
-  annotations: {}
-  name: ""
-
 backend:
   replicas: 1
   existingSecret: finance-ai-backend-secrets
+  serviceAccount:
+    create: true
+    automount: false
+    annotations: {}
+    name: ""
   image:
     repository: finance-ai-backend
     tag: "0.1.0"
@@ -80,6 +79,11 @@ backend:
 
 frontend:
   replicas: 1
+  serviceAccount:
+    create: true
+    automount: false
+    annotations: {}
+    name: ""
   image:
     repository: finance-ai-frontend
     tag: "0.1.0"

@@ -15,6 +15,8 @@ const managedEnv = [
   'SECURITY_STATE_HMAC_SECRET',
   'CORS_ORIGIN',
   'LOG_LEVEL',
+  'REDIS_AUTH_MODE',
+  'REDIS_URL',
 ] as const;
 const originalEnv = Object.fromEntries(managedEnv.map(name => [name, process.env[name]]));
 
@@ -26,6 +28,8 @@ async function loadConfig(environment: 'test' | 'production', securitySecret?: s
   process.env.JWT_REFRESH_SECRET = 'r'.repeat(64);
   process.env.CORS_ORIGIN = environment === 'production' ? 'https://finance.example' : 'http://localhost:5173';
   process.env.LOG_LEVEL = 'info';
+  process.env.REDIS_AUTH_MODE = 'url';
+  process.env.REDIS_URL = 'redis://localhost:6379';
   if (securitySecret === undefined) delete process.env.SECURITY_STATE_HMAC_SECRET;
   else process.env.SECURITY_STATE_HMAC_SECRET = securitySecret;
   return import('../src/config/env');

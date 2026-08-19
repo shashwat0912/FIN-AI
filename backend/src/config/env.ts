@@ -3,6 +3,11 @@ import logger from './logger';
 
 dotenv.config();
 
+export type RedisAuthMode = 'url' | 'iam';
+
+const redisAuthMode = process.env.REDIS_AUTH_MODE?.trim() || 'url';
+const redisPort = Number(process.env.REDIS_PORT?.trim() || '6379');
+
 export const config = {
   // Server
   NODE_ENV: process.env.NODE_ENV || 'development',
@@ -58,7 +63,15 @@ export const config = {
   LOG_FILE: process.env.LOG_FILE || 'logs/app.log',
 
   // Redis
-  REDIS_URL: process.env.REDIS_URL || 'redis://localhost:6379',
+  REDIS_AUTH_MODE: redisAuthMode as RedisAuthMode,
+  REDIS_URL:
+    process.env.REDIS_URL?.trim() ||
+    (process.env.NODE_ENV === 'production' ? '' : 'redis://localhost:6379'),
+  REDIS_HOST: process.env.REDIS_HOST?.trim() || '',
+  REDIS_PORT: redisPort,
+  REDIS_USERNAME: process.env.REDIS_USERNAME?.trim() || '',
+  REDIS_IAM_CACHE_NAME: process.env.REDIS_IAM_CACHE_NAME?.trim() || '',
+  AWS_REGION: process.env.AWS_REGION?.trim() || '',
 };
 
 // Enhanced Environment Validation
@@ -72,6 +85,31 @@ const requiredEnvVars = [
 for (const envVar of requiredEnvVars) {
   if (!process.env[envVar]) {
     throw new Error(`Missing required environment variable: ${envVar}`);
+  }
+}
+
+if (redisAuthMode !== 'url' && redisAuthMode !== 'iam') {
+  throw new Error('REDIS_AUTH_MODE must be either "url" or "iam"');
+}
+
+if (config.REDIS_AUTH_MODE === 'url') {
+  if (config.NODE_ENV === 'production' && !process.env.REDIS_URL?.trim()) {
+    throw new Error('REDIS_URL is required when REDIS_AUTH_MODE=url in production');
+  }
+} else {
+  const requiredIamRedisConfig = [
+    ['REDIS_HOST', config.REDIS_HOST],
+    ['REDIS_USERNAME', config.REDIS_USERNAME],
+    ['REDIS_IAM_CACHE_NAME', config.REDIS_IAM_CACHE_NAME],
+    ['AWS_REGION', config.AWS_REGION],
+  ] as const;
+
+  for (const [name, value] of requiredIamRedisConfig) {
+    if (!value) throw new Error(`${name} is required when REDIS_AUTH_MODE=iam`);
+  }
+
+  if (!Number.isInteger(config.REDIS_PORT) || config.REDIS_PORT < 1 || config.REDIS_PORT > 65535) {
+    throw new Error('REDIS_PORT must be an integer between 1 and 65535');
   }
 }
 

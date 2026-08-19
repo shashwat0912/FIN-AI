@@ -39,11 +39,19 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s-frontend" (include "finance-ai.fullname" . | trunc 54 | trimSuffix "-") }}
 {{- end }}
 
-{{- define "finance-ai.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create }}
-{{- default (include "finance-ai.fullname" .) .Values.serviceAccount.name | trunc 63 | trimSuffix "-" }}
+{{- define "finance-ai.backendServiceAccountName" -}}
+{{- if .Values.backend.serviceAccount.create }}
+{{- default (include "finance-ai.backendFullname" .) .Values.backend.serviceAccount.name | trunc 63 | trimSuffix "-" }}
 {{- else }}
-{{- default "default" .Values.serviceAccount.name | trunc 63 | trimSuffix "-" }}
+{{- default "default" .Values.backend.serviceAccount.name | trunc 63 | trimSuffix "-" }}
+{{- end }}
+{{- end }}
+
+{{- define "finance-ai.frontendServiceAccountName" -}}
+{{- if .Values.frontend.serviceAccount.create }}
+{{- default (include "finance-ai.frontendFullname" .) .Values.frontend.serviceAccount.name | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- default "default" .Values.frontend.serviceAccount.name | trunc 63 | trimSuffix "-" }}
 {{- end }}
 {{- end }}
 

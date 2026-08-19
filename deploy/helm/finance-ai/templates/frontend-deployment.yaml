@@ -26,8 +26,8 @@ spec:
       annotations:
         checksum/nginx-config: {{ include (print $.Template.BasePath "/frontend-configmap.yaml") . | sha256sum }}
     spec:
-      serviceAccountName: {{ include "finance-ai.serviceAccountName" . }}
-      automountServiceAccountToken: {{ .Values.serviceAccount.automount }}
+      serviceAccountName: {{ include "finance-ai.frontendServiceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.frontend.serviceAccount.automount }}
       terminationGracePeriodSeconds: {{ .Values.frontend.terminationGracePeriodSeconds }}
       securityContext:
         {{- toYaml .Values.frontend.podSecurityContext | nindent 8 }}
