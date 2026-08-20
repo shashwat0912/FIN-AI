@@ -111,8 +111,14 @@ Never leave database `CREATE` granted after the first migration attempt,
 whether that attempt succeeds or fails. Later migrations run with the normal
 CONNECT-only database privilege and schema `USAGE, CREATE`.
 
-Do not execute this staging procedure until Phase 5C.2 explicitly authorizes
-live RDS access, credential creation, Kubernetes Secrets, and migrations.
+Complete this one-time baseline and the final `roles.sql` reconciliation before
+the first Helm install. The Helm pre-install migration hook then acts as a
+no-pending-migrations gate; it must not roll out the backend while the temporary
+database `CREATE` grant is still active.
+
+Do not execute this staging procedure until a separately reviewed live staging
+step explicitly authorizes RDS access, credential creation, Kubernetes Secrets,
+and migrations.
 
 ## RDS TLS
 
@@ -123,13 +129,13 @@ The backend image contains the official AWS RDS `ap-south-1` bundle at:
 ```
 
 Prisma resolves certificate paths relative to its `prisma` directory, so both
-runtime and future migration URLs must use:
+runtime and migration URLs must use:
 
 ```text
 postgresql://<role>:<url-encoded-password>@<private-rds-address>:5432/financeai?schema=public&sslmode=require&sslrootcert=certs/ap-south-1-bundle.pem&sslaccept=strict
 ```
 
-The runtime and future migration Job use the same backend image. The Docker
+The runtime Deployment and Helm migration Job use the same backend image. The Docker
 build fails if the bundle is absent, and the non-root runtime user can read it.
 Do not use `rejectUnauthorized=false`, `sslaccept=accept_invalid_certs`, or any
 other certificate-verification bypass.

@@ -1,0 +1,50 @@
+{{- if .Values.migration.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "finance-ai.migrationFullname" . }}
+  labels:
+    {{- include "finance-ai.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migration
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": hook-succeeded
+spec:
+  backoffLimit: {{ .Values.migration.backoffLimit }}
+  completions: 1
+  parallelism: 1
+  template:
+    metadata:
+      labels:
+        {{- include "finance-ai.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: migration
+    spec:
+      serviceAccountName: {{ include "finance-ai.migrationFullname" . }}
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        {{- toYaml .Values.backend.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: migrate
+          image: {{ include "finance-ai.image" .Values.backend.image | quote }}
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          command:
+            - npm
+            - run
+            - db:migrate:deploy
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.migration.existingSecret }}
+                  key: DATABASE_URL
+          securityContext:
+            {{- toYaml .Values.backend.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.backend.resources | nindent 12 }}
+{{- end }}

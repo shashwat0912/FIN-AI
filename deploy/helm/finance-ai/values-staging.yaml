@@ -1,3 +1,8 @@
+migration:
+  enabled: true
+  existingSecret: finance-ai-migrator-secrets-staging
+  backoffLimit: 0
+
 backend:
   replicas: 1
   existingSecret: finance-ai-backend-secrets-staging
