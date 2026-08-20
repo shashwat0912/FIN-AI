@@ -6,19 +6,176 @@ history.
 
 ## Current deployment status
 
-The checked-in migration history is not yet authoritative:
+The active Prisma schema and migration lock are PostgreSQL. The checked-in
+history starts with `prisma/migrations/0_postgresql_baseline` and represents the
+current Prisma schema; its reviewed copy is under `prisma/review`.
 
-- `schema.prisma` uses PostgreSQL.
-- `prisma/migrations/migration_lock.toml` still says SQLite.
-- the initial SQL migration does not represent the complete current schema.
-- the knowledge migration requires pgvector, while the current Prisma schema
-  and Docker PostgreSQL image do not.
+Staging has not been bootstrapped or migrated from this repository. Production
+remains a separate legacy classification problem and must not be changed as
+part of the staging procedure below.
 
 The local Docker database has application tables but no
 `_prisma_migrations` table, so it is classified as a schema-push database.
 Production remains unclassified until the read-only EC2 checks below are run.
 Do not replace migration history, resolve a baseline, or deploy migrations to
 production while its classification is unknown.
+
+## Staging PostgreSQL identities
+
+`financeai_admin` is the existing database owner and is used only for
+bootstrap and break-glass administration. The application identities are:
+
+- `financeai_runtime`: login, database `CONNECT`, schema `USAGE`, and
+  `SELECT`, `INSERT`, `UPDATE`, `DELETE` on application tables. It owns no
+  objects, inherits no roles, has no sequence privileges, cannot create schema
+  objects, and cannot access `_prisma_migrations`.
+- `financeai_migrator`: login, database `CONNECT`, schema `USAGE` and `CREATE`.
+  It owns all Prisma-created tables, indexes, constraints, and
+  `_prisma_migrations`. It is not a superuser and cannot create roles or
+  databases.
+
+The administrator-owned `public` schema keeps its owner. Bootstrap revokes
+database and schema privileges from `PUBLIC`, grants each application role
+only its required access, and defines future table grants as
+`financeai_migrator` so new Prisma tables automatically receive runtime DML.
+Sequences deliberately receive no runtime default grant because the current
+schema does not use them.
+
+### Bootstrap and password handling
+
+`prisma/bootstrap/roles.sql` creates or reconciles roles, attributes,
+memberships, grants, ownership, and default privileges. It never receives,
+interpolates, changes, or verifies passwords.
+
+Connect from a short-lived, controlled shell using verified TLS. Let `psql`
+prompt for the RDS-managed administrator password rather than putting it in a
+URL, command argument, environment variable, or shell history:
+
+```bash
+cd backend
+
+export PGHOST='<private-rds-address>'
+export PGPORT=5432
+export PGDATABASE=financeai
+export PGUSER=financeai_admin
+export PGSSLMODE=verify-full
+export PGSSLROOTCERT="$PWD/prisma/certs/ap-south-1-bundle.pem"
+
+psql -X
+```
+
+Inside that interactive session, create/reconcile the roles, require SCRAM,
+and set distinct password-manager-generated passwords of at least 32
+characters:
+
+```psql
+\i prisma/bootstrap/roles.sql
+SET password_encryption = 'scram-sha-256';
+\password financeai_runtime
+\password financeai_migrator
+```
+
+`\password` prompts without echo and performs password encryption in the psql
+client before sending `ALTER ROLE`; the plaintext password is not sent in SQL
+and cannot appear in PostgreSQL statement logs. Use the same interactive
+procedure for later password rotation. Do not replace it with
+`ALTER ROLE ... PASSWORD '<plaintext>'`.
+
+The script is repeatable: it queries `pg_roles` and uses `\gexec` for missing
+roles because PostgreSQL has no `CREATE ROLE IF NOT EXISTS`, then uses
+`ALTER ROLE`, revoke-and-grant reconciliation, and `ALTER DEFAULT PRIVILEGES`
+on every run without modifying the existing password verifier.
+
+### First staging baseline only
+
+The immutable baseline contains `CREATE SCHEMA IF NOT EXISTS "public"`, which
+requires database `CREATE` even though bootstrap preserves the existing
+administrator-owned schema. Use this one-time sequence:
+
+1. Run `roles.sql`; verify its privilege output shows
+   `financeai_migrator` database `CREATE = false`.
+2. Immediately before the first baseline migration, as `financeai_admin`, run:
+
+   ```sql
+   GRANT CREATE ON DATABASE financeai TO financeai_migrator;
+   ```
+
+3. Run `prisma migrate deploy` using the `financeai_migrator` URL.
+4. Immediately rerun `roles.sql` as `financeai_admin`. It revokes all database
+   privileges from the migrator, restores only `CONNECT`, reconciles existing
+   table DML, and removes runtime access to `_prisma_migrations`.
+5. Verify database `CREATE = false`, object ownership, table grants, and the
+   default ACL output before starting the backend.
+
+Never leave database `CREATE` granted after the first migration attempt,
+whether that attempt succeeds or fails. Later migrations run with the normal
+CONNECT-only database privilege and schema `USAGE, CREATE`.
+
+Complete this one-time baseline and the final `roles.sql` reconciliation before
+the first Helm install. The Helm pre-install migration hook then acts as a
+no-pending-migrations gate; it must not roll out the backend while the temporary
+database `CREATE` grant is still active.
+
+Do not execute this staging procedure until a separately reviewed live staging
+step explicitly authorizes RDS access, credential creation, Kubernetes Secrets,
+and migrations.
+
+## RDS TLS
+
+The backend image contains the official AWS RDS `ap-south-1` bundle at:
+
+```text
+/app/prisma/certs/ap-south-1-bundle.pem
+```
+
+Prisma resolves certificate paths relative to its `prisma` directory, so both
+runtime and migration URLs must use:
+
+```text
+postgresql://<role>:<url-encoded-password>@<private-rds-address>:5432/financeai?schema=public&sslmode=require&sslrootcert=certs/ap-south-1-bundle.pem&sslaccept=strict
+```
+
+The runtime Deployment and Helm migration Job use the same backend image. The Docker
+build fails if the bundle is absent, and the non-root runtime user can read it.
+Do not use `rejectUnauthorized=false`, `sslaccept=accept_invalid_certs`, or any
+other certificate-verification bypass.
+
+Bundle source:
+`https://truststore.pki.rds.amazonaws.com/ap-south-1/ap-south-1-bundle.pem`
+
+Pinned SHA-256:
+`ca4a9dc14e06c3f84274eff3ffed0e5d4d3463141593e1159eb4a0904df6cd74`
+
+Review and update the committed bundle deliberately when AWS changes the
+regional trust bundle; do not download it during application startup.
+
+## PostgreSQL identity validation
+
+The focused validation creates and removes one disposable PostgreSQL 15
+container. Local-only SQL assigns generated ephemeral passwords; production
+bootstrap never uses that automation. The test then proves database `CREATE`
+is false before the one-time grant, true during the first-baseline window, and
+false after post-migration reconciliation:
+
+```bash
+cd backend
+./scripts/validate-postgres-identities.sh
+```
+
+It proves runtime CRUD, migrator ownership, exact role/database/schema/table
+and default privileges, SCRAM-SHA-256 password storage, zero pending migrations
+on the second deployment, and denial of runtime `CREATE TABLE`, `ALTER TABLE`,
+`DROP TABLE`, `TRUNCATE`, and `_prisma_migrations` access.
+
+## Known knowledge-base mismatch
+
+`knowledgeBaseService.ts` casts `metadata` to `jsonb` and `embedding` to
+`vector`, while the active Prisma schema and baseline define those columns as
+`TEXT`. The controller constructs this service during module loading, but its
+constructor performs no database query; none of the startup background jobs
+invoke it. The mismatch therefore does not block backend startup or the first
+staging release, but knowledge-chunk create/update endpoints can fail when
+called. Fix and migrate those column types in a separately reviewed phase.
 
 ## EC2 read-only classification
 

@@ -1,6 +1,6 @@
 # Finance AI Helm chart
 
-This chart renders the existing Finance AI frontend and backend containers as Kubernetes Deployments, ClusterIP Services, ConfigMaps, component-specific ServiceAccounts, and an optional Ingress.
+This chart renders the existing Finance AI frontend and backend containers as Kubernetes Deployments, ClusterIP Services, ConfigMaps, component-specific ServiceAccounts, an optional Prisma migration Job, and an optional Ingress.
 
 ## Prerequisites
 
@@ -9,6 +9,7 @@ This chart renders the existing Finance AI frontend and backend containers as Ku
 - External PostgreSQL and Redis services reachable from the cluster
 - Built frontend and backend images
 - An existing Kubernetes Secret named by `backend.existingSecret`
+- When `migration.enabled=true`, an existing Kubernetes Secret named by `migration.existingSecret`
 
 The production and local URL-auth Secrets must contain these keys by name:
 
@@ -21,7 +22,26 @@ The production and local URL-auth Secrets must contain these keys by name:
 
 Add `OPENAI_API_KEY` when OpenAI-backed features are enabled. Optional provider credentials such as `SMTP_USER`, `SMTP_PASS`, Stripe keys, and `SENTRY_DSN` belong in the same existing Secret when used. Never put those values in a chart values file.
 
+The migration Secret is separate from the backend Secret and contains only `DATABASE_URL`, using the `financeai_migrator` credentials and the verified RDS TLS parameters documented in `backend/DATABASE_SETUP.md`. The migration Job reads only that key; the backend Deployment continues to read only `backend.existingSecret`.
+
 Staging uses IAM-authenticated Valkey instead of `REDIS_URL`; its backend Secret must not contain a Redis IAM token or password. The non-secret Redis endpoint, username, cache name, and AWS region live in the backend ConfigMap. The `finance-ai-backend` ServiceAccount is annotated with the staging IRSA role; the frontend has a separate, unannotated ServiceAccount. Kubernetes API token automount remains disabled, while EKS injects the projected web-identity token used by the AWS SDK.
+
+## Migration release gate
+
+Staging enables a deterministic `pre-install,pre-upgrade` Helm hook Job. Helm waits for the Job before applying application resources, so a failed migration fails the release before either Deployment is rolled out. The Job runs `npm run db:migrate:deploy` with the exact backend repository/tag/digest and pull policy.
+
+The chart creates a dedicated `finance-ai-staging-migrate` ServiceAccount for the migration Job. Both the ServiceAccount and Pod disable token automount; the ServiceAccount has no IRSA/IAM annotation or RoleBinding, and the Job receives no AWS credential environment. The Pod and container reuse the backend non-root and restricted security contexts.
+
+Hook lifecycle:
+
+- The ServiceAccount is a `pre-install,pre-upgrade` hook with weight `-10`; `before-hook-creation` replaces any previous hook ServiceAccount before an install or upgrade. It deliberately has no `hook-succeeded` policy, so it still exists when the migration Job starts at weight `-5`.
+- The Job has `backoffLimit: 0`, `parallelism: 1`, and `completions: 1`. A failed Prisma execution stops immediately, and its deterministic name prevents another migration Job for the same release.
+- `hook-succeeded` removes successful Jobs so they cannot block later releases. Failed Jobs and their Pod logs remain until an operator inspects and explicitly deletes the failed Job.
+- After success, the unprivileged ServiceAccount remains for the next upgrade. Helm does not manage hook resources during uninstall, so explicitly remove that ServiceAccount and any retained failed migration Job after uninstalling the release.
+
+The first immutable baseline is a special bootstrap operation: complete the temporary database `CREATE` grant, baseline migration, and post-migration `roles.sql` reconciliation from `backend/DATABASE_SETUP.md` before the first Helm install. The first hook then verifies that no migration remains before allowing the Deployments to start; it must not leave the temporary privilege window open during rollout.
+
+Migration is disabled by default and in local and production values. The existing `deploy/local/migrate.yaml` flow remains unchanged.
 
 ## Render
 
@@ -62,7 +82,7 @@ helm upgrade --install finance-ai deploy/helm/finance-ai \
   --set-string 'frontend.image.digest=sha256:FRONTEND_DIGEST'
 ```
 
-When a digest is set, the rendered image uses `repository@sha256:...` and ignores the tag. Use the same two digests with staging and production values to promote exactly the tested images.
+When a digest is set, the rendered image uses `repository@sha256:...` and ignores the tag. The migration Job automatically uses the backend digest. Use the same two application digests with staging and production values to promote exactly the tested images.
 
 ## Scope and current limitations
 

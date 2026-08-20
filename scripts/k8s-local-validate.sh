@@ -170,6 +170,10 @@ staging_frontend_sa="$temp_dir/staging-frontend-serviceaccount.yaml"
 staging_backend_deployment="$temp_dir/staging-backend-deployment.yaml"
 staging_frontend_deployment="$temp_dir/staging-frontend-deployment.yaml"
 staging_backend_config="$temp_dir/staging-backend-configmap.yaml"
+staging_migration_sa="$temp_dir/staging-migration-serviceaccount.yaml"
+staging_migration_job="$temp_dir/staging-migration-job.yaml"
+staging_digest_backend="$temp_dir/staging-digest-backend.yaml"
+staging_digest_migration="$temp_dir/staging-digest-migration.yaml"
 local_render="$temp_dir/local.yaml"
 production_render="$temp_dir/production.yaml"
 
@@ -177,6 +181,12 @@ helm lint "$CHART_DIR"
 helm lint "$CHART_DIR" -f "$STAGING_VALUES"
 helm lint "$CHART_DIR" -f "$LOCAL_VALUES"
 helm lint "$CHART_DIR" -f "$PRODUCTION_VALUES"
+if helm lint "$CHART_DIR" --set migration.enabled=true > "$temp_dir/missing-migration-secret.log" 2>&1; then
+  fail "Schema accepted an enabled migration without migration.existingSecret"
+fi
+if helm lint "$CHART_DIR" --set migration.backoffLimit=-1 > "$temp_dir/invalid-migration-backoff.log" 2>&1; then
+  fail "Schema accepted a negative migration.backoffLimit"
+fi
 
 helm template finance-ai "$CHART_DIR" --namespace finance-ai > "$default_render"
 helm template finance-ai-staging "$CHART_DIR" --namespace finance-ai-staging -f "$STAGING_VALUES" > "$staging_render"
@@ -190,6 +200,18 @@ helm template finance-ai-staging "$CHART_DIR" --namespace finance-ai-staging -f 
   --show-only templates/frontend-deployment.yaml > "$staging_frontend_deployment"
 helm template finance-ai-staging "$CHART_DIR" --namespace finance-ai-staging -f "$STAGING_VALUES" \
   --show-only templates/backend-configmap.yaml > "$staging_backend_config"
+helm template finance-ai-staging "$CHART_DIR" --namespace finance-ai-staging -f "$STAGING_VALUES" \
+  --show-only templates/serviceaccount.yaml \
+  --set backend.serviceAccount.create=false --set frontend.serviceAccount.create=false > "$staging_migration_sa"
+helm template finance-ai-staging "$CHART_DIR" --namespace finance-ai-staging -f "$STAGING_VALUES" \
+  --show-only templates/migration-job.yaml > "$staging_migration_job"
+readonly TEST_BACKEND_DIGEST="sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+helm template finance-ai-staging "$CHART_DIR" --namespace finance-ai-staging -f "$STAGING_VALUES" \
+  --set-string "backend.image.digest=$TEST_BACKEND_DIGEST" \
+  --show-only templates/backend-deployment.yaml > "$staging_digest_backend"
+helm template finance-ai-staging "$CHART_DIR" --namespace finance-ai-staging -f "$STAGING_VALUES" \
+  --set-string "backend.image.digest=$TEST_BACKEND_DIGEST" \
+  --show-only templates/migration-job.yaml > "$staging_digest_migration"
 helm template "$RELEASE" "$CHART_DIR" --namespace "$NAMESPACE" -f "$LOCAL_VALUES" > "$local_render"
 helm template finance-ai "$CHART_DIR" --namespace finance-ai -f "$PRODUCTION_VALUES" > "$production_render"
 
@@ -206,6 +228,62 @@ assert_contains "$staging_frontend_sa" "automountServiceAccountToken: false"
 assert_not_contains "$staging_frontend_sa" "eks.amazonaws.com/role-arn"
 
 for value in \
+  "kind: ServiceAccount" \
+  "name: finance-ai-staging-migrate" \
+  "app.kubernetes.io/component: migration" \
+  '"helm.sh/hook": pre-install,pre-upgrade' \
+  '"helm.sh/hook-weight": "-10"' \
+  '"helm.sh/hook-delete-policy": before-hook-creation' \
+  "automountServiceAccountToken: false"; do
+  assert_contains "$staging_migration_sa" "$value"
+done
+assert_not_contains "$staging_migration_sa" "hook-succeeded"
+assert_not_contains "$staging_migration_sa" "eks.amazonaws.com/role-arn"
+assert_not_contains "$staging_migration_sa" "arn:aws:iam"
+
+for value in \
+  "kind: Job" \
+  "name: finance-ai-staging-migrate" \
+  '"helm.sh/hook": pre-install,pre-upgrade' \
+  '"helm.sh/hook-weight": "-5"' \
+  '"helm.sh/hook-delete-policy": hook-succeeded' \
+  "backoffLimit: 0" \
+  "completions: 1" \
+  "parallelism: 1" \
+  "serviceAccountName: finance-ai-staging-migrate" \
+  "automountServiceAccountToken: false" \
+  "restartPolicy: Never" \
+  "runAsNonRoot: true" \
+  "runAsUser: 1001" \
+  'image: "finance-ai-backend:0.1.0"' \
+  "- npm" \
+  "- run" \
+  "- db:migrate:deploy" \
+  "name: DATABASE_URL" \
+  "name: finance-ai-migrator-secrets-staging" \
+  "key: DATABASE_URL"; do
+  assert_contains "$staging_migration_job" "$value"
+done
+
+assert_not_contains "$staging_migration_job" "finance-ai-backend-secrets-staging"
+assert_not_contains "$staging_migration_job" "serviceAccountName: default"
+assert_not_contains "$staging_migration_job" "serviceAccountName: finance-ai-backend"
+assert_not_contains "$staging_migration_job" "eks.amazonaws.com/role-arn"
+assert_not_contains "$staging_migration_job" "arn:aws:iam"
+assert_not_contains "$staging_migration_job" "hook-failed"
+assert_not_contains "$staging_migration_job" "before-hook-creation"
+assert_not_contains "$staging_migration_job" "postgresql://"
+assert_not_contains "$staging_migration_job" "postgres://"
+for value in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_ROLE_ARN AWS_WEB_IDENTITY_TOKEN_FILE AWS_CONTAINER_CREDENTIALS_FULL_URI AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE; do
+  assert_not_contains "$staging_migration_job" "$value"
+done
+
+assert_contains "$staging_backend_deployment" "name: finance-ai-backend-secrets-staging"
+assert_not_contains "$staging_backend_deployment" "finance-ai-migrator-secrets-staging"
+assert_contains "$staging_digest_backend" "image: \"finance-ai-backend@$TEST_BACKEND_DIGEST\""
+assert_contains "$staging_digest_migration" "image: \"finance-ai-backend@$TEST_BACKEND_DIGEST\""
+
+for value in \
   'REDIS_AUTH_MODE: "iam"' \
   'REDIS_HOST: "master.finance-ai-staging-valkey.zdzskp.aps1.cache.amazonaws.com"' \
   'REDIS_PORT: "6379"' \
@@ -220,8 +298,16 @@ for value in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_ROLE_
 done
 assert_not_contains "$local_render" "eks.amazonaws.com/role-arn"
 assert_not_contains "$local_render" 'REDIS_AUTH_MODE: "iam"'
+assert_not_contains "$local_render" "kind: Job"
+assert_not_contains "$local_render" "app.kubernetes.io/component: migration"
+assert_not_contains "$local_render" "finance-ai-migrator-secrets-staging"
 assert_not_contains "$production_render" "eks.amazonaws.com/role-arn"
 assert_not_contains "$production_render" 'REDIS_AUTH_MODE: "iam"'
+assert_not_contains "$production_render" "kind: Job"
+assert_not_contains "$production_render" "app.kubernetes.io/component: migration"
+assert_not_contains "$production_render" "finance-ai-migrator-secrets-staging"
+assert_not_contains "$default_render" "kind: Job"
+assert_not_contains "$default_render" "app.kubernetes.io/component: migration"
 
 if [[ "$STATIC_ONLY" == "true" ]]; then
   echo

@@ -39,6 +39,8 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma/schema.prisma ./prisma/schema.prisma
 COPY --from=builder /app/prisma/migrations ./prisma/migrations
+COPY --from=builder /app/prisma/certs/ap-south-1-bundle.pem ./prisma/certs/ap-south-1-bundle.pem
+RUN echo 'ca4a9dc14e06c3f84274eff3ffed0e5d4d3463141593e1159eb4a0904df6cd74  /app/prisma/certs/ap-south-1-bundle.pem' | sha256sum -c -
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs

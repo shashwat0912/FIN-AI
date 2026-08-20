@@ -2,7 +2,13 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "additionalProperties": false,
-  "required": ["imagePullSecrets", "backend", "frontend", "ingress"],
+  "required": [
+    "imagePullSecrets",
+    "migration",
+    "backend",
+    "frontend",
+    "ingress"
+  ],
   "properties": {
     "nameOverride": { "type": "string" },
     "fullnameOverride": { "type": "string" },
@@ -15,11 +21,32 @@
         "properties": { "name": { "type": "string", "minLength": 1 } }
       }
     },
+    "migration": { "$ref": "#/definitions/migration" },
     "backend": { "$ref": "#/definitions/backend" },
     "frontend": { "$ref": "#/definitions/frontend" },
     "ingress": { "$ref": "#/definitions/ingress" }
   },
   "definitions": {
+    "migration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "existingSecret", "backoffLimit"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "existingSecret": { "type": "string" },
+        "backoffLimit": { "type": "integer", "minimum": 0, "maximum": 6 }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "enabled": { "const": true } }
+          },
+          "then": {
+            "properties": { "existingSecret": { "minLength": 1 } }
+          }
+        }
+      ]
+    },
     "image": {
       "type": "object",
       "additionalProperties": false,

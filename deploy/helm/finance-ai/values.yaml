@@ -3,6 +3,11 @@ fullnameOverride: ""
 
 imagePullSecrets: []
 
+migration:
+  enabled: false
+  existingSecret: ""
+  backoffLimit: 0
+
 backend:
   replicas: 1
   existingSecret: finance-ai-backend-secrets
