@@ -22,8 +22,10 @@ production while its classification is unknown.
 
 ## Staging PostgreSQL identities
 
-`financeai_admin` is the existing database owner and is used only for
-bootstrap and break-glass administration. The application identities are:
+`financeai_admin` is the RDS master and database owner, with `LOGIN`, `CREATEDB`,
+and `CREATEROLE`, and is used only for bootstrap and break-glass
+administration. It is not a true PostgreSQL superuser. The application
+identities are:
 
 - `financeai_runtime`: login, database `CONNECT`, schema `USAGE`, and
   `SELECT`, `INSERT`, `UPDATE`, `DELETE` on application tables. It owns no
@@ -85,6 +87,14 @@ The script is repeatable: it queries `pg_roles` and uses `\gexec` for missing
 roles because PostgreSQL has no `CREATE ROLE IF NOT EXISTS`, then uses
 `ALTER ROLE`, revoke-and-grant reconciliation, and `ALTER DEFAULT PRIVILEGES`
 on every run without modifying the existing password verifier.
+
+Because the RDS master is not a PostgreSQL superuser, `roles.sql` does not try
+to alter the `SUPERUSER`, `REPLICATION`, or `BYPASSRLS` attributes. New roles
+receive PostgreSQL's safe false defaults for those attributes; existing roles
+are checked before reconciliation. Bootstrap fails closed if either role has
+one of those dangerous attributes, then verifies both roles are login-enabled
+and have none of `SUPERUSER`, `CREATEDB`, `CREATEROLE`, `REPLICATION`, or
+`BYPASSRLS` after reconciling the attributes the RDS master can safely manage.
 
 ### First staging baseline only
 
@@ -152,19 +162,24 @@ regional trust bundle; do not download it during application startup.
 ## PostgreSQL identity validation
 
 The focused validation creates and removes one disposable PostgreSQL 15
-container. Local-only SQL assigns generated ephemeral passwords; production
-bootstrap never uses that automation. The test then proves database `CREATE`
-is false before the one-time grant, true during the first-baseline window, and
-false after post-migration reconciliation:
+container. Its initial `postgres` superuser creates a separate
+`financeai_admin` role with the RDS boundary: `rolsuper=false`,
+`rolcreatedb=true`, and `rolcreaterole=true`, plus a database owned by that
+role. Every `roles.sql` execution then runs as `financeai_admin`, never as the
+local superuser. Local-only SQL assigns generated ephemeral passwords;
+production bootstrap never uses that automation. The test then proves database
+`CREATE` is false before the one-time grant, true during the first-baseline
+window, and false after post-migration reconciliation:
 
 ```bash
 cd backend
 ./scripts/validate-postgres-identities.sh
 ```
 
-It proves runtime CRUD, migrator ownership, exact role/database/schema/table
-and default privileges, SCRAM-SHA-256 password storage, zero pending migrations
-on the second deployment, and denial of runtime `CREATE TABLE`, `ALTER TABLE`,
+It proves the non-superuser bootstrap succeeds twice, application logins use
+SCRAM-only host authentication, runtime CRUD, migrator ownership, exact
+role/database/schema/table and default privileges, zero pending migrations on
+the second deployment, and denial of runtime `CREATE TABLE`, `ALTER TABLE`,
 `DROP TABLE`, `TRUNCATE`, and `_prisma_migrations` access.
 
 ## Known knowledge-base mismatch
