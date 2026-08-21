@@ -7,6 +7,7 @@ readonly CONTAINER_NAME="finance-ai-postgres-identity-${$}"
 readonly POSTGRES_IMAGE="postgres:15-alpine"
 
 temp_dir="$(mktemp -d "${TMPDIR:-/tmp}/finance-ai-postgres-identity.XXXXXX")"
+readonly DANGEROUS_ROLE_LOG="$temp_dir/dangerous-role.log"
 readonly FIRST_MIGRATION_LOG="$temp_dir/first-migration.log"
 readonly SECOND_MIGRATION_LOG="$temp_dir/second-migration.log"
 
@@ -34,18 +35,30 @@ export VALIDATION_MIGRATOR_PASSWORD="$(openssl rand -hex 32)"
 docker run --detach --rm \
   --name "$CONTAINER_NAME" \
   --publish 127.0.0.1::5432 \
-  --env POSTGRES_DB=financeai \
-  --env POSTGRES_USER=financeai_admin \
   --env POSTGRES_PASSWORD \
+  --env POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256 \
   "$POSTGRES_IMAGE" >/dev/null
 
 for _ in {1..30}; do
-  if docker exec "$CONTAINER_NAME" pg_isready -U financeai_admin -d financeai >/dev/null 2>&1; then
+  if docker exec "$CONTAINER_NAME" pg_isready -U postgres -d postgres >/dev/null 2>&1; then
     break
   fi
   sleep 1
 done
-docker exec "$CONTAINER_NAME" pg_isready -U financeai_admin -d financeai >/dev/null
+docker exec "$CONTAINER_NAME" pg_isready -U postgres -d postgres >/dev/null
+
+docker exec --interactive "$CONTAINER_NAME" \
+  psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres <<'SQL'
+CREATE ROLE financeai_admin LOGIN CREATEDB CREATEROLE;
+CREATE DATABASE financeai OWNER financeai_admin;
+SQL
+
+admin_attributes="$(docker exec "$CONTAINER_NAME" \
+  psql -X -At -F '|' -U postgres -d postgres --command \
+  "SELECT rolsuper, rolcreatedb, rolcreaterole FROM pg_roles WHERE rolname = 'financeai_admin'")"
+[[ "$admin_attributes" == "f|t|t" ]] ||
+  fail "financeai_admin does not model the RDS master permission boundary"
+echo "financeai_admin attributes: rolsuper=f rolcreatedb=t rolcreaterole=t"
 
 host_port="$(docker port "$CONTAINER_NAME" 5432/tcp | awk -F: 'NR == 1 { print $NF }')"
 [[ "$host_port" =~ ^[0-9]+$ ]] || fail "Could not resolve the disposable PostgreSQL port"
@@ -55,9 +68,26 @@ run_bootstrap() {
     psql -X -U financeai_admin -d financeai --file - < "$BOOTSTRAP_SQL"
 }
 
+docker exec "$CONTAINER_NAME" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  --command 'CREATE ROLE financeai_runtime SUPERUSER' >/dev/null
+if run_bootstrap >"$DANGEROUS_ROLE_LOG" 2>&1; then
+  fail "Bootstrap accepted a dangerous existing application role"
+fi
+grep -Fq 'bootstrap cannot safely revoke it' "$DANGEROUS_ROLE_LOG" ||
+  fail "Bootstrap did not fail closed on a dangerous role attribute"
+docker exec "$CONTAINER_NAME" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  --command 'DROP ROLE financeai_runtime' >/dev/null
+remaining_application_roles="$(docker exec "$CONTAINER_NAME" \
+  psql -X -At -U postgres -d postgres --command \
+  "SELECT count(*) FROM pg_roles WHERE rolname IN ('financeai_runtime', 'financeai_migrator')")"
+[[ "$remaining_application_roles" == "0" ]] ||
+  fail "Failed bootstrap left partially created application roles"
+echo "Dangerous application role attribute rejected and transaction rolled back"
+
 echo "Bootstrapping roles twice before migration"
 run_bootstrap >/dev/null
 run_bootstrap >/dev/null
+echo "Bootstrap repeated successfully as non-superuser financeai_admin"
 
 # Disposable-only password setup. Live bootstrap uses interactive psql
 # \password so plaintext is never sent in ALTER ROLE SQL.
@@ -71,6 +101,18 @@ SET password_encryption = 'scram-sha-256';
 ALTER ROLE financeai_runtime PASSWORD :'runtime_password';
 ALTER ROLE financeai_migrator PASSWORD :'migrator_password';
 SQL
+
+assert_scram_login() {
+  local role="$1"
+  local password="$2"
+  PGPASSWORD="$password" docker exec --env PGPASSWORD "$CONTAINER_NAME" \
+    psql -X -At -h 127.0.0.1 -U "$role" -d financeai \
+    --command 'SELECT current_user' | grep -Fxq "$role"
+}
+
+assert_scram_login financeai_runtime "$VALIDATION_RUNTIME_PASSWORD"
+assert_scram_login financeai_migrator "$VALIDATION_MIGRATOR_PASSWORD"
+echo "Application roles authenticated through SCRAM-only host rules"
 
 database_create_state() {
   docker exec "$CONTAINER_NAME" psql -X -At -U financeai_admin -d financeai \
@@ -148,6 +190,13 @@ DO $$
 DECLARE
   default_table_privileges text[];
 BEGIN
+  IF NOT EXISTS (
+    SELECT FROM pg_roles
+    WHERE rolname = current_user AND NOT rolsuper AND rolcreatedb AND rolcreaterole
+  ) THEN
+    RAISE EXCEPTION 'bootstrap executor does not match the RDS admin permission boundary';
+  END IF;
+
   IF EXISTS (
     SELECT FROM pg_roles
     WHERE rolname IN ('financeai_runtime', 'financeai_migrator')
@@ -293,13 +342,6 @@ BEGIN
     RAISE EXCEPTION 'PUBLIC or runtime sequence default privileges remain';
   END IF;
 
-  IF EXISTS (
-    SELECT FROM pg_authid
-    WHERE rolname IN ('financeai_runtime', 'financeai_migrator')
-      AND (rolpassword IS NULL OR rolpassword NOT LIKE 'SCRAM-SHA-256$%')
-  ) THEN
-    RAISE EXCEPTION 'application role password is not stored as SCRAM-SHA-256';
-  END IF;
 END
 $$;
 

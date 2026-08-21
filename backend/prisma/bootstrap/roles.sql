@@ -17,15 +17,44 @@ WHERE datname = current_database()
 
 BEGIN;
 
-SELECT format('CREATE ROLE %I', role_name)
+-- Omitted SUPERUSER, REPLICATION, and BYPASSRLS attributes use PostgreSQL's
+-- safe false defaults; an RDS master cannot alter those attributes later.
+SELECT format('CREATE ROLE %I WITH LOGIN INHERIT NOCREATEDB NOCREATEROLE', role_name)
 FROM (VALUES ('financeai_runtime'), ('financeai_migrator')) AS roles(role_name)
 WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = role_name)
 \gexec
 
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT FROM pg_roles
+    WHERE rolname IN ('financeai_runtime', 'financeai_migrator')
+      AND (rolsuper OR rolreplication OR rolbypassrls)
+  ) THEN
+    RAISE EXCEPTION
+      'application role has SUPERUSER, REPLICATION, or BYPASSRLS; bootstrap cannot safely revoke it';
+  END IF;
+END
+$$;
+
 ALTER ROLE financeai_runtime WITH
-  LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+  LOGIN INHERIT NOCREATEDB NOCREATEROLE;
 ALTER ROLE financeai_migrator WITH
-  LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+  LOGIN INHERIT NOCREATEDB NOCREATEROLE;
+
+DO $$
+BEGIN
+  IF (SELECT count(*) FROM pg_roles
+      WHERE rolname IN ('financeai_runtime', 'financeai_migrator')) <> 2 OR EXISTS (
+    SELECT FROM pg_roles
+    WHERE rolname IN ('financeai_runtime', 'financeai_migrator')
+      AND (NOT rolcanlogin OR rolsuper OR rolcreatedb OR rolcreaterole OR
+           rolreplication OR rolbypassrls)
+  ) THEN
+    RAISE EXCEPTION 'application role attributes are broader than intended';
+  END IF;
+END
+$$;
 
 -- Neither application role may inherit privileges from another role.
 SELECT format('REVOKE %I FROM %I', granted.rolname, member.rolname)
