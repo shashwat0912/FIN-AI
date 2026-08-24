@@ -22,7 +22,7 @@ The production and local URL-auth Secrets must contain these keys by name:
 
 Add `OPENAI_API_KEY` when OpenAI-backed features are enabled. Optional provider credentials such as `SMTP_USER`, `SMTP_PASS`, Stripe keys, and `SENTRY_DSN` belong in the same existing Secret when used. Never put those values in a chart values file.
 
-The migration Secret is separate from the backend Secret and contains only `DATABASE_URL`, using the `financeai_migrator` credentials and the verified RDS TLS parameters documented in `backend/DATABASE_SETUP.md`. The migration Job reads only that key; the backend Deployment continues to read only `backend.existingSecret`.
+The migration Secret is separate from the backend Secret and contains only `DATABASE_URL`, using the `financeai_migrator` credentials and the verified RDS TLS parameters documented in `backend/DATABASE_SETUP.md`. The migration Job reads only that key; the backend Deployment continues to read only `backend.existingSecret`. `sslrootcert` remains in `DATABASE_URL`; the chart also gives both backend runtime and migration processes `SSL_CERT_FILE=/app/prisma/certs/finance-ai-ca-bundle.pem`, the system-plus-RDS trust bundle built into their shared backend image.
 
 Staging uses IAM-authenticated Valkey instead of `REDIS_URL`; its backend Secret must not contain a Redis IAM token or password. The non-secret Redis endpoint, username, cache name, and AWS region live in the backend ConfigMap. The `finance-ai-backend` ServiceAccount is annotated with the staging IRSA role; the frontend has a separate, unannotated ServiceAccount. Kubernetes API token automount remains disabled, while EKS injects the projected web-identity token used by the AWS SDK.
 

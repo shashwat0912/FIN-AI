@@ -166,9 +166,18 @@
     "backendConfig": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["NODE_ENV", "PORT", "API_VERSION", "CORS_ORIGIN"],
+      "required": [
+        "NODE_ENV",
+        "SSL_CERT_FILE",
+        "PORT",
+        "API_VERSION",
+        "CORS_ORIGIN"
+      ],
       "properties": {
         "NODE_ENV": { "const": "production" },
+        "SSL_CERT_FILE": {
+          "const": "/app/prisma/certs/finance-ai-ca-bundle.pem"
+        },
         "PORT": { "const": "3000" },
         "API_VERSION": { "type": "string", "minLength": 1 },
         "JWT_EXPIRES_IN": { "type": "string", "minLength": 1 },

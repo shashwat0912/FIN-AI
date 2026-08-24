@@ -26,6 +26,7 @@ backend:
     port: 3000
   config:
     NODE_ENV: production
+    SSL_CERT_FILE: /app/prisma/certs/finance-ai-ca-bundle.pem
     PORT: "3000"
     API_VERSION: v1
     JWT_EXPIRES_IN: 7d
