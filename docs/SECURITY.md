@@ -77,6 +77,12 @@ K8S_LOCAL_STATIC_ONLY=true ./scripts/k8s-local-validate.sh
 Before publishing or mirroring the repository, scan both the current tracked
 tree and the full Git history; a clean current tree does not prove clean history.
 
+## Historical scan allowlist
+
+`.gitleaksignore` contains only exact fingerprints for reviewed documentation
+examples, CI fixtures, and unused historical session/encryption dummy values.
+It does not suppress any rule or path, so new findings remain visible.
+
 ## Known boundaries
 
 - Helm installation or upgrade is an operator action, not an automated deployment

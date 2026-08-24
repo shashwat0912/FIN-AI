@@ -1,0 +1,17 @@
+365e47e1f1aae6dc841a0aa8ef86aee3f85a9807:docs/PRODUCTION_SECURITY_CHECKLIST.md:curl-auth-header:98
+932935ae5b9e18d764bb00fc85fb3ac47e107121:.github/workflows/ci.yml:generic-api-key:70
+932935ae5b9e18d764bb00fc85fb3ac47e107121:.github/workflows/ci.yml:generic-api-key:71
+c93de39ce5b40666f7146617bb4f78eaece189b3:CSRF_FIX_COMPLETE.md:curl-auth-header:162
+c93de39ce5b40666f7146617bb4f78eaece189b3:ENVIRONMENT_SECURITY_COMPLETE.md:generic-api-key:38
+c93de39ce5b40666f7146617bb4f78eaece189b3:ENVIRONMENT_SECURITY_COMPLETE.md:generic-api-key:39
+c93de39ce5b40666f7146617bb4f78eaece189b3:FULL_STACK_TESTING.md:curl-auth-header:179
+c93de39ce5b40666f7146617bb4f78eaece189b3:PRODUCTION_SECURITY_CHECKLIST.md:curl-auth-header:98
+c93de39ce5b40666f7146617bb4f78eaece189b3:RAG_SYSTEM_COMPLETE.md:curl-auth-header:63
+c93de39ce5b40666f7146617bb4f78eaece189b3:secure-env-setup.sh:generic-api-key:67
+c93de39ce5b40666f7146617bb4f78eaece189b3:secure-env-setup.sh:generic-api-key:70
+c93de39ce5b40666f7146617bb4f78eaece189b3:secure-env-setup.sh:generic-api-key:78
+c93de39ce5b40666f7146617bb4f78eaece189b3:secure-env-setup.sh:generic-api-key:79
+c93de39ce5b40666f7146617bb4f78eaece189b3:server/RAG_IMPLEMENTATION_COMPLETE.md:curl-auth-header:182
+c93de39ce5b40666f7146617bb4f78eaece189b3:server/RAG_IMPLEMENTATION_COMPLETE.md:curl-auth-header:202
+c93de39ce5b40666f7146617bb4f78eaece189b3:server/README.md:curl-auth-header:285
+c93de39ce5b40666f7146617bb4f78eaece189b3:server/README.md:curl-auth-header:299
