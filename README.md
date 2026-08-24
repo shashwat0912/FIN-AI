@@ -1,390 +1,250 @@
-# 💰 Finance AI Dashboard
+# Finance AI
 
-A comprehensive financial management platform built with modern web technologies. Finance AI provides intelligent insights, budget tracking, goal management, and personalized financial advice through an intuitive, multilingual interface.
+Finance AI is a full-stack personal finance platform that combines deterministic
+financial calculations with AI-assisted insights. The repository also serves as
+a production-style Platform/DevOps implementation on AWS using Terraform, EKS,
+Kubernetes, Helm, GitHub Actions, PostgreSQL, and Valkey.
 
-![Finance AI Dashboard](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)
-![TypeScript](https://img.shields.io/badge/TypeScript-100%25-blue)
-![React](https://img.shields.io/badge/React-18.2.0-61dafb)
-![Node.js](https://img.shields.io/badge/Node.js-18+-green)
+## What It Does
 
-## ✨ Features
+- tracks income and expense transactions;
+- manages budgets and financial goals;
+- calculates cash-flow and spending insights;
+- supports AI-assisted financial conversations; and
+- requires confirmation before chat-initiated financial writes.
 
-### 🎯 Core Functionality
+## Platform Highlights
 
-- **Smart Dashboard** - Real-time financial overview with interactive charts and analytics
-- **Transaction Management** - Complete CRUD operations for income and expense tracking
-- **Budget Planning** - Create, monitor, and manage budgets with spending alerts
-- **Goal Tracking** - Set and achieve financial goals with progress visualization
-- **AI Financial Advisor** - Get personalized financial advice powered by OpenAI
-- **Multi-language Support** - Available in English, Hindi, Marathi, and Kannada
+- Terraform-managed AWS infrastructure with EKS workloads packaged by Helm
+- immutable frontend and backend images published to ECR by GitHub Actions
+- keyless GitHub OIDC authentication and backend IRSA workload identity
+- private RDS PostgreSQL and ElastiCache Valkey
+- verified RDS TLS trust and separate runtime/migration database identities
+- a pre-install/pre-upgrade Prisma migration gate
+- dependency-aware probes and locally validated Helm upgrade/rollback behavior
 
-### 🤖 AI-Powered Features
+## Architecture
 
-- **Smart Category Suggestions** - Intelligent category recommendations based on transaction descriptions
-- **AI Financial Advisor** - Get personalized financial advice powered by OpenAI
-- **Dynamic Category Filtering** - Smart filtering of income/expense categories
-- **Custom Category Creation** - Create and manage personalized transaction categories
+```mermaid
+flowchart TD
+    Developer[Developer] --> GitHub[GitHub]
+    GitHub --> Actions[GitHub Actions]
+    Actions -->|OIDC| AWS[AWS]
+    Actions --> ECR[ECR]
 
-### 🎨 User Experience
+    Terraform[Terraform] --> VPC[VPC]
+    Terraform --> EKS[EKS]
+    Terraform --> RDS[RDS PostgreSQL]
+    Terraform --> Valkey[Valkey]
+    Terraform --> IAM[IAM and IRSA]
+    Terraform --> State[S3 Terraform state]
 
-- **Responsive Design** - Optimized for desktop, tablet, and mobile devices
-- **Dark/Light Mode** - Toggle between themes for comfortable viewing
-- **Real-time Search** - Quick access to transactions, goals, and analytics
-- **Interactive Charts** - Beautiful data visualizations using Recharts
-- **Intuitive Navigation** - Clean, modern interface with sidebar navigation
-
-### 🔒 Security & Performance
-
-- **JWT Authentication** - Secure token-based authentication with refresh tokens
-- **Rate Limiting** - API protection against abuse and spam
-- **Input Validation** - Comprehensive data validation using Joi
-- **Error Handling** - Robust error boundaries and user-friendly error messages
-- **Database Optimization** - Efficient queries with Prisma ORM
-
-## 🚀 Future ML Roadmap
-
-### Phase 2 - Machine Learning Integration
-
-- **Expense Categorization** - Auto-classify Indian transaction texts using NLP and ML models
-- **Fraud Detection** - Real-time anomaly detection for suspicious transactions
-- **Personalized Budgeting** - AI-driven spending predictions and savings recommendations
-- **Investment Recommendations** - Smart portfolio allocation based on user profile
-- **Financial Health Scoring** - Gamified scoring system with peer benchmarking
-
-## 🛠️ Tech Stack
-
-### Frontend
-
-- **React 18.2.0** - Modern UI library with hooks and functional components
-- **TypeScript 5.2.2** - Type-safe JavaScript for better development experience
-- **Vite 5.1.4** - Lightning-fast build tool and development server
-- **React Router DOM 6.22.3** - Client-side routing and navigation
-- **Tailwind CSS 3.4.1** - Utility-first CSS framework for rapid UI development
-- **Recharts 2.12.2** - Composable charting library for data visualization
-- **Lucide React 0.344.0** - Beautiful, customizable SVG icons
-- **Zustand 4.5.1** - Lightweight state management solution
-
-### Backend
-
-- **Node.js 18+** - JavaScript runtime for server-side development
-- **Express.js 4.18.2** - Fast, unopinionated web framework
-- **TypeScript 5.3.2** - Type-safe server-side development
-- **Prisma 5.7.1** - Modern database ORM with type safety
-- **PostgreSQL 15** - Shared database engine for development, tests, and deployment
-- **JWT (jsonwebtoken 9.0.2)** - Secure authentication tokens
-- **bcryptjs 2.4.3** - Password hashing and verification
-- **Joi 17.11.0** - Schema validation for API endpoints
-
-### AI & Analytics
-
-- **OpenAI API 4.28.0** - AI-powered financial advice and insights
-- **Recharts 2.12.2** - Interactive data visualization and charts
-- **Custom Analytics** - Built-in financial analytics and reporting
-
-### Development Tools
-
-- **ESLint** - Code linting and quality assurance
-- **Prettier** - Code formatting and style consistency
-- **Vitest** - Fast unit testing framework
-- **Pino** - High-performance logging
-- **Helmet** - Security headers middleware
-- **CORS** - Cross-origin resource sharing
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Node.js 18.0.0 or higher
-- npm or yarn package manager
-- Git for version control
-
-### Installation
-
-1. **Clone the repository**
-
-   ```bash
-   git clone https://github.com/yourusername/finance-ai-dashboard.git
-   cd finance-ai-dashboard
-   ```
-
-2. **Install frontend dependencies**
-
-   ```bash
-   npm install
-   ```
-
-3. **Install backend dependencies**
-
-   ```bash
-   cd server
-   npm install
-   cd ..
-   ```
-
-4. **Set up environment variables**
-
-   ```bash
-   # Copy the example environment file
-   cp server/.env.example server/.env
-
-   # Edit the environment variables
-   nano server/.env
-   ```
-
-5. **Configure the database**
-
-   ```bash
-   cd backend
-   npx prisma generate
-   # Do not use prisma db push. Follow backend/DATABASE_SETUP.md before
-   # applying migrations; the deployed migration history is under review.
-   cd ..
-   ```
-
-6. **Start the development servers**
-
-   ```bash
-   # Recommended: start frontend + backend together
-   npm run dev
-
-   # Optional: run them separately if you prefer two terminals
-   cd server && npm run dev
-   npm run dev:frontend
-   ```
-
-7. **Access the application**
-   - Frontend: http://localhost:5173
-   - Backend API: http://localhost:3000
-   - API Health Check: http://localhost:3000/api/v1/health
-   - If `5173` is busy, stop the old frontend process first. The dev stack now fails fast instead of silently moving to another port.
-
-## 📁 Project Structure
-
-```
-finance-ai-dashboard/
-├── src/                          # Frontend source code
-│   ├── components/               # Reusable UI components
-│   │   ├── auth/                # Authentication components
-│   │   ├── common/              # Shared components
-│   │   ├── dashboard/           # Dashboard-specific components
-│   │   ├── layout/              # Layout components
-│   │   ├── navigation/          # Navigation components
-│   │   └── settings/            # Settings components
-│   ├── context/                 # React context providers
-│   ├── hooks/                   # Custom React hooks
-│   ├── lib/                     # Utility libraries and API client
-│   ├── pages/                   # Page components
-│   ├── routes/                  # Routing configuration
-│   ├── styles/                  # Global styles and CSS
-│   ├── types/                   # TypeScript type definitions
-│   └── utils/                   # Utility functions
-├── server/                      # Backend source code
-│   ├── src/
-│   │   ├── controllers/         # API route controllers
-│   │   ├── middleware/          # Express middleware
-│   │   ├── routes/              # API route definitions
-│   │   ├── services/            # Business logic services
-│   │   ├── types/               # TypeScript type definitions
-│   │   └── utils/               # Utility functions
-│   ├── prisma/                  # Database schema and migrations
-│   └── tests/                   # Backend test files
-├── public/                      # Static assets
-├── dist/                        # Production build output
-└── docs/                        # Documentation
+    ECR --> EKS
+    EKS --> Frontend[Frontend]
+    EKS --> Backend[Backend]
+    EKS --> Migration[Prisma migration job]
+    Backend --> RDS
+    Backend --> Valkey
+    Migration --> RDS
 ```
 
-## 🔧 Configuration
+Terraform keeps application nodes in private subnets and data services in
+isolated private-data subnets. Helm applies restricted security contexts,
+resource budgets, ConfigMaps, external Secret references, Services, probes, and
+the optional migration hook.
 
-### Environment Variables
+## Request and Runtime Flow
 
-Create a `.env` file in the `backend` directory with the following variables:
+Requests flow from the user through the frontend and backend API to PostgreSQL
+and Valkey, with an AI provider called only when configured.
 
-```env
-# Database
-DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/financeai?schema=public"
+`/livez` reports whether the backend process is alive. `/readyz` gates traffic
+on shutdown state, PostgreSQL connectivity, and required Valkey connectivity.
+This lets Kubernetes distinguish a running process from a workload that can
+safely serve requests.
 
-# JWT Configuration
-JWT_SECRET="your-super-secret-jwt-key"
-JWT_REFRESH_SECRET="your-super-secret-refresh-key"
-JWT_EXPIRES_IN="15m"
-JWT_REFRESH_EXPIRES_IN="7d"
+## CI/CD and Release Flow
 
-# OpenAI Configuration
-OPENAI_API_KEY="your-openai-api-key"
+1. Pull requests and pushes run frontend tests/builds, backend tests/builds,
+   container builds, and Terraform validation.
+2. On `main`, GitHub Actions exchanges its OIDC identity for the narrow AWS ECR
+   publisher role; no long-lived AWS access key is stored in GitHub.
+3. Frontend and backend images are tagged with the commit and workflow identity
+   and published to their staging ECR repositories.
+4. An operator supplies the reviewed image references to the Helm release. The
+   repository does not currently run `helm upgrade` automatically.
+5. When enabled, the Helm pre-install/pre-upgrade migration job runs the exact
+   backend image before application resources roll out.
+6. Readiness gates traffic after dependencies become available.
+7. The disposable local Kubernetes validation exercises a failed upgrade and
+   rollback to the last healthy Helm revision.
 
-# ML Service Configuration
-ML_SERVICE_URL="http://localhost:5000"
-MODEL_PATH="./ml-service/models"
+## AWS Infrastructure
 
-# Server Configuration
-PORT=3000
-NODE_ENV="development"
+| Component      | Purpose                                                                  |
+| -------------- | ------------------------------------------------------------------------ |
+| VPC            | Public, private-application, and isolated private-data subnet boundaries |
+| EKS            | Managed Kubernetes control plane and private worker nodes                |
+| ECR            | Immutable, scan-on-push frontend and backend image repositories          |
+| RDS PostgreSQL | Private encrypted system-of-record database                              |
+| Valkey         | Private TLS/IAM-authenticated cache and coordination store               |
+| IAM            | GitHub OIDC publisher role, cluster roles, and backend IRSA identity     |
+| S3             | Versioned, encrypted Terraform remote state with native lock files       |
 
-# Rate Limiting
-RATE_LIMIT_WINDOW_MS=900000
-RATE_LIMIT_MAX_REQUESTS=100
+Staging and production are separate Terraform roots with distinct state keys
+and environment inputs.
+
+## Security Model
+
+- GitHub Actions uses OIDC instead of stored AWS access keys.
+- The backend uses IRSA for its narrowly scoped AWS permissions.
+- RDS and Valkey accept traffic only from the application network boundary;
+  database connections verify TLS with a system-plus-RDS CA bundle.
+- Application credentials are supplied through external Kubernetes Secrets,
+  not Helm values or static container credentials.
+- The runtime database role receives application DML but cannot perform schema
+  migrations or access the Prisma migration ledger.
+- The dedicated migration role owns Prisma objects; its Helm job uses a separate
+  Secret and ServiceAccount and receives no AWS credentials.
+- Containers run with restricted security contexts; the backend runs non-root.
+
+See [Security](docs/SECURITY.md) and
+[Database setup](backend/DATABASE_SETUP.md) for implementation details.
+
+## Database Migrations
+
+The active Prisma schema targets PostgreSQL. Its checked-in history begins with
+a reviewed PostgreSQL baseline under `backend/prisma/migrations/`.
+
+The migration model is forward-only:
+
+- migrations are generated and reviewed outside deployed environments;
+- a dedicated migrator runs `prisma migrate deploy` as a Helm hook;
+- the application runtime does not own DDL or `_prisma_migrations`; and
+- failed migrations stop the release because the job has `backoffLimit: 0`.
+
+The original SQLite migrations remain in
+`backend/prisma/legacy-sqlite-migrations/` as historical evidence and are not
+part of the active chain.
+
+## Reliability
+
+- `/livez` process health and `/readyz` dependency health
+- PostgreSQL and Valkey readiness checks
+- Kubernetes liveness/readiness probes
+- CPU and memory requests/limits
+- Valkey reconnect handling and graceful application shutdown
+- immutable image references supported by the Helm chart
+- single-attempt migration hooks before rollout
+- tested local Helm upgrade failure and rollback
+
+No SLA or production traffic claim is made by this repository.
+
+## Repository Structure
+
+```text
+frontend/                 React application and UI tests
+backend/                  Express API, Prisma schema, migrations, and tests
+infra/terraform/          AWS modules and isolated environment roots
+deploy/helm/              Application Helm chart and environment values
+deploy/local/             Disposable local Kubernetes dependencies
+scripts/                  Development and infrastructure validation scripts
+docs/                     Security, architecture history, and design decisions
 ```
 
-### Database Schema
+## Local Development
 
-The application uses the following main entities:
+Prerequisites: Node.js 20 or newer, npm, and Docker.
 
-- **Users** - User accounts and profiles
-- **Transactions** - Financial transactions (income/expenses)
-- **Budgets** - Budget categories and spending limits
-- **Goals** - Financial goals and targets
-- **AiSessions** - AI conversation history
-- **RefreshTokens** - JWT refresh token management
-- **MLPredictions** - Machine learning model predictions
-- **FraudAlerts** - Fraud detection alerts
-
-## 📊 API Endpoints
-
-### Authentication
-
-- `POST /api/v1/auth/register` - User registration
-- `POST /api/v1/auth/login` - User login
-- `POST /api/v1/auth/refresh` - Refresh access token
-- `POST /api/v1/auth/logout` - User logout
-
-### Transactions
-
-- `GET /api/v1/transactions` - Get user transactions
-- `POST /api/v1/transactions` - Create new transaction
-- `PUT /api/v1/transactions/:id` - Update transaction
-- `DELETE /api/v1/transactions/:id` - Delete transaction
-- `GET /api/v1/transactions/analytics` - Get transaction analytics
-
-### Analytics
-
-- `GET /api/v1/transactions/analytics` - Get transaction analytics and insights
-
-### Budgets
-
-- `GET /api/v1/budgets` - Get user budgets
-- `POST /api/v1/budgets` - Create new budget
-- `PUT /api/v1/budgets/:id` - Update budget
-- `DELETE /api/v1/budgets/:id` - Delete budget
-
-### Goals
-
-- `GET /api/v1/goals` - Get user goals
-- `POST /api/v1/goals` - Create new goal
-- `PUT /api/v1/goals/:id` - Update goal
-- `DELETE /api/v1/goals/:id` - Delete goal
-
-### AI Advisor
-
-- `POST /api/v1/ai/advice` - Get AI financial advice
-- `GET /api/v1/ai/history` - Get AI conversation history
-
-## 🧪 Testing
-
-### Frontend Testing
-
-```bash
-npm run test
+```sh
+npm ci
+npm --prefix backend ci
+cp backend/.env.example backend/.env
+# Replace the example JWT/HMAC/CSRF values before use.
+npm --prefix backend run db:generate
+docker compose -f backend/docker-compose.yml up -d postgres redis
+npm --prefix backend run db:migrate:deploy
+npm run dev
 ```
 
-### Backend Testing
+The frontend defaults to `http://localhost:3000/api/v1`. Override it by copying
+`frontend/.env.example` to `frontend/.env` when needed.
 
-```bash
-cd server
-npm run test
-npm run test:coverage
+To stop the local data services:
+
+```sh
+docker compose -f backend/docker-compose.yml down
 ```
 
-## 🔧 Environment Setup (Optional Features)
+Local development does not require AWS. OpenAI is optional; without a usable
+key, the default provider mode falls back to deterministic local behavior.
 
-### AI Advisor (Optional)
+## Infrastructure Validation
 
-The AI Advisor feature requires an OpenAI API key:
+The Terraform script runs formatting checks, backend-free initialization,
+validation, and the repository's mocked Terraform tests without contacting AWS:
 
-1. Get your API key from https://platform.openai.com/api-keys
-2. Add to `server/.env`: `OPENAI_API_KEY=sk-your-key-here`
-3. Without this key, the AI Advisor page will show a friendly error message
-
-### Firebase Authentication (Optional)
-
-For Firebase authentication features:
-
-1. Create a Firebase project at https://console.firebase.google.com
-2. Copy the configuration values to `.env` (see `.env.example`)
-
-**All other features work without any API keys!**
-
-## 🚀 Deployment
-
-### Production Build
-
-```bash
-# Build frontend
-npm run build
-
-# Build backend
-cd server
-npm run build
+```sh
+./scripts/terraform-validate.sh
 ```
 
-### Docker Deployment
+Helm can be checked without a cluster:
 
-```bash
-# Build and run with Docker Compose
-docker-compose up -d
+```sh
+helm lint deploy/helm/finance-ai -f deploy/helm/finance-ai/values-staging.yaml
+helm template finance-ai-staging deploy/helm/finance-ai \
+  --namespace finance-ai-staging \
+  -f deploy/helm/finance-ai/values-staging.yaml >/dev/null
+K8S_LOCAL_STATIC_ONLY=true ./scripts/k8s-local-validate.sh
 ```
 
-## 📈 Performance Metrics
+The full `scripts/k8s-local-validate.sh` additionally creates a disposable kind
+cluster, builds and loads images, deploys the chart, validates health behavior,
+and exercises upgrade rollback.
 
-- **Frontend Load Time**: < 2 seconds
-- **API Response Time**: < 200ms average
-- **Database Query Time**: < 100ms
-- **Uptime**: 99.9%
+## Deployment Notes
 
-## 🔮 Future Roadmap
+The repository contains reusable Terraform and Helm definitions, not production
+credentials. Real `tfvars`, Terraform backend configuration, state, plans, and
+application Secrets are ignored. Staging values contain non-secret infrastructure
+identifiers such as an IAM role ARN and service endpoint names.
 
-### Phase 1 (Current)
+Applying Terraform, creating Kubernetes Secrets, and installing or upgrading a
+shared Helm release are explicit operator actions outside the automated ECR
+publishing workflow.
 
-- ✅ Core financial management features
-- ✅ Basic AI advisor integration
-- ✅ Multi-language support
-- ✅ Responsive design
+## Architecture Evolution
 
-### Phase 2
+Finance AI originally used an EC2 and Docker Compose deployment before moving
+toward Terraform, EKS, managed data services, and Helm. The migration boundaries
+and retained engineering history are described in
+[Migration from EC2 to EKS](docs/architecture/legacy-ec2-migration.md).
 
-- 🔄 Advanced ML models for expense categorization
-- 🔄 Real-time fraud detection
-- 🔄 Investment recommendation engine
-- 🔄 Mobile app (React Native)
+## Tech Stack
 
-### Phase 3
+| Area     | Technologies                                          |
+| -------- | ----------------------------------------------------- |
+| Frontend | React, TypeScript, Vite, Tailwind CSS                 |
+| Backend  | Node.js, Express, TypeScript, Prisma                  |
+| Data     | PostgreSQL, Valkey                                    |
+| Cloud    | AWS VPC, EKS, ECR, RDS, ElastiCache, IAM, S3          |
+| Platform | Terraform, Docker, Kubernetes, Helm                   |
+| CI/CD    | GitHub Actions, OIDC                                  |
+| Security | IRSA, TLS, external Secrets, least-privilege DB roles |
 
-- 📋 Advanced analytics dashboard
-- 📋 Social features and peer comparison
-- 📋 Integration with Indian banks
-- 📋 Voice commands and accessibility
+## Current Limitations
 
-### Phase 4
+- No workflow currently performs an automatic Helm deployment to staging.
+- DNS, public ingress, TLS certificates, and environment Secrets require
+  environment-specific operator configuration.
+- OpenAI-backed behavior requires an externally supplied API key.
+- SMTP is required for production email OTP delivery; production SMS delivery
+  is not yet integrated.
+- Observability is currently limited to structured logs, Kubernetes health
+  checks, and AWS-managed service logs; no application metrics/tracing stack is
+  included.
 
-- 📋 Blockchain integration for secure transactions
-- 📋 Advanced AI personalization
-- 📋 International expansion
-- 📋 Enterprise features
+## License
 
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- OpenAI for providing the AI capabilities
-- The React and Node.js communities for excellent documentation
-- Tailwind CSS for the beautiful design system
-- Prisma for the amazing database ORM
+No license has been selected for this repository. Until one is added, normal
+copyright restrictions apply.

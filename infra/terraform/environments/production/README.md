@@ -16,7 +16,7 @@ cp terraform.tfvars.example terraform.tfvars
 # Replace examples in the two ignored files.
 terraform init -backend-config=backend.hcl
 terraform plan -out=production.tfplan
-# Apply only a complete, reviewed saved plan after resources are added.
+# Apply only a complete, reviewed saved plan.
 terraform apply production.tfplan
 ```
 
@@ -31,8 +31,6 @@ a final snapshot, and retains logs for 90 days. Valkey also uses only
 private-data subnets, accepts TLS-only TCP/6379 only from the EKS security
 group, retains snapshots for seven days, and exports engine and slow logs for
 90 days. Its final snapshot identifier must be unique and reviewed immediately
-before intentional destruction. The current EC2 Redis and application
-configuration remain unchanged; a later cutover must configure and validate
-TLS, IAM authentication, reconnect behavior, and the audited Lua paths. No
-infrastructure, database, cache, or images have been created or
-production-validated.
+before intentional destruction. A production rollout must configure and
+validate TLS, IAM authentication, reconnect behavior, and the audited Lua
+paths. This production configuration has not been provisioned or validated.

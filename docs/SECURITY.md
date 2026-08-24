@@ -1,219 +1,90 @@
-# 🔒 Security Policy
+# Security
 
-## Overview
+This document summarizes the controls implemented in Finance AI and the
+configuration responsibilities that remain with an operator. It is not a claim
+of regulatory compliance or a completed penetration test.
 
-This document outlines the security measures, best practices, and vulnerability reporting process for the Finance AI application.
+## Reporting a vulnerability
 
-## 🛡️ Security Features
+Do not publish credentials, personal data, or exploit details in a public issue.
+Use the repository's private vulnerability-reporting channel when available, or
+contact the repository owner privately through their GitHub profile.
 
-### Authentication & Authorization
-- **JWT-based authentication** with secure token management
-- **Password hashing** using bcrypt with salt rounds
-- **Refresh token rotation** for enhanced security
-- **Account lockout** after failed login attempts (5 attempts, 15-minute lockout)
-- **Per-user rate limiting** to prevent abuse
-- **Strong JWT secret validation** (minimum 64 characters)
+Include the affected component, reproduction steps, expected impact, and any
+temporary mitigation. Do not access data that is not yours while validating a
+report.
 
-### Security Headers
-- **Content Security Policy (CSP)** to prevent XSS attacks
-- **HTTP Strict Transport Security (HSTS)** for HTTPS enforcement
-- **X-Frame-Options** to prevent clickjacking
-- **X-Content-Type-Options** to prevent MIME sniffing
-- **Referrer Policy** for privacy protection
-- **Cross-Origin Policies** properly configured
+## Application controls
 
-### Rate Limiting
-- **Global rate limiting**: 100 requests per 15 minutes
-- **Authentication endpoints**: 5 attempts per 15 minutes
-- **Per-user rate limiting**: Configurable per endpoint
-- **Account lockout**: 5 failed attempts = 15-minute lockout
+- Passwords are hashed with bcrypt.
+- Access and refresh tokens use independent secrets with a 64-character minimum.
+- OTP values are hashed, expire, and are subject to request and verification
+  limits.
+- Login failures use shared lockout state when Valkey is configured.
+- State-changing browser requests use CSRF protection and explicit CORS origins.
+- Helmet security headers, request-size limits, and route validation are applied
+  by the Express application.
+- Prisma parameterization is used for normal database access.
+- Authentication, authorization, rate-limit, and lifecycle events use structured
+  logging without logging token or OTP values.
 
-### Input Validation
-- **Joi schema validation** for all API endpoints
-- **XSS protection** with suspicious pattern detection
-- **SQL injection protection** via Prisma ORM
-- **Request size limits** (10MB max)
+## Platform controls
 
-### Environment Security
-- **No fallback secrets** in production
-- **Environment-specific validation**
-- **Production safety checks**
-- **Secure secret generation** guidelines
+- GitHub Actions authenticates to AWS through OIDC; no static AWS access key is
+  required by the workflow.
+- The backend service account uses an IRSA role restricted to its required AWS
+  permissions.
+- RDS PostgreSQL and ElastiCache Valkey are private and accept application traffic
+  only from the EKS network boundary.
+- PostgreSQL connections verify the RDS certificate chain using the bundled AWS
+  regional CA plus the system trust store.
+- Valkey uses TLS and IAM authentication in the staging configuration.
+- Runtime and migration database identities are separate. The runtime identity
+  cannot perform migrations or access the Prisma migration ledger.
+- Application and migration credentials are supplied through separate external
+  Kubernetes Secrets, not through Helm values.
+- Containers use restricted security contexts; the backend image runs as a
+  non-root user.
 
-## 🚨 Vulnerability Reporting
+## Local configuration
 
-### How to Report Security Issues
+Copy the canonical example and replace every security placeholder before use:
 
-If you discover a security vulnerability, please follow these steps:
-
-1. **DO NOT** create a public GitHub issue
-2. **DO NOT** discuss the vulnerability publicly
-3. **Email** security concerns to: [security@yourdomain.com]
-4. **Include** the following information:
-   - Description of the vulnerability
-   - Steps to reproduce
-   - Potential impact
-   - Suggested fix (if any)
-
-### Response Timeline
-
-- **Acknowledgment**: Within 24 hours
-- **Initial assessment**: Within 72 hours
-- **Fix timeline**: Depends on severity (1-30 days)
-- **Public disclosure**: After fix is deployed
-
-### Severity Levels
-
-- **Critical**: Remote code execution, data breach
-- **High**: Privilege escalation, authentication bypass
-- **Medium**: Information disclosure, DoS
-- **Low**: Minor security improvements
-
-## 🔧 Security Best Practices
-
-### For Developers
-
-#### Environment Configuration
-```bash
-# Generate secure JWT secrets
+```sh
+cp backend/.env.example backend/.env
 node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
-
-# Never use default or weak secrets
-# Minimum 64 characters for JWT secrets
-# Use different secrets for different environments
 ```
 
-#### Code Security
-- Always validate user input
-- Use parameterized queries (Prisma ORM)
-- Implement proper error handling
-- Log security events
-- Follow principle of least privilege
+Generate independent values for `JWT_SECRET`, `JWT_REFRESH_SECRET`, and
+`SECURITY_STATE_HMAC_SECRET`. Keep `.env`, Terraform state, real `tfvars`, saved
+plans, Kubernetes Secrets, provider credentials, and database URLs out of Git.
+The credentials in `backend/docker-compose.yml` are deliberately local-only and
+must not be reused in a shared environment.
 
-#### Dependencies
-- Regularly update dependencies
-- Use `npm audit` to check for vulnerabilities
-- Pin dependency versions in production
-- Review dependency changes before updates
+## Validation
 
-### For Deployment
+Relevant repository checks include:
 
-#### Production Checklist
-- [ ] Generate new JWT secrets (never use examples)
-- [ ] Set up HTTPS/SSL certificates
-- [ ] Configure production database (PostgreSQL/MySQL)
-- [ ] Set up proper CORS origins
-- [ ] Enable security monitoring
-- [ ] Configure log aggregation
-- [ ] Set up backup strategy
-- [ ] Test all authentication flows
-- [ ] Verify rate limiting works
-- [ ] Check security headers
-
-#### Environment Variables
-```bash
-# Required for production
-NODE_ENV=production
-JWT_SECRET=<64+ character secure secret>
-JWT_REFRESH_SECRET=<64+ character secure secret>
-DATABASE_URL=<postgresql:// or mysql:// connection string>
-CORS_ORIGIN=<https://yourdomain.com>
-
-# Optional but recommended
-OPENAI_API_KEY=<your-openai-key>
-STRIPE_SECRET_KEY=<your-stripe-key>
-SMTP_HOST=<your-smtp-host>
+```sh
+npm run typecheck
+npm run test:run
+npm --prefix backend run typecheck
+npm --prefix backend test
+./scripts/terraform-validate.sh
+K8S_LOCAL_STATIC_ONLY=true ./scripts/k8s-local-validate.sh
 ```
 
-## 🔍 Security Monitoring
+Before publishing or mirroring the repository, scan both the current tracked
+tree and the full Git history; a clean current tree does not prove clean history.
 
-### Logging
-- All authentication attempts are logged
-- Failed login attempts are tracked
-- Rate limiting events are recorded
-- Security violations are flagged
+## Known boundaries
 
-### Monitoring Endpoints
-- `/api/v1/health` - Application health
-- `/api/v1/auth/*` - Authentication endpoints
-- Rate limiting headers in responses
-
-### Security Headers Verification
-```bash
-# Check security headers
-curl -I https://yourdomain.com/api/v1/health
-
-# Expected headers:
-# X-Content-Type-Options: nosniff
-# X-Frame-Options: DENY
-# X-XSS-Protection: 1; mode=block
-# Strict-Transport-Security: max-age=31536000; includeSubDomains
-# Content-Security-Policy: default-src 'self'
-```
-
-## 🛠️ Security Tools
-
-### Development
-- **ESLint** with security rules
-- **npm audit** for dependency vulnerabilities
-- **Helmet** for security headers
-- **Joi** for input validation
-
-### Production
-- **Rate limiting** with express-rate-limit
-- **CORS** configuration
-- **Security logging** with structured logs
-- **Environment validation**
-
-## 📋 Security Checklist
-
-### Pre-Deployment
-- [ ] All secrets are properly configured
-- [ ] No default/weak passwords
-- [ ] HTTPS is enabled
-- [ ] Security headers are present
-- [ ] Rate limiting is working
-- [ ] Input validation is active
-- [ ] Error handling doesn't leak information
-- [ ] Logging is configured
-- [ ] Dependencies are up to date
-
-### Post-Deployment
-- [ ] Security headers verified
-- [ ] Authentication flows tested
-- [ ] Rate limiting tested
-- [ ] Monitoring is active
-- [ ] Logs are being collected
-- [ ] Backup is working
-- [ ] SSL certificate is valid
-
-## 🔄 Security Updates
-
-### Regular Maintenance
-- **Monthly**: Review and update dependencies
-- **Quarterly**: Security audit and penetration testing
-- **Annually**: Review and update security policies
-
-### Emergency Response
-- **Critical vulnerabilities**: Fix within 24 hours
-- **High vulnerabilities**: Fix within 72 hours
-- **Medium vulnerabilities**: Fix within 1 week
-- **Low vulnerabilities**: Fix within 1 month
-
-## 📞 Contact
-
-- **Security Team**: [security@yourdomain.com]
-- **General Support**: [support@yourdomain.com]
-- **Emergency**: [emergency@yourdomain.com]
-
-## 📄 License
-
-This security policy is part of the Finance AI application and is subject to the same license terms.
-
----
-
-**Last Updated**: December 2024  
-**Version**: 1.0  
-**Next Review**: March 2025
-
-
+- Helm installation or upgrade is an operator action, not an automated deployment
+  workflow.
+- Public ingress, DNS, and certificates require environment-specific review.
+- SMTP must be configured for production email OTP delivery; production SMS
+  delivery is not integrated.
+- Structured logs and health endpoints are present, but there is no complete
+  application metrics or tracing stack.
+- Operators remain responsible for credential rotation, dependency updates,
+  backup validation, access review, and incident response.

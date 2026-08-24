@@ -2,10 +2,9 @@
 
 `current-schema-baseline.sql` is the reviewed source for the active
 `prisma/migrations/0_postgresql_baseline/migration.sql`. The two files must
-remain byte-identical. Production was classified as a schema-push/manual
-PostgreSQL database with no `_prisma_migrations` table; do not mark the
-baseline as applied there until the production baselining procedure receives
-separate approval.
+remain byte-identical. Do not mark the baseline as applied to an existing
+database until its schema and migration ledger have been classified in a
+separately reviewed procedure.
 
 It was generated from an empty PostgreSQL schema with:
 

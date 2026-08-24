@@ -14,7 +14,7 @@ cp terraform.tfvars.example terraform.tfvars
 # Replace examples in the two ignored files.
 terraform init -backend-config=backend.hcl
 terraform plan -out=staging.tfplan
-# Apply only a complete, reviewed saved plan after resources are added.
+# Apply only a complete, reviewed saved plan.
 terraform apply staging.tfplan
 ```
 
@@ -28,7 +28,7 @@ accepts PostgreSQL only from the EKS security group. Staging keeps seven days
 of backups, skips the final snapshot when intentionally destroyed, and uses
 30-day log retention. Valkey also uses only private-data subnets, accepts
 TLS-only TCP/6379 only from the EKS security group, retains snapshots for one
-day, and has no staging failover or Multi-AZ promise. The current EC2 Redis and
-application configuration remain unchanged; a later cutover must configure
-and validate TLS and IAM authentication. No infrastructure, database, cache,
-or images have been created.
+day, and has no staging failover or Multi-AZ promise. The staging root also
+creates the backend IRSA role for narrowly scoped Valkey access. The platform
+has been provisioned and validated, and CI publishes immutable images to ECR;
+applying the Helm chart remains an operator action.

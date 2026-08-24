@@ -32,9 +32,9 @@ deployment must fail instead of silently entering paid Extended Support when
 the configured major version is no longer normally supported. No custom
 parameter group is created.
 
-RDS PostgreSQL 15 and later require SSL/TLS by default. The later
-`DATABASE_URL`/cutover phase must explicitly configure and validate Prisma TLS
-rather than assume the current EC2 connection settings transfer unchanged.
+RDS PostgreSQL 15 and later require SSL/TLS by default. Application cutover
+must explicitly configure and validate Prisma TLS rather than carry forward
+legacy EC2 connection assumptions.
 
 Multi-AZ is configurable. An RDS Multi-AZ DB instance maintains a synchronous
 standby for availability and failover; it is not a read-scaling replica.
@@ -62,8 +62,7 @@ snapshot storage beyond included allowances, CloudWatch Logs ingestion/storage,
 and the production Multi-AZ standby. The committed sizes are examples and have
 not been load-tested.
 
-This phase is static infrastructure definition only: nothing has been deployed.
-The existing EC2 PostgreSQL deployment is unchanged. Application cutover,
+This module stops at the managed database boundary. Application cutover,
 `DATABASE_URL` changes, Prisma migration execution, databases created by hand,
-RDS Proxy, replicas, Aurora, Redis, IAM database authentication, dashboards,
-and alarms are outside this phase.
+RDS Proxy, replicas, Aurora, IAM database authentication, dashboards, and alarms
+are outside the module.

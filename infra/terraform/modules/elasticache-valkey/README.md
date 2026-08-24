@@ -11,7 +11,7 @@ shared coordination layer to application pod and cluster operations.
 
 ## Compatibility and cutover boundary
 
-Finance AI currently runs Redis 7 in Docker Compose on EC2. The backend uses
+The legacy deployment ran Redis 7 in Docker Compose on EC2. The backend uses
 `ioredis` 5.10.0 and `rate-limit-redis` 4.3.1 for conversation state, security
 rate limits and lockouts, and distributed job leases. The audited operations
 are compatible with Valkey 7.2: `GET`, `SET`, `DEL`, `PTTL`, `INCR`, `DECR`,
@@ -21,10 +21,10 @@ Valkey 7.2 stays close to the existing Redis 7 behavior while providing a
 current AWS-managed open-source cache engine. Regional engine and node-type
 availability must still be confirmed before a reviewed deployment.
 
-This phase creates only the AWS cache foundation. It does not change the EC2
-Redis service, `REDIS_URL`, application code, or application traffic. A later
-cutover phase must test the real client and Lua scripts against Valkey before
-moving traffic.
+This module creates the AWS cache foundation. Application integration uses TLS,
+IAM authentication, and the managed primary endpoint. The real client and Lua
+scripts still require validation against Valkey before serving production
+traffic.
 
 ## Resources and network boundary
 
@@ -42,8 +42,8 @@ The module therefore creates eight concrete resources per environment.
 
 There is no public or CIDR-based cache ingress. At-rest encryption uses the
 ElastiCache service-managed KMS key. Transit encryption is enabled in
-`required` mode, so the later cutover must configure and validate TLS in
-`ioredis`; the current plain `redis://` EC2 settings cannot be copied unchanged.
+`required` mode, so application integration must configure and validate TLS in
+`ioredis`; legacy plain `redis://` settings cannot be copied unchanged.
 
 ## Authentication and least privilege
 
@@ -55,13 +55,11 @@ is restricted to the audited key prefixes `conv:*`, `security:*`, and
 `jobs:lease:*` plus only the audited commands listed above. It does not receive
 `+@all` or `~*`.
 
-No EKS identity has permission to connect as that user in this phase. The later
-database/cache-access phase must grant a workload identity the narrow
-ElastiCache connect permission against both the replication-group ARN and the
-application-user ARN, generate IAM authentication tokens, configure the IAM
-user name and TLS endpoint in the client, and re-audit the ACL if the runtime
-command or key-prefix set changes. This module does not create that
-`elasticache:Connect` policy.
+This module does not grant an EKS identity permission to connect. The staging
+environment root adds a backend IRSA role with `elasticache:Connect` restricted
+to this replication group and application user. The client must generate IAM
+authentication tokens, use the IAM user name and TLS endpoint, and the ACL must
+be re-audited if runtime commands or key prefixes change.
 
 ## Availability, persistence, and operations
 

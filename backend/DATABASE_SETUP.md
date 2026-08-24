@@ -10,15 +10,11 @@ The active Prisma schema and migration lock are PostgreSQL. The checked-in
 history starts with `prisma/migrations/0_postgresql_baseline` and represents the
 current Prisma schema; its reviewed copy is under `prisma/review`.
 
-Staging has not been bootstrapped or migrated from this repository. Production
-remains a separate legacy classification problem and must not be changed as
-part of the staging procedure below.
-
-The local Docker database has application tables but no
-`_prisma_migrations` table, so it is classified as a schema-push database.
-Production remains unclassified until the read-only EC2 checks below are run.
-Do not replace migration history, resolve a baseline, or deploy migrations to
-production while its classification is unknown.
+The local Docker database may contain application tables without a
+`_prisma_migrations` table, so classify it before migration work. Treat
+baselining any existing environment as a separate, explicitly approved
+operation. Do not replace migration history or resolve a baseline against an
+unclassified database.
 
 ## Staging PostgreSQL identities
 
@@ -200,63 +196,12 @@ invoke it. The mismatch therefore does not block backend startup or the first
 staging release, but knowledge-chunk create/update endpoints can fail when
 called. Fix and migrate those column types in a separately reviewed phase.
 
-## EC2 read-only classification
-
-The CD workflow defaults to a server-maintained `docker-compose.yml`, not the
-repository's `docker-compose.prod.yml`, and `DEPLOY_COMMAND` may override that
-default. On EC2, first identify the actual compose project:
-
-```bash
-cd ~/finance-ai
-docker compose ls
-find . -maxdepth 1 -name 'docker-compose*.yml' -print
-docker compose --env-file .release.env -f docker-compose.yml config --services
-docker compose --env-file .release.env -f docker-compose.yml ps
-```
-
-If the database service is named `postgres`, these commands reveal the
-database name, PostgreSQL version, migration classification, and application
-tables without displaying passwords or `DATABASE_URL`:
-
-```bash
-docker compose --env-file .release.env -f docker-compose.yml exec -T postgres \
-  sh -lc 'printf "database=%s\n" "$POSTGRES_DB"; psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SHOW server_version"'
-
-docker compose --env-file .release.env -f docker-compose.yml exec -T postgres \
-  sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT CASE WHEN to_regclass('"'"'public._prisma_migrations'"'"') IS NULL THEN '"'"'absent'"'"' ELSE '"'"'present'"'"' END"'
-
-docker compose --env-file .release.env -f docker-compose.yml exec -T postgres \
-  sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT table_name FROM information_schema.tables WHERE table_schema = '"'"'public'"'"' ORDER BY table_name"'
-```
-
-Inspect image identities and the PostgreSQL volume without dumping container
-environment variables:
-
-```bash
-docker compose --env-file .release.env -f docker-compose.yml images
-docker inspect "$(docker compose --env-file .release.env -f docker-compose.yml ps -q backend)" \
-  --format '{{.Config.Image}} {{.Image}}'
-docker inspect "$(docker compose --env-file .release.env -f docker-compose.yml ps -q postgres)" \
-  --format '{{range .Mounts}}{{if eq .Destination "/var/lib/postgresql/data"}}{{.Name}}{{end}}{{end}}'
-```
-
-Classification:
-
-- **A:** `_prisma_migrations` absent — schema-push/manual database.
-- **B:** `_prisma_migrations` present — migration-managed; inspect its rows
-  before planning any reconciliation.
-- **C:** compose/database inaccessible or ambiguous — stop and investigate.
-
-Do not run commands that print `docker inspect ... .Config.Env`, `docker compose
-config`, `.env` files, or connection URLs into logs.
-
 ## Local development database
 
-`../docker-compose.prod.yml` currently starts PostgreSQL service `postgres` as
-container `finance-ai-db`, using database `DB_NAME` (default `financeai`) and
-the named `postgres_data` volume. The backend `DATABASE_URL` is assembled by
-Compose from `DB_USER`, `DB_PASSWORD`, and `DB_NAME`. The backend container does
-not automatically run migrations.
+`docker-compose.yml` starts PostgreSQL service `postgres` as container
+`finance-ai-postgres`, using database `finance_ai_db` and the named
+`postgres_data` volume. Its credentials are intentionally local-only. The
+backend container does not automatically run migrations.
 
 ## Backup and verified restore
 
@@ -268,13 +213,13 @@ mkdir -p "$HOME/finance-ai-backups"
 BACKUP="financeai-$(date -u +%Y%m%dT%H%M%SZ).dump"
 test ! -e "$HOME/finance-ai-backups/$BACKUP"
 
-docker exec -e BACKUP_NAME="$BACKUP" finance-ai-db sh -lc \
+docker exec -e BACKUP_NAME="$BACKUP" finance-ai-postgres sh -lc \
   'set -eu; umask 077; test ! -e "/tmp/$BACKUP_NAME"; pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc -f "/tmp/$BACKUP_NAME"'
 
-docker exec -e BACKUP_NAME="$BACKUP" finance-ai-db sh -lc \
+docker exec -e BACKUP_NAME="$BACKUP" finance-ai-postgres sh -lc \
   'set -eu; pg_restore --list "/tmp/$BACKUP_NAME" >/dev/null'
 
-docker cp "finance-ai-db:/tmp/$BACKUP" "$HOME/finance-ai-backups/$BACKUP"
+docker cp "finance-ai-postgres:/tmp/$BACKUP" "$HOME/finance-ai-backups/$BACKUP"
 test -s "$HOME/finance-ai-backups/$BACKUP"
 ```
 
@@ -284,7 +229,7 @@ database:
 
 ```bash
 RESTORE_DB=financeai_restore_test
-docker exec -e BACKUP_NAME="$BACKUP" -e RESTORE_DB="$RESTORE_DB" finance-ai-db sh -lc '
+docker exec -e BACKUP_NAME="$BACKUP" -e RESTORE_DB="$RESTORE_DB" finance-ai-postgres sh -lc '
   set -eu
   existing=$(psql -U "$POSTGRES_USER" -d postgres -Atc "SELECT count(*) FROM pg_database WHERE datname = '"'"'$RESTORE_DB'"'"'")
   test "$existing" = 0
@@ -296,7 +241,7 @@ docker exec -e BACKUP_NAME="$BACKUP" -e RESTORE_DB="$RESTORE_DB" finance-ai-db s
 Confirm important row counts in the restored copy:
 
 ```bash
-docker exec -e RESTORE_DB="$RESTORE_DB" finance-ai-db sh -lc '
+docker exec -e RESTORE_DB="$RESTORE_DB" finance-ai-postgres sh -lc '
   psql -U "$POSTGRES_USER" -d "$RESTORE_DB" -v ON_ERROR_STOP=1 -c \
     '"'"'SELECT (SELECT count(*) FROM users) AS users,
             (SELECT count(*) FROM transactions) AS transactions,
@@ -308,7 +253,7 @@ docker exec -e RESTORE_DB="$RESTORE_DB" finance-ai-db sh -lc '
 After verification, remove only the throwaway database:
 
 ```bash
-docker exec -e RESTORE_DB="$RESTORE_DB" finance-ai-db sh -lc \
+docker exec -e RESTORE_DB="$RESTORE_DB" finance-ai-postgres sh -lc \
   'dropdb -U "$POSTGRES_USER" --if-exists "$RESTORE_DB"'
 ```
 
@@ -352,7 +297,6 @@ After production history is classified and reconciled:
 6. Run `prisma migrate status` after deployment.
 
 The reviewed source at `prisma/review/current-schema-baseline.sql` is
-byte-identical to
-`prisma/migrations/0_postgresql_baseline/migration.sql`. Production is
-classified as a schema-push/manual database, but the active baseline must not
-be marked as applied there until the separately approved production procedure.
+byte-identical to `prisma/migrations/0_postgresql_baseline/migration.sql`.
+Staging or production baselining requires a separately approved procedure and
+must never be inferred from local database state.

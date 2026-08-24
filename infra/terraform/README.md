@@ -55,17 +55,19 @@ always enabled. Public API access is optional, requires externally supplied
 restricted CIDRs, and rejects `0.0.0.0/0`.
 
 The cluster role has only `AmazonEKSClusterPolicy`. The node role has the EKS
-worker, VPC CNI, and pull-only ECR policies. An IAM OIDC provider exposes the
-future IRSA trust boundary, but no application roles exist yet. Private nodes
-depend on the configured NAT path for image pulls and external APIs.
+worker, VPC CNI, and pull-only ECR policies. An IAM OIDC provider supplies the
+IRSA trust boundary; the staging root uses it for the narrowly scoped backend
+Valkey role. Private nodes depend on the configured NAT path for image pulls
+and external APIs.
 
 ## ECR architecture
 
 Each environment owns separate `frontend` and `backend` repositories named
 `<project>-<environment>/<component>`. Repositories use immutable tags,
 scan-on-push, AES256 encryption, and safe untagged-image cleanup after 14 days.
-Repository URLs are outputs for later digest-based Helm and delivery integration;
-the existing GHCR deployment workflow and Helm values remain unchanged.
+The CI workflow publishes immutable images to the staging repositories. An
+operator supplies the resulting repository and digest to Helm when deploying;
+there is no automated Helm deployment workflow.
 
 ## GitHub Actions identity
 
@@ -125,7 +127,7 @@ cp terraform.tfvars.example terraform.tfvars
 # Replace the examples in both ignored files.
 terraform init -backend-config=backend.hcl
 terraform plan -out=staging.tfplan
-# Apply only a reviewed saved plan once later phases add resources.
+# Apply only a reviewed saved plan.
 terraform apply staging.tfplan
 ```
 
@@ -144,8 +146,8 @@ or `backend.hcl` files.
 validation, and mocked tests for every Terraform root when Terraform workflow
 files change. It cannot contact AWS, apply, or provision AWS resources.
 
-The staging AWS platform and shared GitHub Actions identity have been
-provisioned and validated. Application workload deployment to EKS, image
-publishing through the new ECR workflow, application IAM roles, KMS cluster
+The staging AWS platform, shared GitHub Actions identity, and staging backend
+IRSA role have been provisioned and validated. CI publishes immutable images
+to ECR. Applying the Helm chart remains an operator action; KMS cluster
 encryption, add-ons, autoscaling, load balancers, endpoints, DNS, certificates,
-Kubernetes resources, and Helm releases remain deferred.
+and production provisioning remain deferred.

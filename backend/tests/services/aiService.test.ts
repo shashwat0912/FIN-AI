@@ -26,7 +26,7 @@ const {
     budget: {
       findMany: vi.fn(),
     },
-  } as any,
+  },
 }));
 
 vi.mock('openai', () => ({
@@ -50,9 +50,13 @@ vi.mock('../../src/config/database', () => ({
   default: mockPrisma,
 }));
 
+vi.mock('../../src/config/openai', () => ({
+  hasUsableOpenAiKey: vi.fn(() => true),
+}));
+
 vi.mock('../../src/config/env', () => ({
   config: {
-    OPENAI_API_KEY: 'sk-test-openai-key-12345678901234567890',
+    OPENAI_API_KEY: 'test-openai-key',
     OPENAI_MODEL: 'gpt-4o-mini',
     OPENAI_MAX_TOKENS: 500,
     OPENAI_TIMEOUT_MS: 12000,
