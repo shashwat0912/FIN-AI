@@ -220,6 +220,7 @@ assert_contains "$staging_backend_sa" "eks.amazonaws.com/role-arn: arn:aws:iam::
 assert_contains "$staging_backend_sa" "automountServiceAccountToken: false"
 assert_contains "$staging_backend_deployment" "serviceAccountName: finance-ai-backend"
 assert_contains "$staging_backend_deployment" "automountServiceAccountToken: false"
+assert_contains "$staging_backend_deployment" "configMapRef:"
 assert_contains "$staging_frontend_deployment" "serviceAccountName: finance-ai-staging-frontend"
 assert_contains "$staging_frontend_deployment" "automountServiceAccountToken: false"
 assert_not_contains "$staging_frontend_deployment" "serviceAccountName: finance-ai-backend"
@@ -259,6 +260,8 @@ for value in \
   "- npm" \
   "- run" \
   "- db:migrate:deploy" \
+  "name: SSL_CERT_FILE" \
+  'value: "/app/prisma/certs/finance-ai-ca-bundle.pem"' \
   "name: DATABASE_URL" \
   "name: finance-ai-migrator-secrets-staging" \
   "key: DATABASE_URL"; do
@@ -284,6 +287,7 @@ assert_contains "$staging_digest_backend" "image: \"finance-ai-backend@$TEST_BAC
 assert_contains "$staging_digest_migration" "image: \"finance-ai-backend@$TEST_BACKEND_DIGEST\""
 
 for value in \
+  'SSL_CERT_FILE: "/app/prisma/certs/finance-ai-ca-bundle.pem"' \
   'REDIS_AUTH_MODE: "iam"' \
   'REDIS_HOST: "master.finance-ai-staging-valkey.zdzskp.aps1.cache.amazonaws.com"' \
   'REDIS_PORT: "6379"' \
@@ -322,6 +326,22 @@ fi
 stage "Build local application images"
 docker build --file "$ROOT_DIR/Dockerfile.frontend" --tag "$FRONTEND_IMAGE" "$ROOT_DIR"
 docker build --file "$ROOT_DIR/backend/Dockerfile" --tag "$BACKEND_IMAGE" "$ROOT_DIR/backend"
+
+stage "Validate backend CA trust bundle"
+docker run --rm --entrypoint sh "$BACKEND_IMAGE" -c '
+  set -eu
+  system=/etc/ssl/certs/ca-certificates.crt
+  rds=/app/prisma/certs/ap-south-1-bundle.pem
+  combined=/app/prisma/certs/finance-ai-ca-bundle.pem
+  test "$(id -u)" = 1001
+  test -r "$combined"
+  echo "ca4a9dc14e06c3f84274eff3ffed0e5d4d3463141593e1159eb4a0904df6cd74  $rds" | sha256sum -c -
+  system_size="$(wc -c < "$system")"
+  rds_size="$(wc -c < "$rds")"
+  test "$(wc -c < "$combined")" -eq "$((system_size + rds_size))"
+  test "$(head -c "$system_size" "$combined" | sha256sum | cut -d " " -f 1)" = "$(sha256sum "$system" | cut -d " " -f 1)"
+  test "$(tail -c "$rds_size" "$combined" | sha256sum | cut -d " " -f 1)" = "$(sha256sum "$rds" | cut -d " " -f 1)"
+'
 
 stage "Create disposable kind cluster"
 kind create cluster \

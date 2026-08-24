@@ -145,10 +145,18 @@ runtime and migration URLs must use:
 postgresql://<role>:<url-encoded-password>@<private-rds-address>:5432/financeai?schema=public&sslmode=require&sslrootcert=certs/ap-south-1-bundle.pem&sslaccept=strict
 ```
 
-The runtime Deployment and Helm migration Job use the same backend image. The Docker
-build fails if the bundle is absent, and the non-root runtime user can read it.
-Do not use `rejectUnauthorized=false`, `sslaccept=accept_invalid_certs`, or any
-other certificate-verification bypass.
+The deployed Prisma migrate/schema engine also requires the RDS CA in its OpenSSL
+trust store, even with `sslrootcert` in `DATABASE_URL`. Finance-AI therefore builds
+`/app/prisma/certs/finance-ai-ca-bundle.pem` by appending the regional RDS bundle
+to the normal Linux CA bundle and sets `SSL_CERT_FILE` to that combined file for
+both the runtime Deployment and Helm migration Job. This preserves public HTTPS
+trust while adding RDS trust. This requirement reflects the behavior proven by
+this deployed Prisma/RDS environment; it is not a claim about every version.
+
+The Docker build fails if the pinned RDS bundle hash changes, and the non-root
+runtime user can read the combined bundle. Keep `sslrootcert` in `DATABASE_URL`.
+Never use `rejectUnauthorized=false`, `sslaccept=accept_invalid_certs`, disable
+certificate verification, or use any equivalent bypass.
 
 Bundle source:
 `https://truststore.pki.rds.amazonaws.com/ap-south-1/ap-south-1-bundle.pem`

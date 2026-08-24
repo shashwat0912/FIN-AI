@@ -38,6 +38,8 @@ spec:
             - run
             - db:migrate:deploy
           env:
+            - name: SSL_CERT_FILE
+              value: {{ .Values.backend.config.SSL_CERT_FILE | quote }}
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
