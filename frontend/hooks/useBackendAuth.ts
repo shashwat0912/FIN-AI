@@ -35,7 +35,7 @@ export function useBackendAuth() {
               id: tokenUser.userId,
               email: tokenUser.email || 'user@example.com',
               name: 'User',
-              role: (tokenUser.role === 'ADMIN' ? 'ADMIN' : 'USER') || 'USER',
+              role: tokenUser.role === 'ADMIN' ? 'ADMIN' : 'USER',
             });
           } else {
             // Fallback: try to make authenticated request
