@@ -27,6 +27,9 @@ RUN npm prune --omit=dev
 
 # Production stage
 FROM node:22-alpine AS runtime
+RUN apk upgrade --no-cache
+# Runtime and migration invoke Node directly; npm is only needed by the builder.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
 WORKDIR /app
 

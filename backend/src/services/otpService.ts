@@ -1,20 +1,21 @@
+import { randomInt } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import prisma from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import logger from '../config/logger';
 
 export class OtpService {
-  private readonly OTP_LENGTH = 4;
+  private readonly OTP_LENGTH = 6;
   private readonly OTP_EXPIRY_MINUTES = 5;
   private readonly MAX_ATTEMPTS = 3;
   private readonly RATE_LIMIT_WINDOW_HOURS = 1;
   private readonly MAX_REQUESTS_PER_HOUR = 5;
 
   /**
-   * Generate a 4-digit numeric OTP
+   * Generate a 6-digit numeric OTP
    */
   private generateOtp(): string {
-    return Math.floor(1000 + Math.random() * 9000).toString();
+    return randomInt(100000, 1000000).toString();
   }
 
   /**
@@ -88,6 +89,9 @@ export class OtpService {
    */
   normalizeIdentifier(identifier: string): string {
     const type = this.detectIdentifierType(identifier);
+    if (process.env.NODE_ENV === 'production' && type !== 'email') {
+      throw new AppError('Use email to sign in. Phone OTP is unavailable.', 400);
+    }
     
     if (type === 'phone') {
       return this.validateAndNormalizePhone(identifier)!;
@@ -198,6 +202,10 @@ export class OtpService {
 
     if (!type) {
       throw new AppError('Invalid email or phone number format', 400);
+    }
+
+    if (!new RegExp(`^\\d{${this.OTP_LENGTH}}$`).test(otp)) {
+      throw new AppError('OTP must be 6 digits', 400);
     }
 
     // Find the OTP record

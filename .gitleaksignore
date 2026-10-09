@@ -1,17 +1,94 @@
-365e47e1f1aae6dc841a0aa8ef86aee3f85a9807:docs/PRODUCTION_SECURITY_CHECKLIST.md:curl-auth-header:98
+# Reviewed exact historical findings only; rationale in docs/SECRET_SCAN_REVIEW.md.
+# JWT exceptions retire known keys only for the isolated fresh demo boundary; old external use remains unknown.
+# F03: isolated NODE_ENV=test SQLite CI signing fixture; occurs only in historical workflow
+830f2113ce2fa1a3ca8f21f2088be9e046b6a8ea:.github/workflows/ci.yml:generic-api-key:70
+# F04: isolated NODE_ENV=test SQLite CI signing fixture; occurs only in historical workflow
+830f2113ce2fa1a3ca8f21f2088be9e046b6a8ea:.github/workflows/ci.yml:generic-api-key:71
+# F05: isolated NODE_ENV=test SQLite CI signing fixture; occurs only in historical workflow
 932935ae5b9e18d764bb00fc85fb3ac47e107121:.github/workflows/ci.yml:generic-api-key:70
+# F06: isolated NODE_ENV=test SQLite CI signing fixture; occurs only in historical workflow
 932935ae5b9e18d764bb00fc85fb3ac47e107121:.github/workflows/ci.yml:generic-api-key:71
+# F07: curl command/continuation or YOUR_* bearer example; no literal authentication credential
+ee4c22768d976a9aafd2b0b4c0fde71f32ce9da2:docs/PRODUCTION_SECURITY_CHECKLIST.md:curl-auth-header:98
+# F08: curl command/continuation or YOUR_* bearer example; no literal authentication credential
+365e47e1f1aae6dc841a0aa8ef86aee3f85a9807:docs/PRODUCTION_SECURITY_CHECKLIST.md:curl-auth-header:98
+# F09: curl command/continuation or YOUR_* bearer example; no literal authentication credential
+63702fef066086e20fedbb1ee2cccc027c5053e7:CSRF_FIX_COMPLETE.md:curl-auth-header:162
+# F14: curl command/continuation or YOUR_* bearer example; no literal authentication credential
+63702fef066086e20fedbb1ee2cccc027c5053e7:FULL_STACK_TESTING.md:curl-auth-header:179
+# F15: curl command/continuation or YOUR_* bearer example; no literal authentication credential
+63702fef066086e20fedbb1ee2cccc027c5053e7:RAG_SYSTEM_COMPLETE.md:curl-auth-header:63
+# F16: curl command/continuation or YOUR_* bearer example; no literal authentication credential
+63702fef066086e20fedbb1ee2cccc027c5053e7:PRODUCTION_SECURITY_CHECKLIST.md:curl-auth-header:98
+# F25: curl command/continuation or YOUR_* bearer example; no literal authentication credential
+63702fef066086e20fedbb1ee2cccc027c5053e7:server/RAG_IMPLEMENTATION_COMPLETE.md:curl-auth-header:182
+# F26: curl command/continuation or YOUR_* bearer example; no literal authentication credential
+63702fef066086e20fedbb1ee2cccc027c5053e7:server/RAG_IMPLEMENTATION_COMPLETE.md:curl-auth-header:202
+# F27: curl command/continuation or YOUR_* bearer example; no literal authentication credential
+63702fef066086e20fedbb1ee2cccc027c5053e7:server/README.md:curl-auth-header:285
+# F28: curl command/continuation or YOUR_* bearer example; no literal authentication credential
+63702fef066086e20fedbb1ee2cccc027c5053e7:server/README.md:curl-auth-header:299
+# F29: curl command/continuation or YOUR_* bearer example; no literal authentication credential
 c93de39ce5b40666f7146617bb4f78eaece189b3:CSRF_FIX_COMPLETE.md:curl-auth-header:162
-c93de39ce5b40666f7146617bb4f78eaece189b3:ENVIRONMENT_SECURITY_COMPLETE.md:generic-api-key:38
-c93de39ce5b40666f7146617bb4f78eaece189b3:ENVIRONMENT_SECURITY_COMPLETE.md:generic-api-key:39
+# F30: curl command/continuation or YOUR_* bearer example; no literal authentication credential
 c93de39ce5b40666f7146617bb4f78eaece189b3:FULL_STACK_TESTING.md:curl-auth-header:179
-c93de39ce5b40666f7146617bb4f78eaece189b3:PRODUCTION_SECURITY_CHECKLIST.md:curl-auth-header:98
+# F33: curl command/continuation or YOUR_* bearer example; no literal authentication credential
 c93de39ce5b40666f7146617bb4f78eaece189b3:RAG_SYSTEM_COMPLETE.md:curl-auth-header:63
-c93de39ce5b40666f7146617bb4f78eaece189b3:secure-env-setup.sh:generic-api-key:67
-c93de39ce5b40666f7146617bb4f78eaece189b3:secure-env-setup.sh:generic-api-key:70
-c93de39ce5b40666f7146617bb4f78eaece189b3:secure-env-setup.sh:generic-api-key:78
-c93de39ce5b40666f7146617bb4f78eaece189b3:secure-env-setup.sh:generic-api-key:79
+# F34: curl command/continuation or YOUR_* bearer example; no literal authentication credential
+c93de39ce5b40666f7146617bb4f78eaece189b3:PRODUCTION_SECURITY_CHECKLIST.md:curl-auth-header:98
+# F39: curl command/continuation or YOUR_* bearer example; no literal authentication credential
 c93de39ce5b40666f7146617bb4f78eaece189b3:server/RAG_IMPLEMENTATION_COMPLETE.md:curl-auth-header:182
+# F40: curl command/continuation or YOUR_* bearer example; no literal authentication credential
 c93de39ce5b40666f7146617bb4f78eaece189b3:server/RAG_IMPLEMENTATION_COMPLETE.md:curl-auth-header:202
+# F41: curl command/continuation or YOUR_* bearer example; no literal authentication credential
 c93de39ce5b40666f7146617bb4f78eaece189b3:server/README.md:curl-auth-header:285
+# F42: curl command/continuation or YOUR_* bearer example; no literal authentication credential
 c93de39ce5b40666f7146617bb4f78eaece189b3:server/README.md:curl-auth-header:299
+
+# F12: Historical unused SESSION_SECRET retired locally; all available history has no application consumer. See retirement evidence in docs/SECRET_SCAN_REVIEW.md.
+63702fef066086e20fedbb1ee2cccc027c5053e7:ENVIRONMENT_SECURITY_COMPLETE.md:generic-api-key:38
+
+# F13: Historical unused ENCRYPTION_KEY retired locally; all available history has no application consumer. See retirement evidence in docs/SECRET_SCAN_REVIEW.md.
+63702fef066086e20fedbb1ee2cccc027c5053e7:ENVIRONMENT_SECURITY_COMPLETE.md:generic-api-key:39
+
+# F19: Historical unused SESSION_SECRET retired locally; all available history has no application consumer. See retirement evidence in docs/SECRET_SCAN_REVIEW.md.
+63702fef066086e20fedbb1ee2cccc027c5053e7:secure-env-setup.sh:generic-api-key:67
+
+# F20: Historical unused ENCRYPTION_KEY retired locally; all available history has no application consumer. See retirement evidence in docs/SECRET_SCAN_REVIEW.md.
+63702fef066086e20fedbb1ee2cccc027c5053e7:secure-env-setup.sh:generic-api-key:70
+
+# F23: Historical unused SESSION_SECRET retired locally; all available history has no application consumer. See retirement evidence in docs/SECRET_SCAN_REVIEW.md.
+63702fef066086e20fedbb1ee2cccc027c5053e7:secure-env-setup.sh:generic-api-key:78
+
+# F24: Historical unused ENCRYPTION_KEY retired locally; all available history has no application consumer. See retirement evidence in docs/SECRET_SCAN_REVIEW.md.
+63702fef066086e20fedbb1ee2cccc027c5053e7:secure-env-setup.sh:generic-api-key:79
+
+# F31: Historical unused SESSION_SECRET retired locally; all available history has no application consumer. See retirement evidence in docs/SECRET_SCAN_REVIEW.md.
+c93de39ce5b40666f7146617bb4f78eaece189b3:ENVIRONMENT_SECURITY_COMPLETE.md:generic-api-key:38
+
+# F32: Historical unused ENCRYPTION_KEY retired locally; all available history has no application consumer. See retirement evidence in docs/SECRET_SCAN_REVIEW.md.
+c93de39ce5b40666f7146617bb4f78eaece189b3:ENVIRONMENT_SECURITY_COMPLETE.md:generic-api-key:39
+
+# F35: Historical unused SESSION_SECRET retired locally; all available history has no application consumer. See retirement evidence in docs/SECRET_SCAN_REVIEW.md.
+c93de39ce5b40666f7146617bb4f78eaece189b3:secure-env-setup.sh:generic-api-key:67
+
+# F36: Historical unused ENCRYPTION_KEY retired locally; all available history has no application consumer. See retirement evidence in docs/SECRET_SCAN_REVIEW.md.
+c93de39ce5b40666f7146617bb4f78eaece189b3:secure-env-setup.sh:generic-api-key:70
+
+# F37: Historical unused SESSION_SECRET retired locally; all available history has no application consumer. See retirement evidence in docs/SECRET_SCAN_REVIEW.md.
+c93de39ce5b40666f7146617bb4f78eaece189b3:secure-env-setup.sh:generic-api-key:78
+
+# F38: Historical unused ENCRYPTION_KEY retired locally; all available history has no application consumer. See retirement evidence in docs/SECRET_SCAN_REVIEW.md.
+c93de39ce5b40666f7146617bb4f78eaece189b3:secure-env-setup.sh:generic-api-key:79
+
+# C: historical external use unknown; retired for isolated new demo. Production rejects
+# both known keys; require independent fresh keys, fresh Secret and no old sessions.
+# This does not certify old EC2 retirement. Evidence: docs/SECRET_SCAN_REVIEW.md.
+043d243db8253ea0318ff884f7d57ac7d949b6c7:backend/docker-compose.yml:generic-api-key:50
+043d243db8253ea0318ff884f7d57ac7d949b6c7:backend/docker-compose.yml:generic-api-key:51
+63702fef066086e20fedbb1ee2cccc027c5053e7:ENVIRONMENT_SECURITY_COMPLETE.md:generic-api-key:36
+63702fef066086e20fedbb1ee2cccc027c5053e7:ENVIRONMENT_SECURITY_COMPLETE.md:generic-api-key:37
+63702fef066086e20fedbb1ee2cccc027c5053e7:secure-env-setup.sh:generic-api-key:27
+63702fef066086e20fedbb1ee2cccc027c5053e7:secure-env-setup.sh:generic-api-key:29
+63702fef066086e20fedbb1ee2cccc027c5053e7:secure-env-setup.sh:generic-api-key:76
+63702fef066086e20fedbb1ee2cccc027c5053e7:secure-env-setup.sh:generic-api-key:77

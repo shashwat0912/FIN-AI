@@ -1,7 +1,14 @@
 import dotenv from 'dotenv';
+import { createHash, randomBytes } from 'node:crypto';
 import logger from './logger';
 
 dotenv.config();
+
+// Local sessions expire on restart; production still requires operator-managed keys.
+if ((process.env.NODE_ENV || 'development') === 'development') {
+  process.env.JWT_SECRET ||= randomBytes(64).toString('hex');
+  process.env.JWT_REFRESH_SECRET ||= randomBytes(64).toString('hex');
+}
 
 export type RedisAuthMode = 'url' | 'iam';
 
@@ -19,7 +26,7 @@ export const config = {
 
   // JWT
   JWT_SECRET: process.env.JWT_SECRET!,
-  JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '7d',
+  JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '15m',
   JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET!,
   JWT_REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
 
@@ -148,6 +155,13 @@ if (weakSecrets.includes(process.env.JWT_REFRESH_SECRET)) {
 
 // Enhanced environment-specific validation
 if (config.NODE_ENV === 'production') {
+  // Public historical values must never become signing keys in a new deployment.
+  for (const name of ['JWT_SECRET', 'JWT_REFRESH_SECRET'] as const) {
+    const digest = createHash('sha256').update(config[name]).digest('hex').slice(0, 12);
+    if (['2cb69e67e55e', '9a59139cc9cd'].includes(digest)) {
+      throw new Error(`${name} is a retired historical credential; generate a fresh deployment key`);
+    }
+  }
   const securityStateHmacSecret = process.env.SECURITY_STATE_HMAC_SECRET;
   if (!securityStateHmacSecret) {
     throw new Error('SECURITY_STATE_HMAC_SECRET is required in production');

@@ -16,7 +16,7 @@ assertSafeTestDatabase(process.env.DATABASE_URL, process.env.NODE_ENV);
 
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'a'.repeat(64);
 process.env.JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'b'.repeat(64);
-process.env.JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
+process.env.JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '15m';
 process.env.JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '30d';
 
 process.env.CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
@@ -24,3 +24,6 @@ process.env.CORS_CREDENTIALS = process.env.CORS_CREDENTIALS || 'true';
 
 process.env.RATE_LIMIT_WINDOW_MS = process.env.RATE_LIMIT_WINDOW_MS || '900000';
 process.env.RATE_LIMIT_MAX_REQUESTS = process.env.RATE_LIMIT_MAX_REQUESTS || '100';
+
+process.env.AI_PROVIDER = 'local';
+process.env.EMBEDDING_PROVIDER = 'local';
