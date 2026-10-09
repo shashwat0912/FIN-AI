@@ -1,0 +1,27 @@
+{{- if and .Values.publicDemo .Values.ingress.enabled -}}
+{{- if or (ne .Values.ingress.className "alb") (not .Values.migration.enabled) -}}
+{{- fail "Public demo requires ALB ingress and the migration gate" -}}
+{{- end -}}
+{{- if ne .Values.migration.existingSecret "finance-ai-migrator-secrets" -}}
+{{- fail "Public demo requires the separate finance-ai-migrator-secrets Secret" -}}
+{{- end -}}
+{{- if ne (len .Values.ingress.hosts) 1 -}}
+{{- fail "Supply one production hostname" -}}
+{{- end -}}
+{{- if ne .Values.backend.config.CORS_ORIGIN (printf "https://%s" (first .Values.ingress.hosts)) -}}
+{{- fail "Production CORS origin must match the HTTPS ingress hostname" -}}
+{{- end -}}
+{{- $_ := required "Supply the ACM certificate ARN" (index .Values.ingress.annotations "alb.ingress.kubernetes.io/certificate-arn") -}}
+{{- $_ := required "Supply backend IRSA role ARN from Terraform" (index .Values.backend.serviceAccount.annotations "eks.amazonaws.com/role-arn") -}}
+{{- range $component := list .Values.backend .Values.frontend -}}
+{{- $_ := required "Supply immutable frontend and backend image digests" $component.image.digest -}}
+{{- end -}}
+{{- if ne .Values.backend.config.REDIS_AUTH_MODE "iam" -}}
+{{- fail "Public demo requires IAM Valkey auth" -}}
+{{- end -}}
+{{- range $value := list .Values.backend.config.REDIS_HOST .Values.backend.config.REDIS_USERNAME .Values.backend.config.REDIS_IAM_CACHE_NAME -}}
+{{- if or (not $value) (contains "REQUIRED" $value) -}}
+{{- fail "Supply production Valkey Terraform outputs" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}

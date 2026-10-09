@@ -30,9 +30,10 @@ spec:
           image: finance-ai-backend:phase-2b
           imagePullPolicy: Never
           command:
-            - npm
-            - run
-            - db:migrate:deploy
+            - node
+            - node_modules/prisma/build/index.js
+            - migrate
+            - deploy
           envFrom:
             - secretRef:
                 name: finance-ai-local-backend-secrets

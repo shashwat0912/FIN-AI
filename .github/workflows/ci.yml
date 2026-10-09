@@ -37,6 +37,17 @@ jobs:
         env:
           HUSKY: 0
 
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+
+      - name: Helm launch input check
+        run: |
+          helm version
+          python3 scripts/test-production-values.py
+      - name: Helm and static Kubernetes validation
+        run: K8S_LOCAL_STATIC_ONLY=true ./scripts/k8s-local-validate.sh
+
       - name: Typecheck
         run: npm run typecheck
 
@@ -147,6 +158,7 @@ jobs:
           context: .
           file: Dockerfile.frontend
           push: false
+          load: true
           build-args: |
             VITE_API_BASE_URL=/api/v1
           tags: finance-ai-frontend:ci
@@ -159,13 +171,109 @@ jobs:
           context: ./backend
           file: ./backend/Dockerfile
           push: false
+          load: true
           tags: finance-ai-backend:ci
           cache-from: type=gha,scope=backend
           cache-to: type=gha,mode=max,scope=backend
 
+      - name: Scan frontend image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: finance-ai-frontend:ci
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          scanners: vuln
+
+      - name: Scan backend image
+        if: success() || failure()
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: finance-ai-backend:ci
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          scanners: vuln
+
+  security:
+    name: Security
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+      - name: Gitleaks (full history, redacted)
+        run: |
+          curl -fsSL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz -o /tmp/gitleaks.tar.gz
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          /tmp/gitleaks git --redact --no-banner
+      - name: Frontend runtime dependency audit
+        if: success() || failure()
+        run: npm audit --omit=dev --audit-level=high
+      - name: Backend runtime dependency audit
+        if: success() || failure()
+        run: npm --prefix backend audit --omit=dev --audit-level=high
+      - name: Filesystem vulnerabilities and secrets
+        if: success() || failure()
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          scanners: vuln,secret
+
+  smoke:
+    name: Browser smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [frontend, backend]
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: finance_ai_test
+          POSTGRES_USER: financeai_test
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['5433:5432']
+        options: >-
+          --health-cmd "pg_isready -U financeai_test -d finance_ai_test"
+          --health-interval 2s --health-timeout 3s --health-retries 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+      - run: npm ci && npm --prefix backend ci
+        env:
+          HUSKY: '0'
+      - run: npm --prefix backend run db:generate
+      - run: npm --prefix backend run test:db:prepare
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:smoke
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: smoke-failure
+          path: test-results
+          retention-days: 3
+
   publish:
     name: ECR Publish
-    needs: docker
+    needs: [docker, security, smoke]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 25
