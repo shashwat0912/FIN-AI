@@ -1,12 +1,9 @@
-import React, { useState, useCallback } from 'react';
-import { 
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, 
-  ResponsiveContainer, ReferenceLine, Legend, Area, AreaChart
-} from 'recharts';
-import { formatCurrency, generateChartData, getGrowthRate } from '../../utils/chartUtils';
-import ChartHeader from './charts/ChartHeader';
+import { useState, useCallback } from 'react';
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Area, AreaChart } from 'recharts';
+import { generateChartData, getGrowthRate } from '../../utils/chartUtils';
+
 import ChartTooltip from './charts/ChartTooltip';
-import ChartStats from './charts/ChartStats';
+
 import { Calendar, RefreshCw, TrendingUp, TrendingDown } from 'lucide-react';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 

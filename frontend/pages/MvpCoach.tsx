@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../lib/api';
 import { dispatchTransactionsUpdated } from '../lib/appEvents';
@@ -217,15 +217,16 @@ export default function MvpCoach() {
       if (!res.success || res.data == null) {
         throw new Error(res.message || 'Request failed');
       }
+      const data = res.data;
       dispatchTransactionsUpdated();
       setMessages((m) => [
         ...m,
         {
           id: `${Date.now()}-assistant`,
           role: 'assistant',
-          text: res.data.message,
-          transaction: res.data.transaction,
-          insights: res.data.insights,
+          text: data.message,
+          transaction: data.transaction,
+          insights: data.insights,
         },
       ]);
     } catch (e: unknown) {

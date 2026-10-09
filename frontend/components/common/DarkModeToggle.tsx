@@ -1,7 +1,7 @@
-import React from 'react';
+
 import { Sun, Moon } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
-import { colors, animations } from '../../styles/tokens';
+import { colors } from '../../styles/tokens';
 
 interface DarkModeToggleProps {
   className?: string;

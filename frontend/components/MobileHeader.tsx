@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { Menu } from 'lucide-react';
 import { useSidebar } from '../hooks/useSidebar';
 

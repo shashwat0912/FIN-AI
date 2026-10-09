@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { formatCurrency } from '../../../utils/chartUtils';
 import { TrendingUp, TrendingDown, Activity } from 'lucide-react';
 

@@ -8,11 +8,6 @@ import { apiClient } from '../lib/api';
 import { shouldRefreshToken, isTokenExpired, getTimeUntilExpiration } from '../utils/jwtUtils';
 import { logger } from '../utils/logger';
 
-interface RefreshPromise {
-  resolve: (tokens: { accessToken: string; refreshToken: string }) => void;
-  reject: (error: Error) => void;
-}
-
 class TokenRefreshService {
   private refreshPromise: Promise<{ accessToken: string; refreshToken: string }> | null = null;
   private refreshInProgress = false;
@@ -47,7 +42,7 @@ class TokenRefreshService {
 
     // Create new refresh promise
     this.refreshInProgress = true;
-    this.refreshPromise = this.performRefresh(refreshToken);
+    this.refreshPromise = this.performRefresh();
 
     try {
       const result = await this.refreshPromise;
@@ -61,7 +56,7 @@ class TokenRefreshService {
   /**
    * Perform the actual token refresh
    */
-  private async performRefresh(refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {
+  private async performRefresh(): Promise<{ accessToken: string; refreshToken: string }> {
     try {
       logger.info('Refreshing access token...');
 
@@ -86,13 +81,13 @@ class TokenRefreshService {
 
       logger.info('Token refreshed successfully');
       return tokens;
-    } catch (error: any) {
+    } catch (error) {
       logger.error('Token refresh failed', error);
       
       // Clear tokens on refresh failure
       this.clearTokens();
       
-      throw new Error(error.message || 'Failed to refresh token. Please login again.');
+      throw new Error(error instanceof Error ? error.message : 'Failed to refresh token. Please login again.');
     }
   }
 
@@ -116,7 +111,7 @@ class TokenRefreshService {
       
       try {
         await this.refreshToken();
-      } catch (error: any) {
+      } catch (error) {
         logger.error('Failed to refresh token during ensureTokenValid', error);
         // Re-throw the error so caller knows refresh failed
         throw error;

@@ -1,9 +1,9 @@
-import React from 'react';
+
 import { formatCurrency } from '../../../utils/chartUtils';
 
 interface ChartTooltipProps {
   active?: boolean;
-  payload?: any[];
+  payload?: Array<{ value: number; payload: { date: Date; previousBalance?: number } }>;
   label?: string;
   growthRate: number;
 }

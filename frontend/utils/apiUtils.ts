@@ -3,9 +3,9 @@
  * Common patterns and utilities for API interactions
  */
 
-import { ApiResponse, ApiError } from '../types';
+import { ApiError } from '../types';
 import { logger } from './logger';
-import { handleApiError, withErrorHandling } from './errorHandling';
+import { withErrorHandling } from './errorHandling';
 
 /**
  * Generic API hook state
