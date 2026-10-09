@@ -1,15 +1,17 @@
-# Exact files changed by this task
+# Files changed by the public-demo readiness PR
 
-Statuses: A = added, M = modified, D = deleted. File links are repository-relative for GitHub.
+Statuses: A = added, M = modified, D = deleted. Links are repository-relative for GitHub.
 
-100 task files; many frontend edits remove unused imports to enable the actual app typecheck.
+116 changed paths compared with current `origin/main`; many frontend edits remove unused imports to enable the actual app typecheck.
 
 | Status | File                                                                                                                                                                        |
 | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | M      | [.dockerignore](../.dockerignore)                                                                                                                                           |
 | M      | [.github/workflows/ci.yml](../.github/workflows/ci.yml)                                                                                                                     |
 | M      | [.gitignore](../.gitignore)                                                                                                                                                 |
+| M      | [.gitleaksignore](../.gitleaksignore)                                                                                                                                       |
 | M      | [Dockerfile.frontend](../Dockerfile.frontend)                                                                                                                               |
+| A      | [PRODUCT.md](../PRODUCT.md)                                                                                                                                                 |
 | M      | [README.md](../README.md)                                                                                                                                                   |
 | M      | [backend/.env.example](../backend/.env.example)                                                                                                                             |
 | M      | [backend/DATABASE_SETUP.md](../backend/DATABASE_SETUP.md)                                                                                                                   |
@@ -20,10 +22,12 @@ Statuses: A = added, M = modified, D = deleted. File links are repository-relati
 | M      | [backend/src/config/env.ts](../backend/src/config/env.ts)                                                                                                                   |
 | M      | [backend/src/config/logger.ts](../backend/src/config/logger.ts)                                                                                                             |
 | M      | [backend/src/middleware/validation.ts](../backend/src/middleware/validation.ts)                                                                                             |
+| M      | [backend/src/services/authService.ts](../backend/src/services/authService.ts)                                                                                               |
 | M      | [backend/src/services/knowledgeBaseService.ts](../backend/src/services/knowledgeBaseService.ts)                                                                             |
 | M      | [backend/src/services/notificationService.ts](../backend/src/services/notificationService.ts)                                                                               |
 | M      | [backend/src/services/otpService.ts](../backend/src/services/otpService.ts)                                                                                                 |
 | D      | `backend/src/types/sentry.d.ts` (deleted)                                                                                                                                   |
+| A      | [backend/tests/configRetirement.test.ts](../backend/tests/configRetirement.test.ts)                                                                                         |
 | A      | [backend/tests/demoAuth.test.ts](../backend/tests/demoAuth.test.ts)                                                                                                         |
 | A      | [backend/tests/knowledge.test.ts](../backend/tests/knowledge.test.ts)                                                                                                       |
 | M      | [backend/tests/otp.test.ts](../backend/tests/otp.test.ts)                                                                                                                   |
@@ -43,6 +47,7 @@ Statuses: A = added, M = modified, D = deleted. File links are repository-relati
 | A      | [docs/LAUNCH_REPORT.md](LAUNCH_REPORT.md)                                                                                                                                   |
 | A      | [docs/PUBLIC_DEMO.md](PUBLIC_DEMO.md)                                                                                                                                       |
 | A      | [docs/SECRET_SCAN_REVIEW.md](SECRET_SCAN_REVIEW.md)                                                                                                                         |
+| M      | [docs/SECURITY.md](SECURITY.md)                                                                                                                                             |
 | M      | [docs/otp/README.md](otp/README.md)                                                                                                                                         |
 | A      | [e2e/demo.spec.ts](../e2e/demo.spec.ts)                                                                                                                                     |
 | M      | [frontend/App.tsx](../frontend/App.tsx)                                                                                                                                     |
@@ -96,7 +101,18 @@ Statuses: A = added, M = modified, D = deleted. File links are repository-relati
 | M      | [infra/terraform/environments/production/outputs.tf](../infra/terraform/environments/production/outputs.tf)                                                                 |
 | M      | [infra/terraform/environments/production/terraform.tfvars.example](../infra/terraform/environments/production/terraform.tfvars.example)                                     |
 | M      | [infra/terraform/environments/production/tests/elasticache_valkey_wiring.tftest.hcl](../infra/terraform/environments/production/tests/elasticache_valkey_wiring.tftest.hcl) |
+| M      | [infra/terraform/environments/staging/README.md](../infra/terraform/environments/staging/README.md)                                                                         |
+| D      | `infra/terraform/environments/staging/ecr.tf` (deleted)                                                                                                                     |
+| M      | [infra/terraform/environments/staging/outputs.tf](../infra/terraform/environments/staging/outputs.tf)                                                                       |
 | M      | [infra/terraform/environments/staging/tests/ecr_wiring.tftest.hcl](../infra/terraform/environments/staging/tests/ecr_wiring.tftest.hcl)                                     |
+| A      | [infra/terraform/shared/ecr/.terraform.lock.hcl](../infra/terraform/shared/ecr/.terraform.lock.hcl)                                                                         |
+| A      | [infra/terraform/shared/ecr/README.md](../infra/terraform/shared/ecr/README.md)                                                                                             |
+| A      | [infra/terraform/shared/ecr/backend.hcl.example](../infra/terraform/shared/ecr/backend.hcl.example)                                                                         |
+| A      | [infra/terraform/shared/ecr/backend.tf](../infra/terraform/shared/ecr/backend.tf)                                                                                           |
+| A      | [infra/terraform/shared/ecr/main.tf](../infra/terraform/shared/ecr/main.tf)                                                                                                 |
+| A      | [infra/terraform/shared/ecr/outputs.tf](../infra/terraform/shared/ecr/outputs.tf)                                                                                           |
+| A      | [infra/terraform/shared/ecr/providers.tf](../infra/terraform/shared/ecr/providers.tf)                                                                                       |
+| A      | [infra/terraform/shared/ecr/versions.tf](../infra/terraform/shared/ecr/versions.tf)                                                                                         |
 | M      | [package-lock.json](../package-lock.json)                                                                                                                                   |
 | M      | [package.json](../package.json)                                                                                                                                             |
 | A      | [playwright.config.ts](../playwright.config.ts)                                                                                                                             |
@@ -107,21 +123,4 @@ Statuses: A = added, M = modified, D = deleted. File links are repository-relati
 | A      | [scripts/test-production-values.py](../scripts/test-production-values.py)                                                                                                   |
 | M      | [tsconfig.node.json](../tsconfig.node.json)                                                                                                                                 |
 
-## Existing user work preserved
-
-These changes existed before this task and are not claimed as new implementation:
-
-- `PRODUCT.md`
-- `infra/terraform/environments/staging/README.md`
-- `infra/terraform/environments/staging/ecr.tf`
-- `infra/terraform/environments/staging/outputs.tf`
-- `infra/terraform/shared/ecr/.terraform.lock.hcl`
-- `infra/terraform/shared/ecr/README.md`
-- `infra/terraform/shared/ecr/backend.hcl.example`
-- `infra/terraform/shared/ecr/backend.tf`
-- `infra/terraform/shared/ecr/main.tf`
-- `infra/terraform/shared/ecr/outputs.tf`
-- `infra/terraform/shared/ecr/providers.tf`
-- `infra/terraform/shared/ecr/versions.tf`
-
-The existing shared-ECR move is validated by the adjusted staging test and Terraform script.
+The previously existing shared-ECR move and PRODUCT.md were preserved and committed with the relevant platform/demo work.

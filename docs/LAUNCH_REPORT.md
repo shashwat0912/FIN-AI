@@ -169,3 +169,16 @@ not certify old EC2 retirement or replace the remaining AWS/operator launch chec
 This follow-up changes exactly `.gitleaksignore`, `backend/src/config/env.ts`,
 `backend/tests/configRetirement.test.ts`, `docs/SECRET_SCAN_REVIEW.md`,
 `docs/PUBLIC_DEMO.md` and this report.
+
+## GitHub pre-push review
+
+The readiness commits were replayed onto the current GitHub main after the old
+local main and GitHub main were found to have unrelated histories. No remote
+history was rewritten, no force push used and local main was left untouched.
+Main's newer router/test-runner dependency fixes were preserved. Review corrected
+the production new-user name input, converted local documentation links to
+repository-relative paths and added the existing static Kubernetes/Helm checks
+to CI. No env files, Terraform state, generated overrides, browser traces or
+production Secret values are tracked. Final all-ref Gitleaks passed over 188
+scanned commits and the ignored-inclusive working scan passed over 468 files.
+Actual PR checks are the merge gate; PR #24 is intentionally not merged.
