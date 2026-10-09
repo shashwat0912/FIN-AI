@@ -1,7 +1,8 @@
 # Staging Terraform root
 
-This root owns the staging state boundary, AWS provider, VPC, EKS, ECR, RDS
-PostgreSQL, and ElastiCache Valkey module calls. The example uses
+This root owns the staging runtime state boundary, AWS provider, VPC, EKS, RDS
+PostgreSQL, and ElastiCache Valkey module calls. Persistent ECR repositories
+are owned by the separate `../../shared/ecr` root. The example uses
 `10.10.0.0/16`, two AZs, one shared NAT Gateway, one small On-Demand managed
 node, a single-AZ `db.t4g.micro` database with 20 GiB of gp3 storage and a 100
 GiB autoscaling ceiling, and one `cache.t4g.micro` Valkey node.
