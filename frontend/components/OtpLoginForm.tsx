@@ -25,6 +25,7 @@ const trustItems = [
 ];
 
 export default function OtpLoginForm() {
+  const emailOnly = import.meta.env.PROD;
   const [step, setStep] = useState<Step>('identifier');
   const [identifier, setIdentifier] = useState('');
   const [otp, setOtp] = useState('');
@@ -76,8 +77,8 @@ export default function OtpLoginForm() {
       setOtpSent(true);
       setStep('otp');
       setTimeRemaining(response.expiresIn);
-    } catch (error: any) {
-      setError(error.message);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error));
     } finally {
       setLoading(false);
     }
@@ -101,10 +102,10 @@ export default function OtpLoginForm() {
       await apiClient.verifyOtp(identifier, otp, nameToSend);
       // Reload page to trigger authentication check
       window.location.reload();
-    } catch (error: any) {
-      setError(error.message);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error));
       // If error mentions name is required, show name field (fallback)
-      if (error.message.includes('Name is required')) {
+      if (error instanceof Error && error.message.includes('Name is required')) {
         setIsNewUser(true);
       }
     } finally {
@@ -123,8 +124,8 @@ export default function OtpLoginForm() {
       setOtpForDev(response.otpForDev ?? null);
       if (response.otpForDev) setOtp(response.otpForDev);
       setError(null);
-    } catch (error: any) {
-      setError(error.message);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error));
     } finally {
       setLoading(false);
     }
@@ -223,8 +224,8 @@ export default function OtpLoginForm() {
               </h2>
               <p className="mt-2 text-sm leading-relaxed text-zinc-400">
                 {step === 'identifier'
-                  ? 'Use your email or Indian phone number. No password needed.'
-                  : `We sent a 4-digit code to your ${identifierLabel}.`}
+                  ? (emailOnly ? 'Use your email. No password needed.' : 'Use your email or Indian phone number. No password needed.')
+                  : `We sent a 6-digit code to your ${identifierLabel}.`}
               </p>
             </div>
 
@@ -233,26 +234,27 @@ export default function OtpLoginForm() {
               <form className="space-y-5" onSubmit={handleSendOtp}>
                 <div>
                   <label htmlFor="identifier" className="block text-sm font-medium text-zinc-200">
-                    Email or phone number
+                    {emailOnly ? 'Email address' : 'Email or phone number'}
                   </label>
                   <div className="mt-2 flex items-center rounded-xl border border-white/[0.10] bg-white/[0.03] px-3 transition-colors focus-within:border-emerald-400/70 focus-within:ring-4 focus-within:ring-emerald-500/10">
                     <div className="flex items-center gap-1.5 text-zinc-500">
                       <Mail size={16} />
-                      <Smartphone size={15} />
+                      {!emailOnly && <Smartphone size={15} />}
                     </div>
                     <input
                       id="identifier"
                       name="identifier"
-                      type="text"
+                      type={emailOnly ? 'email' : 'text'}
+                      autoComplete="email"
                       required
                       value={identifier}
                       onChange={(e) => setIdentifier(e.target.value)}
                       className="min-h-12 w-full bg-transparent px-3 text-sm text-white outline-none placeholder:text-zinc-600"
-                      placeholder="email@example.com or 9876543210"
+                      placeholder={emailOnly ? 'email@example.com' : 'email@example.com or 9876543210'}
                     />
                   </div>
                   <p className="mt-2 text-xs leading-relaxed text-zinc-500">
-                    Email or a 10-digit Indian mobile number works here.
+                    {emailOnly ? 'We will email you a sign-in code.' : 'Email or a 10-digit Indian mobile number works here.'}
                   </p>
                 </div>
 
@@ -288,20 +290,21 @@ export default function OtpLoginForm() {
               <form className="space-y-5" onSubmit={handleVerifyOtp}>
                 <div>
                   <label htmlFor="otp" className="block text-sm font-medium text-zinc-200">
-                    4-digit code
+                    6-digit code
                   </label>
                   <input
                     id="otp"
                     name="otp"
                     type="text"
+                    autoComplete="one-time-code"
                     inputMode="numeric"
-                    pattern="[0-9]{4}"
-                    maxLength={4}
+                    pattern="[0-9]{6}"
+                    maxLength={6}
                     required
                     value={otp}
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
                     className="mt-2 min-h-14 w-full rounded-xl border border-white/[0.10] bg-white/[0.03] px-4 text-center font-mono text-2xl tracking-[0.35em] text-white outline-none transition-colors placeholder:text-zinc-700 focus:border-emerald-400/70 focus:ring-4 focus:ring-emerald-500/10"
-                    placeholder="0000"
+                    placeholder="000000"
                     autoFocus
                   />
                   {/* Show OTP in dev so you can see it. SMS/email are simulated. */}
@@ -341,6 +344,7 @@ export default function OtpLoginForm() {
                       id="name"
                       name="name"
                       type="text"
+                      autoComplete="name"
                       required
                       value={name}
                       onChange={(e) => setName(e.target.value)}

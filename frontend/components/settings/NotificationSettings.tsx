@@ -1,5 +1,5 @@
-import React from 'react';
-import { Bell, MessageSquare, Mail, AlertTriangle, CreditCard, TrendingUp } from 'lucide-react';
+
+import { Bell, Mail, AlertTriangle, CreditCard, TrendingUp } from 'lucide-react';
 
 export default function NotificationSettings() {
   return (

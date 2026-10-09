@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { apiClient, User, AuthResponse } from '../lib/api';
+import { apiClient } from '../lib/api';
+import { User, AuthResponse } from '../types';
 import { tokenRefreshService } from '../services/tokenRefreshService';
 import { getUserFromToken } from '../utils/jwtUtils';
 import { logger } from '../utils/logger';
@@ -34,7 +35,7 @@ export function useBackendAuth() {
               id: tokenUser.userId,
               email: tokenUser.email || 'user@example.com',
               name: 'User',
-              role: (tokenUser.role as any) || 'USER',
+              role: tokenUser.role === 'ADMIN' ? 'ADMIN' : 'USER',
             });
           } else {
             // Fallback: try to make authenticated request
@@ -76,8 +77,8 @@ export function useBackendAuth() {
       apiClient.setRefreshToken(response.refreshToken);
       
       setUser(response.user);
-    } catch (error: any) {
-      setError(error);
+    } catch (error) {
+      setError(error instanceof Error ? error : new Error(String(error)));
       throw error;
     } finally {
       setLoading(false);
@@ -95,8 +96,8 @@ export function useBackendAuth() {
       apiClient.setRefreshToken(response.refreshToken);
       
       setUser(response.user);
-    } catch (error: any) {
-      setError(error);
+    } catch (error) {
+      setError(error instanceof Error ? error : new Error(String(error)));
       throw error;
     } finally {
       setLoading(false);

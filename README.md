@@ -5,6 +5,10 @@ financial calculations with AI-assisted insights. The repository also serves as
 a production-style Platform/DevOps implementation on AWS using Terraform, EKS,
 Kubernetes, Helm, GitHub Actions, PostgreSQL, and Valkey.
 
+The public launch runbook is [docs/PUBLIC_DEMO.md](docs/PUBLIC_DEMO.md).
+Verified results and remaining blockers are in [docs/LAUNCH_REPORT.md](docs/LAUNCH_REPORT.md).
+This is a portfolio demo, not a regulated or real-money financial service.
+
 ## What It Does
 
 - tracks income and expense transactions;
@@ -160,7 +164,7 @@ Prerequisites: Node.js 20 or newer, npm, and Docker.
 npm ci
 npm --prefix backend ci
 cp backend/.env.example backend/.env
-# Replace the example JWT/HMAC/CSRF values before use.
+# Replace example HMAC/CSRF values. Blank JWT keys generate fresh development-only keys.
 npm --prefix backend run db:generate
 docker compose -f backend/docker-compose.yml up -d postgres redis
 npm --prefix backend run db:migrate:deploy

@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { Globe, Clock, IndianRupee } from 'lucide-react';
 import LanguageSelector from '../common/LanguageSelector';
 import { useLanguage } from '../../context/LanguageContext';

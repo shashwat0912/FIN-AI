@@ -209,3 +209,13 @@ output "valkey_user_group_id" {
   description = "Production ElastiCache user group ID."
   value       = module.elasticache_valkey.user_group_id
 }
+
+output "backend_irsa_role_arn" {
+  description = "Production backend IRSA role; annotate finance-ai/finance-ai-backend."
+  value       = aws_iam_role.backend.arn
+}
+
+output "aws_region" {
+  description = "Region for Helm and add-on configuration."
+  value       = var.aws_region
+}

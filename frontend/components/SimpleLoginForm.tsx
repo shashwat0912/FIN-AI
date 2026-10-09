@@ -5,7 +5,7 @@ import DarkModeToggle from './common/DarkModeToggle';
 import { tokenRefreshService } from '../services/tokenRefreshService';
 
 export default function SimpleLoginForm() {
-  const { isDarkMode } = useDarkMode();
+  useDarkMode();
   const [isLogin, setIsLogin] = useState(true);
   const [formData, setFormData] = useState({
     email: '',
@@ -46,8 +46,8 @@ export default function SimpleLoginForm() {
         // Reload page to trigger authentication check
         window.location.reload();
       }
-    } catch (error: any) {
-      setError(error.message);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error));
     } finally {
       setLoading(false);
     }

@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import { useRef } from "react";
 import { Edit3, MoreHorizontal, Trash2 } from "lucide-react";
 
 const toneClasses = {

@@ -129,7 +129,7 @@ export interface Goal {
   targetAmount: number;
   currentAmount: number;
   targetDate?: string;
-  status: 'ACTIVE' | 'COMPLETED' | 'PAUSED';
+  status: 'ACTIVE' | 'COMPLETED' | 'PAUSED' | 'CANCELLED';
   userId: string;
   createdAt: string;
   updatedAt: string;

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { OtpService } from '../src/services/otpService';
 import { NotificationService } from '../src/services/notificationService';
 import prisma from '../src/config/database';
@@ -101,7 +101,7 @@ describe('OTP Service', () => {
       const email = 'test@example.com';
       const result = await otpService.generateAndStoreOtp(email);
 
-      expect(result.otp).toMatch(/^\d{4}$/);
+      expect(result.otp).toMatch(/^\d{6}$/);
       expect(result.type).toBe('email');
 
       // Verify OTP is stored in database
@@ -117,7 +117,7 @@ describe('OTP Service', () => {
       const phone = '9876543210';
       const result = await otpService.generateAndStoreOtp(phone);
 
-      expect(result.otp).toMatch(/^\d{4}$/);
+      expect(result.otp).toMatch(/^\d{6}$/);
       expect(result.type).toBe('phone');
 
       // Verify OTP is stored in database
@@ -169,7 +169,7 @@ describe('OTP Service', () => {
       await otpService.generateAndStoreOtp(email);
 
       await expect(
-        otpService.verifyOtp(email, '0000')
+        otpService.verifyOtp(email, '000000')
       ).rejects.toThrow('Invalid OTP');
     });
 
@@ -195,7 +195,7 @@ describe('OTP Service', () => {
       // Try with wrong OTP 3 times
       for (let i = 0; i < 3; i++) {
         try {
-          await otpService.verifyOtp(email, '0000');
+          await otpService.verifyOtp(email, '000000');
         } catch (error) {
           // Expected to fail
         }
@@ -229,7 +229,7 @@ describe('OTP Service', () => {
   describe('Notification Service', () => {
     it('should send OTP email (simulated)', async () => {
       const email = 'test@example.com';
-      const otp = '1234';
+      const otp = '123456';
 
       // This will be simulated in development
       await expect(
@@ -239,7 +239,7 @@ describe('OTP Service', () => {
 
     it('should send OTP SMS (simulated)', async () => {
       const phone = '+919876543210';
-      const otp = '1234';
+      const otp = '123456';
 
       // This will be simulated in development
       await expect(

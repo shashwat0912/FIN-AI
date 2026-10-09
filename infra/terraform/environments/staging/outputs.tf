@@ -110,21 +110,6 @@ output "backend_irsa_role_arn" {
   value       = aws_iam_role.backend.arn
 }
 
-output "ecr_repository_names" {
-  description = "Staging ECR repository names keyed by image component."
-  value       = module.ecr.repository_names
-}
-
-output "ecr_repository_arns" {
-  description = "Staging ECR repository ARNs keyed by image component."
-  value       = module.ecr.repository_arns
-}
-
-output "ecr_repository_urls" {
-  description = "Staging ECR repository URLs keyed by image component."
-  value       = module.ecr.repository_urls
-}
-
 output "rds_db_instance_identifier" {
   description = "Staging RDS PostgreSQL instance identifier."
   value       = module.rds_postgres.db_instance_identifier

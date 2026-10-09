@@ -1,4 +1,6 @@
-mock_provider "aws" {}
+mock_provider "aws" {
+  override_during = plan
+}
 
 variables {
   aws_region   = "us-east-1"
@@ -38,6 +40,31 @@ variables {
 
 run "production_valkey_wiring" {
   command = plan
+
+  override_resource {
+    target          = module.elasticache_valkey.aws_elasticache_replication_group.this
+    override_during = plan
+    values          = { arn = "arn:aws:elasticache:us-east-1:123456789012:replicationgroup:finance-ai-production-valkey" }
+  }
+  override_resource {
+    target          = module.elasticache_valkey.aws_elasticache_user.application
+    override_during = plan
+    values          = { arn = "arn:aws:elasticache:us-east-1:123456789012:user:finance-ai-production-valkey-app" }
+  }
+
+  assert {
+    condition = (
+      local.backend_kubernetes_namespace == "finance-ai" &&
+      local.backend_service_account_name == "finance-ai-backend" &&
+      local.backend_irsa_role_name == "finance-ai-production-backend" &&
+      toset(jsondecode(aws_iam_role_policy.backend_valkey.policy).Statement[0].Action) == toset(["elasticache:Connect"]) &&
+      toset(jsondecode(aws_iam_role_policy.backend_valkey.policy).Statement[0].Resource) == toset([
+        module.elasticache_valkey.replication_group_arn,
+        module.elasticache_valkey.application_user_arn,
+      ])
+    )
+    error_message = "Production backend identity must target its namespace and only its Valkey group/user."
+  }
 
   override_module {
     target          = module.vpc

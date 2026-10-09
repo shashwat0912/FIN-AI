@@ -16,7 +16,7 @@ baselining any existing environment as a separate, explicitly approved
 operation. Do not replace migration history or resolve a baseline against an
 unclassified database.
 
-## Staging PostgreSQL identities
+## Staging and production PostgreSQL identities
 
 `financeai_admin` is the RDS master and database owner, with `LOGIN`, `CREATEDB`,
 and `CREATEROLE`, and is used only for bootstrap and break-glass
@@ -92,7 +92,7 @@ one of those dangerous attributes, then verifies both roles are login-enabled
 and have none of `SUPERUSER`, `CREATEDB`, `CREATEROLE`, `REPLICATION`, or
 `BYPASSRLS` after reconciling the attributes the RDS master can safely manage.
 
-### First staging baseline only
+### First staging or production baseline only
 
 The immutable baseline contains `CREATE SCHEMA IF NOT EXISTS "public"`, which
 requires database `CREATE` even though bootstrap preserves the existing
@@ -186,15 +186,13 @@ role/database/schema/table and default privileges, zero pending migrations on
 the second deployment, and denial of runtime `CREATE TABLE`, `ALTER TABLE`,
 `DROP TABLE`, `TRUNCATE`, and `_prisma_migrations` access.
 
-## Known knowledge-base mismatch
+## Knowledge storage
 
-`knowledgeBaseService.ts` casts `metadata` to `jsonb` and `embedding` to
-`vector`, while the active Prisma schema and baseline define those columns as
-`TEXT`. The controller constructs this service during module loading, but its
-constructor performs no database query; none of the startup background jobs
-invoke it. The mismatch therefore does not block backend startup or the first
-staging release, but knowledge-chunk create/update endpoints can fail when
-called. Fix and migrate those column types in a separately reviewed phase.
+Knowledge writes use Prisma and serialize metadata and numeric embedding arrays as
+JSON in the existing TEXT columns, matching the RAG document/chunk design.
+Retrieval computes similarity in application code over a bounded candidate pool;
+pgvector is not required. Existing data and immutable migration history are
+preserved; no SQL type conversion or extension bootstrap is necessary.
 
 ## Local development database
 
