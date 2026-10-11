@@ -41,3 +41,12 @@ backend
 **/*.tmp
 **/*.swp
 **/*.swo
+
+# Operator inputs and browser traces must never enter build context.
+**/*.tfvars
+**/*.tfvars.json
+**/backend.hcl
+terraform.outputs.json
+production.generated.json
+playwright-report
+test-results

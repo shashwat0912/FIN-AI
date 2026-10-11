@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, ReactNode } from 'react';
 
 export interface Language {
   code: string;
@@ -6,6 +6,7 @@ export interface Language {
   flag?: string;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- Shared language catalog is intentionally exported with its provider.
 export const languages: Language[] = [
   { code: 'en', nativeName: 'English', flag: '🇺🇸' },
   { code: 'hi', nativeName: 'हिंदी', flag: '🇮🇳' },
@@ -1323,6 +1324,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- Context consumer hook intentionally shares the provider module.
 export const useLanguage = (): LanguageContextType => {
   const context = useContext(LanguageContext);
   if (context === undefined) {

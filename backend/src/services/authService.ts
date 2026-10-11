@@ -130,6 +130,11 @@ export class AuthService {
   }
 
   async refreshToken(token: string) {
+    try {
+      jwt.verify(token, config.JWT_REFRESH_SECRET, { algorithms: ['HS256'] });
+    } catch {
+      throw new AppError('Invalid or expired refresh token', 401);
+    }
     // Find refresh token
     const refreshToken = await prisma.refreshToken.findUnique({
       where: { token },

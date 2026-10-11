@@ -25,3 +25,7 @@ Relevant implementation:
 - `backend/src/services/notificationService.ts`
 - `backend/src/routes/auth.ts`
 - `frontend/components/OtpLoginForm.tsx`
+
+OTP codes use Node crypto.randomInt, contain six digits, expire after five minutes,
+and are stored as bcrypt hashes. Production accepts email only and requires SMTP.
+Access tokens default to 15 minutes; refresh tokens remain 30 days.

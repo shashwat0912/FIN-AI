@@ -56,10 +56,10 @@ export const authSchemas = {
       'string.empty': 'Email or phone number is required',
       'any.required': 'Email or phone number is required',
     }),
-    otp: Joi.string().length(4).pattern(/^\d{4}$/).required().messages({
+    otp: Joi.string().length(6).pattern(/^\d{6}$/).required().messages({
       'string.empty': 'OTP is required',
-      'string.length': 'OTP must be 4 digits',
-      'string.pattern.base': 'OTP must be 4 digits',
+      'string.length': 'OTP must be 6 digits',
+      'string.pattern.base': 'OTP must be 6 digits',
       'any.required': 'OTP is required',
     }),
     name: Joi.string().min(2).max(50).optional().messages({

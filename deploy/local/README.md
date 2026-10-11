@@ -11,7 +11,7 @@ Docker, kind, kubectl, Helm, OpenSSL, and curl must already be installed and ava
 - `kind-config.yaml` creates one kind control-plane node.
 - `postgres.yaml` runs PostgreSQL with runtime credentials and disposable `emptyDir` data.
 - `redis.yaml` runs password-protected Redis without persistent storage.
-- `migrate.yaml` runs `npm run db:migrate:deploy` from the backend image.
+- `migrate.yaml` runs `node node_modules/prisma/build/index.js migrate deploy` from the backend image.
 - `../helm/finance-ai/values-local.yaml` selects locally loaded immutable image tags and an existing runtime Secret.
 - `../../scripts/k8s-local-validate.sh` runs the complete validation.
 - `../../scripts/k8s-local-cleanup.sh` removes only the fixed local cluster.

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { onProfileUpdated } from '../../lib/appEvents';

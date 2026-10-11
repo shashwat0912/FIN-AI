@@ -5,6 +5,10 @@ metadata:
   labels:
     {{- include "finance-ai.labels" . | nindent 4 }}
     app.kubernetes.io/component: backend
+  {{- with .Values.backend.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   type: ClusterIP
   ports:

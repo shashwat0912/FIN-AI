@@ -13,10 +13,7 @@ export type { AiResponse } from '../hooks/useAiAdvice';
 /**
  * @deprecated Use apiClient.getAiAdvice() instead
  */
-export const getFinancialAdvice = async (
-  query: string,
-  financialContext: any
-): Promise<any> => {
+export const getFinancialAdvice: (query: string, financialContext: unknown) => Promise<never> = async () => {
   logger.warn('getFinancialAdvice from lib/openai.ts is deprecated. Use apiClient.getAiAdvice() instead.');
   throw new Error('Direct OpenAI calls are disabled. Please use the backend API via apiClient.getAiAdvice()');
 };

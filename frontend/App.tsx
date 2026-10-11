@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { LanguageProvider } from './context/LanguageContext';
 import { DarkModeProvider } from './context/DarkModeContext';

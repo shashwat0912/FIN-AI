@@ -3,7 +3,7 @@ import logger from '../config/logger';
 import { AppError } from '../middleware/errorHandler';
 
 export class NotificationService {
-  private transporter: nodemailer.Transporter | null = null;
+  private transporter: ReturnType<typeof nodemailer.createTransport> | null = null;
 
   constructor() {
     this.initializeEmailTransporter();

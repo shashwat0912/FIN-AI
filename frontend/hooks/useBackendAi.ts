@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { apiClient, AiAdvice } from '../lib/api';
+import { apiClient } from '../lib/api';
 import { AiResponse, TransactionContext, ApiError } from '../types';
 import { logger } from '../utils/logger';
-import { handleApiError, withErrorHandling } from '../utils/errorHandling';
+import { withErrorHandling } from '../utils/errorHandling';
 
 interface AiHistoryItem {
   id: string;

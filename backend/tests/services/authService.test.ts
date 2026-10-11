@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthService } from '../../src/services/authService';
 
-const { mockHash, mockCompare, mockSign, mockPrisma } = vi.hoisted(() => ({
+const { mockHash, mockCompare, mockSign, mockVerify, mockPrisma } = vi.hoisted(() => ({
   mockHash: vi.fn(),
   mockCompare: vi.fn(),
   mockSign: vi.fn(),
+  mockVerify: vi.fn(),
   mockPrisma: {
     user: {
       create: vi.fn(),
@@ -19,7 +20,7 @@ const { mockHash, mockCompare, mockSign, mockPrisma } = vi.hoisted(() => ({
       update: vi.fn(),
       deleteMany: vi.fn(),
     },
-  } as any,
+  },
 }));
 
 vi.mock('../../src/config/database', () => ({
@@ -38,15 +39,17 @@ vi.mock('bcryptjs', () => ({
 vi.mock('jsonwebtoken', () => ({
   default: {
     sign: mockSign,
+    verify: mockVerify,
   },
   sign: mockSign,
+  verify: mockVerify,
 }));
 
 vi.mock('../../src/config/env', () => ({
   config: {
     JWT_SECRET: 'a'.repeat(64),
     JWT_REFRESH_SECRET: 'b'.repeat(64),
-    JWT_EXPIRES_IN: '1h',
+    JWT_EXPIRES_IN: '15m',
     JWT_REFRESH_EXPIRES_IN: '30d',
   },
 }));
@@ -58,7 +61,16 @@ describe('AuthService', () => {
     service = new AuthService();
     vi.clearAllMocks();
     mockSign.mockReturnValue('mock-jwt-token');
+    mockVerify.mockReset();
+    mockVerify.mockReturnValue({ userId: 'u1' });
     mockPrisma.refreshToken.findMany.mockResolvedValue([]);
+  });
+
+  it('uses a 15-minute access token and preserves refresh lifetime', () => {
+    service.generateAccessToken({ id: 'u1', email: 'test@example.com', role: 'USER' });
+    expect(mockSign).toHaveBeenLastCalledWith(expect.any(Object), 'a'.repeat(64), { expiresIn: '15m' });
+    service.generateRefreshToken({ id: 'u1', email: 'test@example.com', role: 'USER' });
+    expect(mockSign).toHaveBeenLastCalledWith(expect.any(Object), 'b'.repeat(64), { expiresIn: '30d' });
   });
 
   it('registers a new user with strong password', async () => {
@@ -172,6 +184,13 @@ describe('AuthService', () => {
     expect(result.accessToken).toBe('mock-jwt-token');
     expect(result.refreshToken).toBe('mock-jwt-token');
     expect(mockPrisma.refreshToken.update).toHaveBeenCalled();
+    expect(mockVerify).toHaveBeenCalledWith('old-refresh', 'b'.repeat(64), { algorithms: ['HS256'] });
+  });
+
+  it('rejects a retired signing key before consulting stored refresh sessions', async () => {
+    mockVerify.mockImplementation(() => { throw new Error('invalid signature'); });
+    await expect(service.refreshToken('retired-refresh')).rejects.toMatchObject({ statusCode: 401 });
+    expect(mockPrisma.refreshToken.findUnique).not.toHaveBeenCalled();
   });
 
   it('sets password with strong value', async () => {

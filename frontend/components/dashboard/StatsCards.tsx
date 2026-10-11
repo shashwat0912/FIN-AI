@@ -1,4 +1,4 @@
-import React from 'react';
+
 import StatCard from './StatCard';
 import { TrendingUp, TrendingDown, DollarSign, Target, PiggyBank, BarChart3 } from 'lucide-react';
 
@@ -8,42 +8,42 @@ export default function StatsCards() {
       title: 'Total Balance',
       value: '₹2,45,680',
       change: '+12.5%',
-      changeType: 'positive',
+      changeType: 'positive' as const,
       icon: DollarSign
     },
     {
       title: 'Income',
       value: '₹85,420',
       change: '+8.2%',
-      changeType: 'positive',
+      changeType: 'positive' as const,
       icon: TrendingUp
     },
     {
       title: 'Expenses',
       value: '₹62,340',
       change: '-3.1%',
-      changeType: 'negative',
+      changeType: 'negative' as const,
       icon: TrendingDown
     },
     {
       title: 'Savings Rate',
       value: '27.3%',
       change: '+2.8%',
-      changeType: 'positive',
+      changeType: 'positive' as const,
       icon: Target
     },
     {
       title: 'Investments',
       value: '₹1,23,450',
       change: '+15.7%',
-      changeType: 'positive',
+      changeType: 'positive' as const,
       icon: BarChart3
     },
     {
       title: 'Emergency Fund',
       value: '₹3,50,000',
       change: 'Fully Funded',
-      changeType: 'neutral',
+      changeType: 'neutral' as const,
       icon: PiggyBank
     }
   ];

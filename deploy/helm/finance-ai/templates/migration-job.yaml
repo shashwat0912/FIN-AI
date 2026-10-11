@@ -34,9 +34,10 @@ spec:
           image: {{ include "finance-ai.image" .Values.backend.image | quote }}
           imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
           command:
-            - npm
-            - run
-            - db:migrate:deploy
+            - node
+            - node_modules/prisma/build/index.js
+            - migrate
+            - deploy
           env:
             - name: SSL_CERT_FILE
               value: {{ .Values.backend.config.SSL_CERT_FILE | quote }}

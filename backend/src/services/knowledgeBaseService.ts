@@ -7,7 +7,7 @@ export interface KnowledgeChunk {
   content: string;
   category: string;
   source?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export class KnowledgeBaseService {
@@ -26,25 +26,17 @@ export class KnowledgeBaseService {
     try {
       // Generate embedding for the content
       const embedding = await this.embeddingService.generateEmbedding(chunk.content, false);
-      const embeddingStr = `[${embedding.join(',')}]`;
-
-      // Store in database using raw SQL to handle vector type
-      const result = await prisma.$queryRawUnsafe<Array<{ id: string }>>(`
-        INSERT INTO knowledge_chunks (id, content, category, source, metadata, embedding, "createdAt", "updatedAt")
-        VALUES (
-          gen_random_uuid()::text,
-          $1,
-          $2,
-          $3,
-          $4::jsonb,
-          $5::vector,
-          NOW(),
-          NOW()
-        )
-        RETURNING id
-      `, chunk.content, chunk.category, chunk.source || null, JSON.stringify(chunk.metadata || {}), embeddingStr);
-
-      const chunkId = result[0].id;
+      const created = await prisma.knowledgeChunk.create({
+        data: {
+          content: chunk.content,
+          category: chunk.category,
+          source: chunk.source ?? null,
+          metadata: JSON.stringify(chunk.metadata ?? {}),
+          embedding: JSON.stringify(embedding),
+        },
+        select: { id: true },
+      });
+      const chunkId = created.id;
 
       logger.info('Knowledge chunk added', {
         id: chunkId,
@@ -53,7 +45,7 @@ export class KnowledgeBaseService {
       });
 
       return chunkId;
-    } catch (error: any) {
+    } catch (error) {
       logger.error('Failed to add knowledge chunk:', error);
       throw new AppError('Failed to add knowledge chunk', 500);
     }
@@ -106,55 +98,22 @@ export class KnowledgeBaseService {
    */
   async updateChunk(id: string, chunk: Partial<KnowledgeChunk>): Promise<void> {
     try {
-      // If content is being updated, regenerate embedding
-      let embeddingStr: string | undefined;
-      if (chunk.content) {
-        const embedding = await this.embeddingService.generateEmbedding(chunk.content, false);
-        embeddingStr = `[${embedding.join(',')}]`;
-      }
-
-      // Build update query
-      const updates: string[] = [];
-      const values: any[] = [];
-      let paramIndex = 1;
-
-      if (chunk.content) {
-        updates.push(`content = $${paramIndex++}`);
-        values.push(chunk.content);
-      }
-      if (chunk.category) {
-        updates.push(`category = $${paramIndex++}`);
-        values.push(chunk.category);
-      }
-      if (chunk.source !== undefined) {
-        updates.push(`source = $${paramIndex++}`);
-        values.push(chunk.source);
-      }
-      if (chunk.metadata) {
-        updates.push(`metadata = $${paramIndex++}::jsonb`);
-        values.push(JSON.stringify(chunk.metadata));
-      }
-      if (embeddingStr) {
-        updates.push(`embedding = $${paramIndex++}::vector`);
-        values.push(embeddingStr);
-      }
-
-      updates.push(`"updatedAt" = NOW()`);
-
-      if (updates.length === 0) {
-        return;
-      }
-
-      values.push(id);
-
-      await prisma.$executeRawUnsafe(`
-        UPDATE knowledge_chunks
-        SET ${updates.join(', ')}
-        WHERE id = $${paramIndex}
-      `, ...values);
+      const embedding = chunk.content !== undefined
+        ? await this.embeddingService.generateEmbedding(chunk.content, false)
+        : undefined;
+      await prisma.knowledgeChunk.update({
+        where: { id },
+        data: {
+          content: chunk.content,
+          category: chunk.category,
+          source: chunk.source,
+          metadata: chunk.metadata !== undefined ? JSON.stringify(chunk.metadata) : undefined,
+          embedding: embedding !== undefined ? JSON.stringify(embedding) : undefined,
+        },
+      });
 
       logger.info('Knowledge chunk updated', { id, fields: Object.keys(chunk) });
-    } catch (error: any) {
+    } catch (error) {
       logger.error('Failed to update knowledge chunk:', error);
       throw new AppError('Failed to update knowledge chunk', 500);
     }
@@ -172,7 +131,7 @@ export class KnowledgeBaseService {
       `, id);
 
       logger.info('Knowledge chunk deleted', { id });
-    } catch (error: any) {
+    } catch (error) {
       logger.error('Failed to delete knowledge chunk:', error);
       throw new AppError('Failed to delete knowledge chunk', 500);
     }
@@ -203,7 +162,7 @@ export class KnowledgeBaseService {
       `, category);
 
       return chunks;
-    } catch (error: any) {
+    } catch (error) {
       logger.error('Failed to get chunks by category:', error);
       throw new AppError('Failed to retrieve knowledge chunks', 500);
     }
@@ -236,7 +195,7 @@ export class KnowledgeBaseService {
           count: Number(c.count),
         })),
       };
-    } catch (error: any) {
+    } catch (error) {
       logger.error('Failed to get knowledge base stats:', error);
       throw new AppError('Failed to get statistics', 500);
     }

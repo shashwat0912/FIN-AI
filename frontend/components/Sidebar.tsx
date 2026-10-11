@@ -1,9 +1,10 @@
-import React from 'react';
+
 import { NavLink } from 'react-router-dom';
 import { BrainCircuit } from 'lucide-react';
-import { navItems } from './navigation/NavItems';
+import { useNavItems } from './navigation/NavItems';
 
 export default function Sidebar() {
+  const navItems = useNavItems();
   return (
     <aside className="w-64 bg-white border-r border-gray-200">
       <div className="h-16 flex items-center px-4 border-b border-gray-200">

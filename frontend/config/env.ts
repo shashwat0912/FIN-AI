@@ -6,14 +6,12 @@
 interface EnvConfig {
   API_BASE_URL: string;
   NODE_ENV: string;
-  SENTRY_DSN?: string;
 }
 
 // Validate required environment variables
 const validateEnv = (): EnvConfig => {
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
   const nodeEnv = import.meta.env.MODE || 'development';
-  const sentryDsn = import.meta.env.VITE_SENTRY_DSN;
 
   // Warn if using default API URL in production (only in browser)
   if (nodeEnv === 'production' && apiBaseUrl.includes('localhost')) {
@@ -41,7 +39,6 @@ if (apiBaseUrl.startsWith('/')) {
   return {
     API_BASE_URL: apiBaseUrl,
     NODE_ENV: nodeEnv,
-    SENTRY_DSN: sentryDsn,
   };
 };
 

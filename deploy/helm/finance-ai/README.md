@@ -20,7 +20,7 @@ The production and local URL-auth Secrets must contain these keys by name:
 - `CSRF_SECRET`
 - `SECURITY_STATE_HMAC_SECRET`
 
-Add `OPENAI_API_KEY` when OpenAI-backed features are enabled. Optional provider credentials such as `SMTP_USER`, `SMTP_PASS`, Stripe keys, and `SENTRY_DSN` belong in the same existing Secret when used. Never put those values in a chart values file.
+Add `OPENAI_API_KEY` when OpenAI-backed features are enabled. Optional provider credentials such as `SMTP_USER`, `SMTP_PASS`, Stripe keys belong in the same existing Secret when used. Never put those values in a chart values file.
 
 The migration Secret is separate from the backend Secret and contains only `DATABASE_URL`, using the `financeai_migrator` credentials and the verified RDS TLS parameters documented in `backend/DATABASE_SETUP.md`. The migration Job reads only that key; the backend Deployment continues to read only `backend.existingSecret`. `sslrootcert` remains in `DATABASE_URL`; the chart also gives both backend runtime and migration processes `SSL_CERT_FILE=/app/prisma/certs/finance-ai-ca-bundle.pem`, the system-plus-RDS trust bundle built into their shared backend image.
 
@@ -28,7 +28,7 @@ Staging uses IAM-authenticated Valkey instead of `REDIS_URL`; its backend Secret
 
 ## Migration release gate
 
-Staging enables a deterministic `pre-install,pre-upgrade` Helm hook Job. Helm waits for the Job before applying application resources, so a failed migration fails the release before either Deployment is rolled out. The Job runs `npm run db:migrate:deploy` with the exact backend repository/tag/digest and pull policy.
+Staging enables a deterministic `pre-install,pre-upgrade` Helm hook Job. Helm waits for the Job before applying application resources, so a failed migration fails the release before either Deployment is rolled out. The Job runs `node node_modules/prisma/build/index.js migrate deploy` with the exact backend repository/tag/digest and pull policy.
 
 The chart creates a dedicated `finance-ai-staging-migrate` ServiceAccount for the migration Job. Both the ServiceAccount and Pod disable token automount; the ServiceAccount has no IRSA/IAM annotation or RoleBinding, and the Job receives no AWS credential environment. The Pod and container reuse the backend non-root and restricted security contexts.
 
@@ -91,3 +91,6 @@ This chart does not provision PostgreSQL, Redis, certificates, DNS, load balance
 The backend image runs as UID/GID 1001 with a read-only root filesystem. The current official Nginx-based frontend image starts its master process as root to bind port 80, so the chart does not claim frontend non-root execution. A future image can switch to an unprivileged Nginx base and high port before enabling `runAsNonRoot` and a read-only root filesystem.
 
 Production replicas are configurable, but replica count alone does not establish high availability; the external database, Redis, ingress, and cluster architecture must also be resilient.
+
+Public ALB/ACM launch procedure: [PUBLIC_DEMO.md](../../../docs/PUBLIC_DEMO.md).
+Sentry is not enabled. Backend JSON logs go to stdout/stderr for CloudWatch collection.

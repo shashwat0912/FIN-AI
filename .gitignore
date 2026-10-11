@@ -55,3 +55,10 @@ override.tf.json
 *.tfvars
 *.tfvars.json
 backend.hcl
+
+# Browser test artifacts and non-secret generated deployment overrides
+playwright-report/
+test-results/
+production.generated.json
+terraform.outputs.json
+__pycache__/

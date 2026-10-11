@@ -10,9 +10,9 @@ interface SimpleTopBarProps {
 }
 
 export default function SimpleTopBar({ onMenuClick }: SimpleTopBarProps) {
-  const { isDarkMode } = useDarkMode();
+  useDarkMode();
   const [searchQuery, setSearchQuery] = useState('');
-  const [showSearchResults, setShowSearchResults] = useState(false);
+  const [, setShowSearchResults] = useState(false);
   const [showLanguageMenu, setShowLanguageMenu] = useState(false);
   const [currentLanguage, setCurrentLanguage] = useState('EN');
   const navigate = useNavigate();

@@ -18,8 +18,8 @@ report.
 
 - Passwords are hashed with bcrypt.
 - Access and refresh tokens use independent secrets with a 64-character minimum.
-- OTP values are hashed, expire, and are subject to request and verification
-  limits.
+- Cryptographic six-digit OTP values are hashed, expire, and are subject to request
+  and verification limits; production login accepts email only.
 - Login failures use shared lockout state when Valkey is configured.
 - State-changing browser requests use CSRF protection and explicit CORS origins.
 - Helmet security headers, request-size limits, and route validation are applied
@@ -79,9 +79,14 @@ tree and the full Git history; a clean current tree does not prove clean history
 
 ## Historical scan allowlist
 
-`.gitleaksignore` contains only exact fingerprints for reviewed documentation
-examples, CI fixtures, and unused historical session/encryption dummy values.
-It does not suppress any rule or path, so new findings remain visible.
+`.gitleaksignore` contains only exact historical fingerprints for reviewed
+documentation examples, CI fixtures, retired unused session/encryption values,
+and JWT keys retired for the isolated fresh public-demo boundary. Historical JWT
+external use remains unknown. Production rejects both known signing values; the
+new demo requires fresh independent keys, a fresh runtime Secret and no imported
+refresh sessions. Old accepting environments still require owner-side retirement.
+See [the audit](SECRET_SCAN_REVIEW.md) and [deployment boundary](PUBLIC_DEMO.md).
+No rule or path is suppressed, so new findings remain visible.
 
 ## Known boundaries
 

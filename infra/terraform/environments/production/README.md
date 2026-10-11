@@ -34,3 +34,9 @@ group, retains snapshots for seven days, and exports engine and slow logs for
 before intentional destruction. A production rollout must configure and
 validate TLS, IAM authentication, reconnect behavior, and the audited Lua
 paths. This production configuration has not been provisioned or validated.
+
+Public demo deployment: [PUBLIC_DEMO.md](../../../../docs/PUBLIC_DEMO.md).
+This root also prepares backend Valkey IRSA, Load Balancer Controller IRSA,
+CloudWatch collector IRSA/log retention, and SNS-backed demo alarms. Add-ons
+are installed explicitly by the operator; Terraform does not install Helm releases.
+The example now uses ap-south-1 to match the verified RDS CA shipped in the image.

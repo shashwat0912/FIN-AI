@@ -1,3 +1,10 @@
+publicDemo: true
+# Safe to lint/render, but requires launch overrides before deployment.
+# Generate them with scripts/production-values.py; never use this file alone.
+migration:
+  enabled: true
+  existingSecret: finance-ai-migrator-secrets
+
 backend:
   replicas: 2
   existingSecret: finance-ai-backend-secrets
@@ -5,8 +12,21 @@ backend:
     repository: finance-ai-backend
     tag: "0.1.0"
     digest: ""
+  serviceAccount:
+    name: finance-ai-backend
+    annotations: {} # eks.amazonaws.com/role-arn comes from Terraform
+  service:
+    annotations:
+      alb.ingress.kubernetes.io/healthcheck-path: /readyz
   config:
-    CORS_ORIGIN: https://finance-ai.example.com
+    CORS_ORIGIN: https://REQUIRED_HOSTNAME
+    JWT_EXPIRES_IN: 15m
+    REDIS_AUTH_MODE: iam
+    REDIS_HOST: REQUIRED_TERRAFORM_OUTPUT
+    REDIS_PORT: 6379
+    REDIS_USERNAME: REQUIRED_TERRAFORM_OUTPUT
+    REDIS_IAM_CACHE_NAME: REQUIRED_TERRAFORM_OUTPUT
+    AWS_REGION: ap-south-1
     LOG_LEVEL: info
   resources:
     requests:
@@ -17,6 +37,9 @@ backend:
       memory: 1Gi
 
 frontend:
+  service:
+    annotations:
+      alb.ingress.kubernetes.io/healthcheck-path: /health
   replicas: 2
   image:
     repository: finance-ai-frontend
@@ -31,10 +54,14 @@ frontend:
       memory: 256Mi
 
 ingress:
-  enabled: true
-  hosts:
-    - finance-ai.example.com
-  tls:
-    - secretName: finance-ai-production-tls
-      hosts:
-        - finance-ai.example.com
+  enabled: false # production-values.py explicitly enables public ingress
+  className: alb
+  hosts: []
+  tls: [] # ALB terminates TLS with ACM; no Kubernetes TLS Secret
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/success-codes: "200"
+    alb.ingress.kubernetes.io/load-balancer-attributes: routing.http.drop_invalid_header_fields.enabled=true

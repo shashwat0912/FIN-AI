@@ -257,9 +257,10 @@ for value in \
   "runAsNonRoot: true" \
   "runAsUser: 1001" \
   'image: "finance-ai-backend:0.1.0"' \
-  "- npm" \
-  "- run" \
-  "- db:migrate:deploy" \
+  "- node" \
+  "- migrate" \
+  "- deploy" \
+  "- node_modules/prisma/build/index.js" \
   "name: SSL_CERT_FILE" \
   'value: "/app/prisma/certs/finance-ai-ca-bundle.pem"' \
   "name: DATABASE_URL" \
@@ -306,9 +307,9 @@ assert_not_contains "$local_render" "kind: Job"
 assert_not_contains "$local_render" "app.kubernetes.io/component: migration"
 assert_not_contains "$local_render" "finance-ai-migrator-secrets-staging"
 assert_not_contains "$production_render" "eks.amazonaws.com/role-arn"
-assert_not_contains "$production_render" 'REDIS_AUTH_MODE: "iam"'
-assert_not_contains "$production_render" "kind: Job"
-assert_not_contains "$production_render" "app.kubernetes.io/component: migration"
+assert_contains "$production_render" 'REDIS_AUTH_MODE: "iam"'
+assert_contains "$production_render" "kind: Job"
+assert_contains "$production_render" "app.kubernetes.io/component: migration"
 assert_not_contains "$production_render" "finance-ai-migrator-secrets-staging"
 assert_not_contains "$default_render" "kind: Job"
 assert_not_contains "$default_render" "app.kubernetes.io/component: migration"

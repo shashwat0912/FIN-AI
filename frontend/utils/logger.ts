@@ -1,7 +1,7 @@
 /**
  * Frontend Logger Utility
  * Provides environment-aware logging for the frontend application
- * Supports Sentry integration for production error tracking
+ * Production errors and warnings are written to the browser console.
  */
 
 export enum LogLevel {
@@ -9,19 +9,6 @@ export enum LogLevel {
   INFO = 1,
   WARN = 2,
   ERROR = 3,
-}
-
-interface LogEntry {
-  level: LogLevel;
-  message: string;
-  timestamp: string;
-  context?: Record<string, unknown>;
-  error?: Error;
-}
-
-// Sentry: optional. Set VITE_SENTRY_DSN and install @sentry/react to enable.
-async function initSentry(): Promise<null> {
-  return null;
 }
 
 class Logger {
@@ -57,37 +44,6 @@ class Logger {
     return formattedMessage;
   }
 
-  private async sendToSentry(level: LogLevel, message: string, context?: Record<string, unknown>, error?: Error): Promise<void> {
-    if (this.isDevelopment) return;
-    
-    const Sentry = await initSentry();
-    if (!Sentry) return;
-    
-    // Add breadcrumb for context
-    Sentry.addBreadcrumb({
-      message,
-      level: level === LogLevel.ERROR ? 'error' : level === LogLevel.WARN ? 'warning' : 'info',
-      data: context,
-    });
-    
-    // Capture errors explicitly
-    if (level === LogLevel.ERROR && error) {
-      Sentry.captureException(error, {
-        extra: { message, ...context },
-      });
-    } else if (level === LogLevel.ERROR) {
-      Sentry.captureMessage(message, {
-        level: 'error',
-        extra: context,
-      });
-    } else if (level === LogLevel.WARN) {
-      Sentry.captureMessage(message, {
-        level: 'warning',
-        extra: context,
-      });
-    }
-  }
-
   private log(level: LogLevel, message: string, context?: Record<string, unknown>, error?: Error): void {
     if (!this.shouldLog(level)) return;
 
@@ -110,8 +66,8 @@ class Logger {
           break;
       }
     } else {
-      // In production, send errors and warnings to Sentry
-      this.sendToSentry(level, message, context, error);
+      if (level === LogLevel.ERROR) console.error(formattedMessage);
+      else if (level === LogLevel.WARN) console.warn(formattedMessage);
     }
   }
 
@@ -127,8 +83,9 @@ class Logger {
     this.log(LogLevel.WARN, message, context);
   }
 
-  error(message: string, error?: Error, context?: Record<string, unknown>): void {
-    this.log(LogLevel.ERROR, message, context, error);
+  error(message: string, error?: unknown, context?: Record<string, unknown>): void {
+    const normalized = error instanceof Error ? error : error == null ? undefined : new Error(String(error));
+    this.log(LogLevel.ERROR, message, context, normalized);
   }
 
   // Convenience methods for common patterns

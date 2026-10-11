@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { LucideIcon } from 'lucide-react';
 import { getStateColor, getStateIcon } from '../../styles/tokens';
 
@@ -36,7 +36,6 @@ export function StatCard({
   lastUpdate,
   color,
   icon: Icon,
-  bgGradient: _bgGradient,
   borderColor,
   variant = 'primary'
 }: StatCardProps) {

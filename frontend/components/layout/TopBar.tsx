@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { LogOut, Menu, User } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { apiClient } from '../../lib/api';
 import { onProfileUpdated } from '../../lib/appEvents';
 import { readProfileIdentity } from '../../lib/profileIdentity';
 import { useNavItems } from '../navigation/NavItems';
@@ -35,7 +36,7 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
   const handleLogout = async () => {
     const confirmed = window.confirm('Are you sure you want to log out?');
     if (confirmed) {
-      localStorage.clear();
+      await apiClient.logout();
       window.location.assign('/');
     }
   };

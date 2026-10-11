@@ -146,8 +146,8 @@ model KnowledgeChunk {
   content   String
   category  String
   source    String?
-  metadata  String?  // SQLite doesn't support Json type natively
-  embedding String?  // SQLite doesn't support vector type
+  metadata  String?  // JSON serialized as TEXT; compatible with existing data
+  embedding String?  // Numeric array serialized as TEXT; similarity is computed in application
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

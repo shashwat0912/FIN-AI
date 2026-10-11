@@ -1,13 +1,13 @@
-import React from 'react';
+
 import { TrendingUp, Download } from 'lucide-react';
-import { formatCurrency } from '../../../utils/chartUtils';
+
 
 interface ChartHeaderProps {
   growthRate: number;
   average: number;
 }
 
-export default function ChartHeader({ growthRate, average }: ChartHeaderProps) {
+export default function ChartHeader({ growthRate }: ChartHeaderProps) {
   return (
     <div className="flex justify-between items-center mb-6">
       <div>

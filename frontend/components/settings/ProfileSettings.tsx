@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { User, Mail, Phone, Camera } from 'lucide-react';
 
 export default function ProfileSettings() {

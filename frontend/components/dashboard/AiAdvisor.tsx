@@ -61,7 +61,7 @@ export default function AiAdvisor() {
         {suggestions.length > 0 ? (
           <div className="space-y-3">
             {suggestions.map((suggestion, index) => (
-              <AiSuggestion key={index} suggestion={suggestion} />
+              <AiSuggestion key={index} {...suggestion} />
             ))}
           </div>
         ) : (
@@ -75,7 +75,7 @@ export default function AiAdvisor() {
 
         {error && (
           <div className="p-3 text-sm text-red-600 bg-red-50 rounded-lg border border-red-200">
-            {error}
+            {error.message}
           </div>
         )}
       </div>
