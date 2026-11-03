@@ -39,5 +39,10 @@
       "signals": ["migration_failed"],
       "sample_count": 0
     }
-  }
+  },
+  "expected_status": "degraded",
+  "required_tools": [
+    "kubernetes_get_migration_status",
+    "kubernetes_get_pod_logs"
+  ]
 }

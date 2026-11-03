@@ -1,8 +1,9 @@
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 ActionName = Literal["restart_deployment", "rollback_helm_release", "scale_deployment"]
 AgentName = Literal["sre", "deployment", "finops"]
@@ -20,21 +21,35 @@ class Policy(StrEnum):
 
 
 class ToolInput(StrictModel):
+    requested_at: AwareDatetime = Field(default_factory=lambda: datetime.now(UTC))
     sha: str = Field(default="", pattern=r"^$|^[a-f0-9]{40}$")
     namespace: str = Field(default="finance-ai-staging", pattern=r"^[a-z0-9][a-z0-9-]{0,62}$")
     resource: str = Field(default="finance-ai-backend", pattern=r"^[a-z0-9][a-z0-9-]{0,62}$")
     scenario: str = Field(default="database_saturation", pattern=r"^[a-z_]{1,50}$")
     run_id: int = Field(default=1, ge=1)
     limit: int = Field(default=30, ge=1, le=100)
+    deployed_at: AwareDatetime | None = None
+    baseline_minutes: int = Field(default=15, ge=5, le=60)
+    observation_minutes: int = Field(default=15, ge=5, le=60)
     correlation_id: UUID
 
 
 class ToolError(StrictModel):
-    code: Literal["DENIED", "INVALID_INPUT", "TIMEOUT", "UNAVAILABLE", "BUDGET_EXCEEDED"]
+    code: Literal[
+        "DENIED", "INVALID_INPUT", "TIMEOUT", "UNAVAILABLE", "BUDGET_EXCEEDED", "MALFORMED"
+    ]
     message: str
 
 
 class ToolResult(StrictModel):
+    source: str = "unknown"
+    resource: str = ""
+    observed_at: AwareDatetime | None = None
+    collected_at: AwareDatetime = Field(default_factory=lambda: datetime.now(UTC))
+    freshness: Literal["fresh", "stale", "unknown"] = "unknown"
+    status: Literal["ok", "error", "truncated"] = "ok"
+    trust: Literal["untrusted_evidence"] = "untrusted_evidence"
+    warnings: list[str] = Field(default_factory=list)
     tool: str
     correlation_id: UUID
     trace_id: str
@@ -50,6 +65,9 @@ class InvestigationRequest(StrictModel):
 
 
 class DeploymentRequest(StrictModel):
+    deployed_at: AwareDatetime | None = None
+    baseline_minutes: int = Field(default=15, ge=5, le=60)
+    observation_minutes: int = Field(default=15, ge=5, le=60)
     image_digest: str = Field(default="", pattern=r"^$|^sha256:[a-f0-9]{64}$")
     sha: str = Field(default="a" * 40, pattern=r"^[a-f0-9]{40}$")
     scenario: str = Field(default="healthy", pattern=r"^[a-z_]{1,50}$")
@@ -63,6 +81,8 @@ class CostRequest(StrictModel):
 
 
 class Reasoning(StrictModel):
+    outcome: Literal["diagnosed", "healthy", "insufficient_evidence"] = "diagnosed"
+    root_causes: list[str] = Field(default_factory=list, max_length=5)
     likely_root_cause: str = Field(max_length=500)
     confidence: float = Field(ge=0, le=1)
     evidence_ids: list[int] = Field(max_length=20)
@@ -70,6 +90,8 @@ class Reasoning(StrictModel):
 
 
 class ActionRecord(StrictModel):
+    payload_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+    data_mode: Literal["simulation", "live"]
     id: UUID
     investigation_id: UUID
     action: ActionName
@@ -85,6 +107,7 @@ class ActionRecord(StrictModel):
 
 class ApprovalRequest(StrictModel):
     action_id: UUID
+    payload_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
 
 
 class AgentResponse(StrictModel):

@@ -53,5 +53,10 @@
         }
       ]
     }
-  }
+  },
+  "expected_status": "degraded",
+  "required_tools": [
+    "github_get_recent_workflow_runs",
+    "github_get_workflow_jobs"
+  ]
 }

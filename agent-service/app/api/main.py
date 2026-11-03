@@ -122,6 +122,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "investigation-operator",
             body.sha,
             body.image_digest,
+            body.deployed_at,
+            body.baseline_minutes,
+            body.observation_minutes,
         )
 
     @app.post(
@@ -139,7 +142,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         dependencies=[Depends(approver)],
     )
     async def approve(body: ApprovalRequest):
-        return await orchestrator.actions.approve(body.action_id)
+        return await orchestrator.actions.approve(body.action_id, body.payload_hash)
 
     return app
 

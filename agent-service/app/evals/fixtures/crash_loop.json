@@ -32,5 +32,7 @@
       "signals": ["crash_loop"],
       "sample_count": 0
     }
-  }
+  },
+  "expected_status": "degraded",
+  "required_tools": ["kubernetes_get_pods", "kubernetes_get_events"]
 }

@@ -36,6 +36,9 @@ class Orchestrator:
         requester: str,
         sha: str = "",
         image_digest: str = "",
+        deployed_at=None,
+        baseline_minutes: int = 15,
+        observation_minutes: int = 15,
     ) -> AgentResponse:
         started = time.monotonic()
         correlation_id, investigation_id = uuid4(), uuid4()
@@ -60,8 +63,10 @@ class Orchestrator:
                 "sre": "incident_investigation",
                 "deployment": "deployment_review",
                 "finops": "cost_analysis",
-            }[agent]
-        ):
+            }[agent],
+            record_exception=False,
+            set_status_on_exception=False,
+        ) as span:
             session = None
             try:
                 async with asyncio.timeout(self.settings.investigation_timeout_seconds), self.slots:
@@ -80,15 +85,23 @@ class Orchestrator:
                         if agent == "sre":
                             reasoning = await sre.investigate(incident, session, self.provider)
                             result.states.append("correlating_evidence")
-                            with telemetry.tracer.start_as_current_span("generate_rca"):
+                            with telemetry.tracer.start_as_current_span(
+                                "generate_rca",
+                                record_exception=False,
+                                set_status_on_exception=False,
+                            ):
                                 result.likely_root_cause = redact(reasoning.likely_root_cause)
                                 result.confidence = reasoning.confidence
                                 result.summary["evidence_ids"] = reasoning.evidence_ids
+                                result.summary["root_causes"] = reasoning.root_causes
+                                result.summary["outcome"] = reasoning.outcome.upper()
                                 result.recommended_actions = redact(reasoning.recommended_actions)
                                 result.reasoning = f"Provider: {self.settings.llm_provider}; hypothesis cites evidence indices {reasoning.evidence_ids}. Tool evidence is recorded separately."
                                 result.status = (
-                                    "degraded"
-                                    if reasoning.evidence_ids and reasoning.confidence > 0
+                                    "healthy"
+                                    if reasoning.outcome == "healthy"
+                                    else "degraded"
+                                    if reasoning.outcome == "diagnosed" and reasoning.evidence_ids
                                     else "insufficient_evidence"
                                 )
                         elif agent == "deployment":
@@ -96,12 +109,25 @@ class Orchestrator:
                                 result.status,
                                 result.summary,
                                 result.recommended_actions,
-                            ) = await deployment.review(sha, session, image_digest)
+                            ) = await deployment.review(
+                                sha,
+                                session,
+                                image_digest,
+                                deployed_at,
+                                baseline_minutes,
+                                observation_minutes,
+                            )
                             result.likely_root_cause = (
                                 f"Deployment assessment: {result.summary['recommendation']}"
                             )
                             result.reasoning = "Deterministic checks of workflow, image, rollout, migration and service metrics."
-                            result.confidence = 0.9 if result.status == "healthy" else 0.6
+                            result.confidence = (
+                                0
+                                if result.status == "insufficient_evidence"
+                                else 0.9
+                                if result.status == "healthy"
+                                else 0.6
+                            )
                         else:
                             (
                                 result.status,
@@ -142,6 +168,14 @@ class Orchestrator:
             if action:
                 result.actions = [await self.actions.propose(investigation_id, action, requester)]
                 result.requires_human_approval = True
+            span.set_attributes(
+                {
+                    **attributes,
+                    "status": result.status,
+                    "tool_calls": len(result.tools_used),
+                    "step_count": len(result.states) + len(result.tools_used),
+                }
+            )
             telemetry.requests.add(1, attributes)
             telemetry.request_duration.record(time.monotonic() - started, attributes)
             telemetry.steps.record(len(result.states) + len(result.tools_used), attributes)

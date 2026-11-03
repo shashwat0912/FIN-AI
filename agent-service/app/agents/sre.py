@@ -2,10 +2,13 @@ from app import telemetry
 from app.mcp.client import ToolSession
 from app.models import Reasoning
 from app.services.providers import Provider
+from app.tools.normalize import usable
 
 
 async def investigate(incident: str, tools: ToolSession, provider: Provider) -> Reasoning:
-    with telemetry.tracer.start_as_current_span("create_plan"):
+    with telemetry.tracer.start_as_current_span(
+        "create_plan", record_exception=False, set_status_on_exception=False
+    ):
         plan = [
             "kubernetes_get_pods",
             "kubernetes_get_deployments",
@@ -14,7 +17,7 @@ async def investigate(incident: str, tools: ToolSession, provider: Provider) -> 
         ]
     for name in plan:
         await tools.call(name)
-    signal_set = {s for e in tools.evidence for s in e.data.get("signals", [])}
+    signal_set = {s for e in tools.evidence if usable(e) for s in e.data.get("signals", [])}
     text = incident.lower()
     followups = []
     if signal_set & {"postgres_unavailable", "database_saturation"} or any(
@@ -40,5 +43,7 @@ async def investigate(incident: str, tools: ToolSession, provider: Provider) -> 
             await tools.call("github_get_workflow_jobs", run_id=runs.data["runs"][0]["id"])
     for name in dict.fromkeys(followups):
         await tools.call(name)
-    with telemetry.tracer.start_as_current_span("correlate_evidence"):
+    with telemetry.tracer.start_as_current_span(
+        "correlate_evidence", record_exception=False, set_status_on_exception=False
+    ):
         return await provider.correlate(incident, tools.evidence)

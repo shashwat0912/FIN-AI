@@ -3,6 +3,7 @@ import os
 import ssl
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from statistics import mean, median
 
 import boto3
 import httpx
@@ -25,7 +26,7 @@ class LiveAdapter:
             return await self.github(name, args)
         if name.startswith("terraform_"):
             return await asyncio.to_thread(self.terraform, name)
-        return await asyncio.to_thread(self.aws, name)
+        return await asyncio.to_thread(self.aws, name, args)
 
     async def kubernetes(self, name: str, args: ToolInput) -> dict:
         sa = Path("/var/run/secrets/kubernetes.io/serviceaccount")
@@ -56,6 +57,7 @@ class LiveAdapter:
                 response.raise_for_status()
                 pods = response.json().get("items", [])[:5]
                 found: set[str] = set()
+                messages = []
                 for pod in pods:
                     pod_name = pod["metadata"]["name"]
                     response = await client.get(
@@ -69,7 +71,12 @@ class LiveAdapter:
                     )
                     response.raise_for_status()
                     found.update(signals(response.text))
-                return {"signals": sorted(found), "sample_count": len(pods)}
+                    messages.extend(response.text.splitlines()[-5:])
+                return {
+                    "signals": sorted(found),
+                    "sample_count": len(pods),
+                    "messages": messages[:30],
+                }
             params: dict = {"limit": args.limit}
             if name in {"kubernetes_get_pods", "kubernetes_get_resource_usage"}:
                 params["labelSelector"] = selector
@@ -219,12 +226,23 @@ class LiveAdapter:
         if file.stat().st_size > 2_000_000:
             raise ValueError("Terraform artifact exceeds size limit")
         data = json.loads(file.read_text())
+        if not isinstance(data, dict) or any(
+            key in data for key in ("serial", "lineage", "resources", "values")
+        ):
+            raise ValueError("Terraform state is forbidden")
         if name.endswith("summary"):
+            if not isinstance(data.get("resource_changes"), list):
+                raise ValueError("A Terraform plan JSON artifact is required")
             actions = [
                 r.get("change", {}).get("actions", []) for r in data.get("resource_changes", [])
             ]
             return {
                 "available": True,
+                "changes": [
+                    {"address": r["address"], "actions": r.get("change", {}).get("actions", [])}
+                    for r in data["resource_changes"][:50]
+                    if isinstance(r.get("address"), str)
+                ],
                 **{
                     kind: sum(kind in a for a in actions) for kind in ("create", "update", "delete")
                 },
@@ -233,38 +251,76 @@ class LiveAdapter:
         return {
             k: v["value"]
             for k, v in data.items()
-            if k in allowed and not v.get("sensitive", True) and isinstance(v.get("value"), str)
+            if k in allowed
+            and isinstance(v, dict)
+            and v.get("sensitive") is False
+            and isinstance(v.get("value"), str)
         }
 
     def client(self, service: str):
         return boto3.client(service, region_name=self.settings.aws_region, config=self.aws_config)
 
-    def metric(self, namespace, metric, dimensions, statistic="Average", start=None, end=None):
-        end = end or datetime.now(UTC)
-        data = self.client("cloudwatch").get_metric_statistics(
+    def metric_points(self, namespace, metric, dimensions, statistics, start, end, extended=False):
+        response = self.client("cloudwatch").get_metric_statistics(
             Namespace=namespace,
             MetricName=metric,
             Dimensions=dimensions,
-            StartTime=start or end - timedelta(minutes=15),
+            StartTime=start,
             EndTime=end,
-            Period=900,
-            **(
-                {"ExtendedStatistics": [statistic]}
-                if statistic.startswith("p")
-                else {"Statistics": [statistic]}
-            ),
+            Period=60,
+            **({"ExtendedStatistics": statistics} if extended else {"Statistics": statistics}),
         )
-        points = data.get("Datapoints", [])
-        values = [
-            p.get("ExtendedStatistics", {}).get(statistic)
-            if statistic.startswith("p")
-            else p.get(statistic)
-            for p in points
+        return [
+            point
+            for point in response.get("Datapoints", [])
+            if isinstance(point.get("Timestamp"), datetime) and start <= point["Timestamp"] < end
         ]
-        values = [v for v in values if v is not None]
-        return sum(values) / len(values) if values else None
 
-    def aws(self, name: str) -> dict:
+    def metric_window(self, start, end, dimensions):
+        window = {
+            "start": start.isoformat(),
+            "end": end.isoformat(),
+            "sample_count": 0,
+            "observed_at": None,
+        }
+        if end > datetime.now(UTC):
+            return window
+        latency = self.metric_points(
+            self.settings.metric_namespace,
+            "RequestDurationMs",
+            dimensions,
+            ["p95", "p99"],
+            start,
+            end,
+            True,
+        )
+        for statistic in ("p95", "p99"):
+            values = [p.get("ExtendedStatistics", {}).get(statistic) for p in latency]
+            values = [v for v in values if isinstance(v, (int, float))]
+            window[f"{statistic}_ms"] = median(values) if values else None
+        required = [latency]
+        for field, metric, statistic in [
+            ("error_rate", "ErrorRate", "Average"),
+            ("http_5xx_rate", "Http5xxRate", "Average"),
+            ("readiness_failures", "ReadinessFailures", "Sum"),
+            ("pod_restarts", "PodRestarts", "Sum"),
+        ]:
+            points = self.metric_points(
+                self.settings.metric_namespace, metric, dimensions, [statistic], start, end
+            )
+            required.append(points)
+            values = [p[statistic] for p in points if isinstance(p.get(statistic), (int, float))]
+            window[field] = (
+                (sum(values) if statistic == "Sum" else mean(values)) if values else None
+            )
+        window["sample_count"] = min(len({p["Timestamp"] for p in points}) for points in required)
+        if all(required):
+            window["observed_at"] = min(
+                max(p["Timestamp"] for p in points) for points in required
+            ).isoformat()
+        return window
+
+    def aws(self, name: str, args: ToolInput | None = None) -> dict:
         s = self.settings
         if name == "cloudwatch_search_logs":
             result = self.client("logs").filter_log_events(
@@ -277,6 +333,7 @@ class LiveAdapter:
                     {x for e in result.get("events", []) for x in signals(e.get("message", ""))}
                 ),
                 "sample_count": len(result.get("events", [])),
+                "messages": [e.get("message", "") for e in result.get("events", [])[:30]],
             }
         if name == "cloudwatch_get_recent_alarms":
             result = self.client("cloudwatch").describe_alarms(
@@ -289,30 +346,45 @@ class LiveAdapter:
                 ]
             }
         if name == "cloudwatch_get_metric":
-            dims = [{"Name": "Service", "Value": s.deployment}]
-            now = datetime.now(UTC)
-            now = now.replace(minute=now.minute // 15 * 15, second=0, microsecond=0)
-            result = {}
-            for period, start, end in [
-                ("pre", now - timedelta(minutes=30), now - timedelta(minutes=15)),
-                ("post", now - timedelta(minutes=15), now),
-            ]:
-                result[f"{period}_p95_ms"] = self.metric(
-                    s.metric_namespace, "RequestDurationMs", dims, "p95", start, end
-                )
-                result[f"{period}_error_rate"] = self.metric(
-                    s.metric_namespace, "ErrorRate", dims, "Average", start, end
-                )
+            if args is None:
+                raise ValueError("Metric window arguments are required")
+            dimensions = [{"Name": "Service", "Value": s.deployment}]
+            now = datetime.now(UTC).replace(second=0, microsecond=0)
+            deployed_at = args.deployed_at or now - timedelta(minutes=args.observation_minutes)
+            # One-minute buckets avoid conflating a single spike with a sustained regression.
+            baseline_end = deployed_at.replace(second=0, microsecond=0)
+            observation_start = (
+                baseline_end if deployed_at == baseline_end else baseline_end + timedelta(minutes=1)
+            )
+            baseline = self.metric_window(
+                baseline_end - timedelta(minutes=args.baseline_minutes), baseline_end, dimensions
+            )
+            observation = self.metric_window(
+                observation_start,
+                observation_start + timedelta(minutes=args.observation_minutes),
+                dimensions,
+            )
+            result = {
+                "baseline": baseline,
+                "observation": observation,
+                "deployment_at": deployed_at.isoformat(),
+                "comparison_basis": "deployment" if args.deployed_at else "recent",
+                "_meta": {"observed_at": observation["observed_at"]},
+            }
             if s.alb_dimension and s.target_group_dimension:
-                result["unhealthy_targets"] = self.metric(
+                points = self.metric_points(
                     "AWS/ApplicationELB",
                     "UnHealthyHostCount",
                     [
                         {"Name": "LoadBalancer", "Value": s.alb_dimension},
                         {"Name": "TargetGroup", "Value": s.target_group_dimension},
                     ],
-                    "Maximum",
+                    ["Maximum"],
+                    now - timedelta(minutes=15),
+                    now,
                 )
+                values = [p["Maximum"] for p in points if "Maximum" in p]
+                result["unhealthy_targets"] = max(values) if values else None
             return result
         if name == "rds_get_health":
             db = self.client("rds").describe_db_instances(DBInstanceIdentifier=s.rds_identifier)[
@@ -333,12 +405,29 @@ class LiveAdapter:
                     "Value": s.rds_identifier if rds else s.valkey_identifier,
                 }
             ]
-            return {
-                "connections": self.metric(
-                    namespace, "DatabaseConnections" if rds else "CurrConnections", dimensions
-                ),
-                "cpu_percent": self.metric(namespace, "CPUUtilization", dimensions),
+            end = datetime.now(UTC)
+            metrics = {
+                "connections": "DatabaseConnections" if rds else "CurrConnections",
+                "cpu_percent": "CPUUtilization",
             }
+            result = {}
+            timestamps = []
+            for field, metric in metrics.items():
+                points = self.metric_points(
+                    namespace, metric, dimensions, ["Average"], end - timedelta(minutes=15), end
+                )
+                values = [
+                    p["Average"] for p in points if isinstance(p.get("Average"), (int, float))
+                ]
+                result[field] = mean(values) if values else None
+                if points:
+                    timestamps.append(max(p["Timestamp"] for p in points))
+            result["_meta"] = {
+                "observed_at": min(timestamps).isoformat()
+                if len(timestamps) == len(metrics)
+                else None
+            }
+            return result
         if name == "cost_get_summary":
             if not s.cost_explorer_enabled or not s.billing_view_arn:
                 raise ValueError("Cost Explorer is disabled")

@@ -37,5 +37,7 @@
       "max_connections": 100,
       "cpu_percent": 12
     }
-  }
+  },
+  "expected_status": "degraded",
+  "required_tools": ["rds_get_metrics", "kubernetes_get_pod_logs"]
 }

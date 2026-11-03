@@ -1,5 +1,7 @@
 import asyncio
+import copy
 import json
+import time
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -54,7 +56,7 @@ class Store:
     async def get(self, record_id: str):
         if self.dsn:
             return await asyncio.to_thread(self._get, record_id)
-        return self.records.get(record_id, {}).get("payload")
+        return copy.deepcopy(self.records.get(record_id, {}).get("payload"))
 
     def _get(self, record_id):
         with psycopg.connect(
@@ -65,12 +67,20 @@ class Store:
             ).fetchone()
             return row[0] if row else None
 
-    async def transition(self, record_id: str, expected: str, payload: dict) -> bool:
+    async def transition(self, record_id: str, expected: dict, payload: dict) -> bool:
         if self.dsn:
             return await asyncio.to_thread(self._transition, record_id, expected, payload)
         async with self.lock:
             row = self.records.get(record_id)
-            if not row or row["payload"]["status"] != expected:
+            if (
+                not row
+                or row["kind"] != "action"
+                or row["payload"] != expected
+                or (
+                    expected.get("status") == "pending"
+                    and expected.get("expires_at", 0) <= time.time()
+                )
+            ):
                 return False
             row["payload"] = json.loads(json.dumps(payload, default=str))
             return True
@@ -80,8 +90,8 @@ class Store:
             self.dsn, connect_timeout=5, options="-c statement_timeout=5000 -c lock_timeout=3000"
         ) as conn:
             cursor = conn.execute(
-                "UPDATE agent_ops.records SET payload=%s::jsonb WHERE id=%s AND kind='action' AND payload->>'status'=%s",
-                (json.dumps(payload, default=str), record_id, expected),
+                "UPDATE agent_ops.records SET payload=%s::jsonb WHERE id=%s AND kind='action' AND payload=%s::jsonb AND (payload->>'status' <> 'pending' OR (payload->>'expires_at')::double precision > extract(epoch FROM clock_timestamp()))",
+                (json.dumps(payload, default=str), record_id, json.dumps(expected, default=str)),
             )
             return cursor.rowcount == 1
 

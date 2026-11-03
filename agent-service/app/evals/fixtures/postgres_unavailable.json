@@ -35,5 +35,7 @@
     "rds_get_health": {
       "status": "unavailable"
     }
-  }
+  },
+  "expected_status": "degraded",
+  "required_tools": ["rds_get_health", "kubernetes_get_pod_logs"]
 }

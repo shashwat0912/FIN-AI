@@ -1,5 +1,6 @@
 from app.mcp.client import ToolSession
 from app.models import AgentStatus
+from app.tools.normalize import usable
 
 
 async def analyze(tools: ToolSession) -> tuple[AgentStatus, dict, list[str]]:
@@ -12,7 +13,7 @@ async def analyze(tools: ToolSession) -> tuple[AgentStatus, dict, list[str]]:
     ]:
         await tools.call(name)
     cost = tools.evidence[0]
-    if cost.error or not cost.data.get("services"):
+    if not usable(cost) or not cost.data.get("services"):
         return (
             "insufficient_evidence",
             {"estimated_monthly_usd": None, "estimated_savings_usd": None},
@@ -27,7 +28,7 @@ async def analyze(tools: ToolSession) -> tuple[AgentStatus, dict, list[str]]:
                 f"{service['service']} increased by ${delta:.2f} over the comparison period; inspect billing dimensions before changing capacity"
             )
     for entry in tools.evidence:
-        if entry.error:
+        if not usable(entry):
             continue
         if entry.tool in {"rds_get_metrics", "valkey_get_metrics"}:
             connections, cpu = entry.data.get("connections"), entry.data.get("cpu_percent")

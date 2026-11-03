@@ -38,5 +38,7 @@
       "signals": ["bad_deployment"],
       "sample_count": 0
     }
-  }
+  },
+  "expected_status": "degraded",
+  "required_tools": ["kubernetes_get_deployments", "kubernetes_get_events"]
 }

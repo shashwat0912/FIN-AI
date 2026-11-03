@@ -32,5 +32,7 @@
       "signals": ["bad_environment"],
       "sample_count": 0
     }
-  }
+  },
+  "expected_status": "degraded",
+  "required_tools": ["kubernetes_get_events", "kubernetes_get_pod_logs"]
 }
