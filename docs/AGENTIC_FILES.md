@@ -2,7 +2,7 @@
 
 Files added or changed relative to `main` for `feat/agentic-cloud-ops`.
 
-Total: **91 files**. A = added; M = modified.
+Total: **92 files**. A = added; M = modified.
 
 | Status | File                                                                                                                              |
 | ------ | --------------------------------------------------------------------------------------------------------------------------------- |
@@ -71,6 +71,7 @@ Total: **91 files**. A = added; M = modified.
 | A      | [agent-service/requirements.lock](../agent-service/requirements.lock)                                                             |
 | A      | [agent-service/tests/test_hardening.py](../agent-service/tests/test_hardening.py)                                                 |
 | A      | [agent-service/tests/test_platform.py](../agent-service/tests/test_platform.py)                                                   |
+| M      | [backend/package-lock.json](../backend/package-lock.json)                                                                         |
 | A      | [backend/src/routes/cloudOps.ts](../backend/src/routes/cloudOps.ts)                                                               |
 | M      | [backend/src/routes/index.ts](../backend/src/routes/index.ts)                                                                     |
 | A      | [backend/tests/cloudOps.test.ts](../backend/tests/cloudOps.test.ts)                                                               |

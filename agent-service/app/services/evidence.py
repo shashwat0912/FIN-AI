@@ -187,6 +187,7 @@ def diagnose(evidence: list[ToolResult], causes: dict) -> Reasoning:
     }
     if (
         required <= good.keys()
+        and all(usable(entry) for entry in evidence)
         and pods
         and all(p["ready"] and p["restarts"] == 0 for p in pods)
         and deployment.get("desired", 0) > 0

@@ -121,3 +121,32 @@ A truthful resume description is: “Built and adversarially tested an AI operat
 layer for a finance workload targeting EKS, using FastAPI, MCP, OpenTelemetry,
 PostgreSQL approval/audit records, simulation-only remediation, scoped IRSA/RBAC,
 deployment-window analysis, and deterministic incident evaluations.”
+
+## Hosted security corrections
+
+The first hosted Security and Docker jobs failed on existing HIGH runtime findings
+in body-parser 1.20.5 and Joi 17.13.8. The backend lockfile now resolves compatible
+body-parser 1.20.9 and Joi 17.13.9 patches within the existing declared ranges;
+additional compatible transitive/address-parser patches were resolved by npm.
+Backend install, generation, types/build, all 206 unit/service tests and 14
+integration tests passed again. Runtime audit passes the unchanged HIGH threshold;
+two existing moderate qs advisories remain below that threshold. The patched
+backend image also passed the unchanged Trivy HIGH/CRITICAL gate. As before,
+runtime gates omit development dependencies; this does not claim that all
+Dependabot advisories across the repository are resolved.
+
+Gitleaks also identified a synthetic base64 API-key field in the new Secret
+redaction test. It was replaced by an obvious short public dummy value without
+changing the redaction assertion. The correction was squashed into the three new
+feature-branch hardening commits so the false positive is absent from their
+history. No detector, ignore list, severity threshold or CI gate was relaxed.
+The complete history reachable from the corrected feature head passes Gitleaks;
+main and the six earlier implementation commits were preserved. The remote
+feature update uses an explicit expected-SHA lease to avoid overwriting another
+contributor's changes.
+
+The partial-AWS-outage fixture deliberately retains healthy-looking Kubernetes
+observations while dependency reads fail: a HEALTHY outcome requires every
+attempted check to be usable, so unavailable AWS evidence is never silently
+summarized as healthy. Corroborated diagnoses can still use sufficient remaining
+authoritative observations, as the missing-events OOM case demonstrates.
