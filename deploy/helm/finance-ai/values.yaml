@@ -140,3 +140,30 @@ ingress:
   annotations: {}
   hosts: []
   tls: []
+
+# Optional operator component. FIN-AI runs without this service.
+agentService:
+  enabled: false
+  image:
+    repository: finance-ai-agent
+    tag: "0.1.0"
+    digest: ""
+    pullPolicy: IfNotPresent
+  replicas: 1
+  existingSecret: finance-ai-agent-secrets
+  serviceAccount:
+    name: finance-ai-agent
+    annotations: {}
+  resources:
+    requests:
+      cpu: 100m
+      memory: 192Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  config:
+    AGENT_DATA_MODE: simulation
+    AGENT_LLM_PROVIDER: mock
+    AGENT_WRITE_ACTIONS_ENABLED: "false"
+    AGENT_TELEMETRY_EXPORTER: none
+    AGENT_OTLP_ENDPOINT: http://localhost:4318

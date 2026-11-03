@@ -1,0 +1,180 @@
+{{- if .Values.agentService.enabled }}
+{{- $name := printf "%s-agent" (include "finance-ai.fullname" . | trunc 57 | trimSuffix "-") }}
+{{- if and (eq .Values.agentService.config.AGENT_DATA_MODE "live") (eq .Values.agentService.config.AGENT_WRITE_ACTIONS_ENABLED "true") }}
+{{- fail "Live agent writes are unavailable; keep AGENT_WRITE_ACTIONS_ENABLED=false" }}
+{{- end }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.agentService.serviceAccount.name }}
+  labels:
+    {{- include "finance-ai.labels" . | nindent 4 }}
+    app.kubernetes.io/component: agent
+  {{- with .Values.agentService.serviceAccount.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}
+data:
+  {{- toYaml .Values.agentService.config | nindent 2 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "finance-ai.labels" . | nindent 4 }}
+    app.kubernetes.io/component: agent
+spec:
+  replicas: {{ .Values.agentService.replicas }}
+  revisionHistoryLimit: 3
+  progressDeadlineSeconds: 300
+  selector:
+    matchLabels:
+      {{- include "finance-ai.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: agent
+  template:
+    metadata:
+      labels:
+        {{- include "finance-ai.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: agent
+      annotations:
+        checksum/config: {{ toJson .Values.agentService.config | sha256sum }}
+    spec:
+      serviceAccountName: {{ .Values.agentService.serviceAccount.name }}
+      automountServiceAccountToken: {{ eq .Values.agentService.config.AGENT_DATA_MODE "live" }}
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: agent
+          image: {{ include "finance-ai.image" .Values.agentService.image | quote }}
+          imagePullPolicy: {{ .Values.agentService.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8000
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          envFrom:
+            - configMapRef:
+                name: {{ $name }}
+            - secretRef:
+                name: {{ .Values.agentService.existingSecret }}
+          env:
+            - name: AGENT_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: AGENT_DEPLOYMENT
+              value: {{ include "finance-ai.backendFullname" . }}
+          resources:
+            {{- toYaml .Values.agentService.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 5
+            timeoutSeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            timeoutSeconds: 2
+            periodSeconds: 15
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 32Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+  selector:
+    {{- include "finance-ai.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: agent
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "finance-ai.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: agent
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "finance-ai.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: backend
+      ports:
+        - protocol: TCP
+          port: 8000
+{{- if eq .Values.agentService.config.AGENT_DATA_MODE "live" }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}-reader
+rules:
+  - apiGroups: [""]
+    resources: [pods, pods/log, events, services]
+    verbs: [get, list]
+  - apiGroups: [apps]
+    resources: [deployments, replicasets]
+    verbs: [get, list]
+  - apiGroups: [networking.k8s.io]
+    resources: [ingresses]
+    verbs: [get, list]
+  - apiGroups: [metrics.k8s.io]
+    resources: [pods]
+    verbs: [get, list]
+  - apiGroups: [batch]
+    resources: [jobs]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}-reader
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.agentService.serviceAccount.name }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
+  name: {{ $name }}-reader
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}
+{{- end }}

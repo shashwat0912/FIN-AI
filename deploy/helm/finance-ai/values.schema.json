@@ -25,9 +25,95 @@
     "migration": { "$ref": "#/definitions/migration" },
     "backend": { "$ref": "#/definitions/backend" },
     "frontend": { "$ref": "#/definitions/frontend" },
-    "ingress": { "$ref": "#/definitions/ingress" }
+    "ingress": { "$ref": "#/definitions/ingress" },
+    "agentService": { "$ref": "#/definitions/agentService" }
   },
   "definitions": {
+    "agentService": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "image",
+        "replicas",
+        "existingSecret",
+        "serviceAccount",
+        "resources",
+        "config"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "image": {
+          "$ref": "#/definitions/image"
+        },
+        "replicas": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3
+        },
+        "existingSecret": {
+          "type": "string",
+          "minLength": 1
+        },
+        "resources": {
+          "$ref": "#/definitions/resources"
+        },
+        "serviceAccount": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "annotations"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 63,
+              "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+            },
+            "annotations": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "config": {
+          "type": "object",
+          "required": [
+            "AGENT_DATA_MODE",
+            "AGENT_LLM_PROVIDER",
+            "AGENT_WRITE_ACTIONS_ENABLED",
+            "AGENT_TELEMETRY_EXPORTER",
+            "AGENT_OTLP_ENDPOINT"
+          ],
+          "properties": {
+            "AGENT_DATA_MODE": {
+              "enum": ["simulation", "live"]
+            },
+            "AGENT_LLM_PROVIDER": {
+              "enum": ["mock", "openai"]
+            },
+            "AGENT_WRITE_ACTIONS_ENABLED": {
+              "enum": ["false", "true"]
+            },
+            "AGENT_TELEMETRY_EXPORTER": {
+              "enum": ["none", "console", "otlp"]
+            },
+            "AGENT_OTLP_ENDPOINT": {
+              "type": "string"
+            }
+          },
+          "patternProperties": {
+            "(?i)(SECRET|PASSWORD|TOKEN|KEY|DATABASE_URL)": false
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "migration": {
       "type": "object",
       "additionalProperties": false,
