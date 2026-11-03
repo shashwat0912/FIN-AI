@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=78"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fin-ai-agent-service"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.121,<1", "uvicorn>=0.38,<1", "pydantic-settings>=2.11,<3",
+  "mcp==2.3.0", "httpx>=0.28,<1", "boto3>=1.40,<2",
+  "psycopg[binary]>=3.2,<4", "openai>=2.7,<3",
+  "opentelemetry-sdk>=1.38,<2", "opentelemetry-exporter-otlp-proto-http>=1.38,<2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.4,<10", "pytest-asyncio>=1.2,<2", "ruff>=0.14,<1", "mypy>=1.18,<2"]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.setuptools.package-data]
+app = ["evals/fixtures/*.json", "services/*.sql"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = ["boto3", "botocore.*"]
+ignore_missing_imports = true
+follow_untyped_imports = false

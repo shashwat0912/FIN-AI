@@ -50,6 +50,16 @@ spec:
                 name: {{ include "finance-ai.backendFullname" . }}
             - secretRef:
                 name: {{ .Values.backend.existingSecret }}
+          {{- if .Values.agentService.enabled }}
+          env:
+            - name: AGENT_SERVICE_URL
+              value: {{ printf "http://%s-agent:8000" (include "finance-ai.fullname" . | trunc 57 | trimSuffix "-") | quote }}
+            - name: AGENT_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.agentService.existingSecret }}
+                  key: AGENT_API_TOKEN
+          {{- end }}
           livenessProbe:
             httpGet:
               path: {{ .Values.backend.probes.liveness.path }}

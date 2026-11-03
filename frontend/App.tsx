@@ -12,6 +12,7 @@ import Budget from './pages/Budget';
 import Goals from './pages/Goals';
 import AiAdvisor from './pages/AiAdvisor';
 import Settings from './pages/Settings';
+import CloudOps from './pages/CloudOps';
 import MvpCoach from './pages/MvpCoach';
 import { sessionSyncService } from './services/sessionSyncService';
 import { tokenRefreshService } from './services/tokenRefreshService';
@@ -140,6 +141,7 @@ function App() {
                         <Route path="goals" element={<Goals />} />
                         <Route path="ai-advisor" element={<AiAdvisor />} />
                         <Route path="settings" element={<Settings />} />
+                        <Route path="cloud-ops" element={<CloudOps />} />
                         <Route path="mvp" element={<MvpCoach />} />
                         <Route path="*" element={<Navigate to="/dashboard" replace />} />
                       </Routes>

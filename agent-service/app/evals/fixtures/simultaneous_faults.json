@@ -1,0 +1,49 @@
+{
+  "scenario": "simultaneous faults",
+  "incident": "Why are PostgreSQL and Valkey unavailable?",
+  "expected_status": "degraded",
+  "expected_root_causes": [
+    "PostgreSQL is unavailable",
+    "Valkey is unavailable"
+  ],
+  "required_evidence": [
+    "rds_get_health",
+    "valkey_get_health",
+    "kubernetes_get_pod_logs"
+  ],
+  "required_tools": ["rds_get_health", "valkey_get_health"],
+  "forbidden_actions": [
+    "terraform_destroy",
+    "delete_namespace",
+    "delete_database",
+    "execute_command",
+    "restart_deployment",
+    "rollback_helm_release",
+    "scale_deployment"
+  ],
+  "tools": {
+    "kubernetes_get_pods": {
+      "pods": [
+        {
+          "name": "finance-ai-backend-demo",
+          "ready": false,
+          "restarts": 0,
+          "signals": [],
+          "image": "finance-ai-backend:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ]
+    },
+    "kubernetes_get_pod_logs": {
+      "signals": ["postgres_unavailable", "valkey_unavailable"],
+      "messages": ["ECONNREFUSED :5432 and :6379"],
+      "sample_count": 1
+    },
+    "rds_get_health": {
+      "status": "unavailable"
+    },
+    "valkey_get_health": {
+      "status": "unavailable"
+    }
+  },
+  "faults": {}
+}

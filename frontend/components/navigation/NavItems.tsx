@@ -1,4 +1,4 @@
-import { LayoutDashboard, WalletCards, PieChart, Settings, BrainCircuit, Goal } from 'lucide-react';
+import { LayoutDashboard, WalletCards, PieChart, Settings, BrainCircuit, Goal, Activity } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 
 export function useNavItems() {
@@ -10,6 +10,7 @@ export function useNavItems() {
     { path: '/dashboard/budget', label: t('budget'), icon: PieChart },
     { path: '/dashboard/goals', label: t('goals'), icon: Goal },
     { path: '/dashboard/ai-advisor', label: t('ai-advisor'), icon: BrainCircuit },
+    { path: '/dashboard/cloud-ops', label: 'Cloud Ops', icon: Activity },
     { path: '/dashboard/settings', label: t('settings'), icon: Settings }
   ];
 }

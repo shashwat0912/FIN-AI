@@ -9,6 +9,32 @@ The public launch runbook is [docs/PUBLIC_DEMO.md](docs/PUBLIC_DEMO.md).
 Verified results and remaining blockers are in [docs/LAUNCH_REPORT.md](docs/LAUNCH_REPORT.md).
 This is a portfolio demo, not a regulated or real-money financial service.
 
+## FIN-AI Product Platform + Agentic Cloud Operations Platform
+
+An optional Python/FastAPI service adds bounded SRE incident investigation,
+deployment validation, and FinOps workflows around FIN-AI. Controlled MCP tools,
+code-enforced policies, separate human approval, PostgreSQL audit records, and
+OpenTelemetry demonstrate AI platform operations without replacing the product.
+Helm keeps the agent disabled by default. Deterministic simulation works without
+AWS or paid model calls and is explicitly labelled in the dashboard.
+
+```mermaid
+flowchart LR
+    Engineer --> CloudOps[Existing dashboard: Cloud Ops]
+    CloudOps --> AdminAPI[FIN-AI ADMIN proxy]
+    AdminAPI --> AgentAPI[Agent operations API]
+    AgentAPI --> Workflows[SRE / Deployment / FinOps]
+    Workflows --> MCP[Controlled MCP server]
+    MCP --> Fixtures[Local simulation]
+    MCP --> Readers[Kubernetes / CloudWatch / RDS / Valkey / GitHub / Terraform / Costs]
+    AgentAPI --> Approval[Separate human approval: simulation only]
+```
+
+See [architecture, local demo and security boundaries](docs/AGENTIC_PLATFORM.md),
+[actual validation results](docs/AGENTIC_VALIDATION.md), and
+[agent service source](agent-service/). Live AWS is not assumed to be running;
+production remediation execution is intentionally unavailable.
+
 ## What It Does
 
 - tracks income and expense transactions;
