@@ -13,13 +13,23 @@ interface Assessment {
   reasoning: string;
   tools_used: string[];
   recommended_actions: string[];
-  evidence: Array<{ tool: string; data: Record<string, unknown>; error: { code: string; message: string } | null; correlation_id: string; trace_id: string }>;
-  actions: Array<{ id: string; action: string; status: string }>;
+  evidence: Array<{ tool: string; data: Record<string, unknown>; error: { code: string; message: string } | null; correlation_id: string; trace_id: string; source?: string; resource?: string; observed_at?: string | null; freshness?: string; status?: string; trust?: string }>;
+  actions: Array<{ id: string; action: string; status: string; payload_hash: string; namespace: string; deployment: string; replicas: number | null; expires_at: number }>;
   summary: {
     recommendation?: string;
     deployment?: string;
     pre_p95_ms?: number | null;
     post_p95_ms?: number | null;
+    pre_p99_ms?: number | null;
+    post_p99_ms?: number | null;
+    pre_5xx_rate?: number | null;
+    post_5xx_rate?: number | null;
+    readiness_failures?: number | null;
+    pod_restarts?: number | null;
+    deployment_at?: string | null;
+    baseline_window?: { start: string; end: string; sample_count: number } | null;
+    observation_window?: { start: string; end: string; sample_count: number } | null;
+    evidence_issues?: string[];
     pre_error_rate?: number | null;
     post_error_rate?: number | null;
     migration_status?: string;
@@ -39,7 +49,12 @@ const scenarios = [
   ['migration_failed', 'Failed Prisma migration'], ['alb_unhealthy', 'Unhealthy ALB target'],
   ['high_latency', 'High backend latency'], ['bad_deployment', 'Bad deployment'],
   ['workflow_failure', 'GitHub Actions failure'], ['configuration_expired', 'Missing or expired configuration'],
-  ['healthy', 'Healthy infrastructure'],
+  ['contradictory_telemetry', 'Contradictory telemetry'], ['stale_cloudwatch', 'Stale CloudWatch metrics'],
+  ['missing_events', 'Missing Kubernetes events'], ['tool_timeout', 'Tool timeout'],
+  ['malformed_tool', 'Malformed telemetry'], ['simultaneous_faults', 'Two simultaneous faults'],
+  ['misleading_logs', 'Misleading logs'], ['prompt_injection', 'Prompt injection in logs'],
+  ['unknown_cause', 'Unknown root cause'], ['incorrect_hypothesis', 'Incorrect initial hypothesis'],
+  ['partial_aws_outage', 'Partial AWS outage'], ['healthy', 'Healthy infrastructure'],
 ];
 const inputClass = 'min-h-11 w-full rounded-control border border-border-strong bg-surface-strong px-3 py-2 text-sm text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-focus';
 const display = (value: number | null | undefined, suffix = '') => value == null ? 'Unavailable' : `${value}${suffix}`;
@@ -59,9 +74,16 @@ function Result({ result }: { result: Assessment }) {
         <div className="space-y-2 text-sm text-ink">
           <p className="font-semibold">Recommendation: {result.summary.recommendation}</p>
           <p className="break-all">Deployment: {result.summary.deployment}</p>
+          {result.summary.deployment_at && <p>Deployment time: {result.summary.deployment_at}</p>}
+          {result.summary.baseline_window && <p>Baseline: {result.summary.baseline_window.start} – {result.summary.baseline_window.end} ({result.summary.baseline_window.sample_count} minute buckets)</p>}
+          {result.summary.observation_window && <p>Observation: {result.summary.observation_window.start} – {result.summary.observation_window.end} ({result.summary.observation_window.sample_count} minute buckets)</p>}
           <p>P95 before / after: {display(result.summary.pre_p95_ms, ' ms')} / {display(result.summary.post_p95_ms, ' ms')}</p>
           <p>Error rate before / after: {display(result.summary.pre_error_rate)} / {display(result.summary.post_error_rate)}</p>
+          <p>P99 before / after: {display(result.summary.pre_p99_ms, ' ms')} / {display(result.summary.post_p99_ms, ' ms')}</p>
+          <p>5xx rate before / after: {display(result.summary.pre_5xx_rate)} / {display(result.summary.post_5xx_rate)}</p>
+          <p>Readiness failures / pod restarts in observation window: {display(result.summary.readiness_failures)} / {display(result.summary.pod_restarts)}</p>
           <p>Migration: {result.summary.migration_status}</p>
+          {result.summary.evidence_issues && result.summary.evidence_issues.length > 0 && <p>Evidence gaps: {result.summary.evidence_issues.join(', ')}</p>}
         </div>
       )}
       {'estimated_monthly_usd' in result.summary && (
@@ -80,11 +102,11 @@ function Result({ result }: { result: Assessment }) {
         </div>
       )}
       <div><h3 className="font-semibold text-ink">Recommended actions</h3><ul className="mt-2 list-disc space-y-2 pl-5 text-sm leading-6 text-ink-secondary">{result.recommended_actions.map((action, i) => <li key={i}>{action}</li>)}</ul></div>
-      {result.actions.map(action => <p key={action.id} className="break-words text-sm text-warning">Human approval required: {action.action} ({action.status}). Action ID: {action.id}. Approval uses the separate operator API.</p>)}
+      {result.actions.map(action => <p key={action.id} className="break-words text-sm text-warning">Human approval required: {action.action} ({action.status}). Target: {action.namespace}/{action.deployment}{action.replicas != null ? `, replicas: ${action.replicas}` : ''}. Expires: {new Date(action.expires_at * 1000).toLocaleString()}. Action ID: {action.id}. Payload hash: {action.payload_hash}. Approval uses the separate operator API.</p>)}
       <details className="border-y border-ledger-border py-3">
         <summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold text-ink">Evidence and tools ({result.tools_used.length})</summary>
         <p className="break-all text-xs text-ink-secondary">Investigation: {result.investigation_id}</p>
-        {result.evidence.map((entry, i) => <div key={`${entry.tool}-${i}`} className="border-t border-ledger-border py-3"><h4 className="break-all text-sm font-medium text-ink">{i}. {entry.tool}</h4><pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-all text-xs leading-5 text-ink-secondary">{JSON.stringify(entry.error || entry.data, null, 2)}</pre><p className="mt-2 break-all text-xs text-ink-secondary">Correlation: {entry.correlation_id} / Trace: {entry.trace_id}</p></div>)}
+        {result.evidence.map((entry, i) => <div key={`${entry.tool}-${i}`} className="border-t border-ledger-border py-3"><h4 className="break-all text-sm font-medium text-ink">{i}. {entry.tool}</h4><p className="mt-2 break-all text-xs text-ink-secondary">Untrusted evidence / Source: {entry.source || 'unknown'} / Resource: {entry.resource || 'unknown'} / Observed: {entry.observed_at || 'unknown'} / Freshness: {entry.freshness || 'unknown'} / Status: {entry.status || 'unknown'}</p><pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-all text-xs leading-5 text-ink-secondary">{JSON.stringify(entry.error || entry.data, null, 2)}</pre><p className="mt-2 break-all text-xs text-ink-secondary">Correlation: {entry.correlation_id} / Trace: {entry.trace_id}</p></div>)}
       </details>
     </div>
   );
