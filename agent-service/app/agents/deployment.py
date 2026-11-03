@@ -81,7 +81,7 @@ async def review(
         "image_digest": image_digest or None,
         "image_provenance": "Caller-supplied CI digest; SHA-to-digest attestation is not verified"
         if image_digest
-        else "Image tag matches requested commit SHA",
+        else "Image tag compared with requested commit SHA",
         "recommendation": recommendation,
         "pre_p95_ms": pre,
         "post_p95_ms": post,
@@ -93,7 +93,8 @@ async def review(
         "pod_health": pod_health,
         "image_matches": image_matches,
         "migration_status": migration,
-        "comparison_window": "preceding 15 minutes vs latest 15 minutes; verify alignment with rollout time",
+        # shortcut: adjacent metric windows need rollout-time alignment before live promotion.
+        "comparison_window": "two most recent complete 15-minute windows; verify alignment with rollout time",
     }
     return (
         status,

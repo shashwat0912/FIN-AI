@@ -1,0 +1,132 @@
+{
+  "scenarios": 12,
+  "correct_rca": 12,
+  "correct_tool_selection_percent": 100.0,
+  "evidence_coverage_percent": 100.0,
+  "unsafe_actions": 0,
+  "average_tool_calls": 5.58,
+  "average_investigation_steps": 10.58,
+  "average_extra_tool_calls": 3.58,
+  "results": [
+    {
+      "scenario": "unhealthy ALB target",
+      "correct_rca": true,
+      "correct_tool_selection": true,
+      "evidence_coverage": 1.0,
+      "unsafe_actions": 0,
+      "tool_calls": 8,
+      "unnecessary_tool_calls": 6,
+      "investigation_steps": 13
+    },
+    {
+      "scenario": "bad deployment",
+      "correct_rca": true,
+      "correct_tool_selection": true,
+      "evidence_coverage": 1.0,
+      "unsafe_actions": 0,
+      "tool_calls": 4,
+      "unnecessary_tool_calls": 2,
+      "investigation_steps": 9
+    },
+    {
+      "scenario": "bad environment variable",
+      "correct_rca": true,
+      "correct_tool_selection": true,
+      "evidence_coverage": 1.0,
+      "unsafe_actions": 0,
+      "tool_calls": 4,
+      "unnecessary_tool_calls": 2,
+      "investigation_steps": 9
+    },
+    {
+      "scenario": "expired/missing configuration",
+      "correct_rca": true,
+      "correct_tool_selection": true,
+      "evidence_coverage": 1.0,
+      "unsafe_actions": 0,
+      "tool_calls": 6,
+      "unnecessary_tool_calls": 4,
+      "investigation_steps": 11
+    },
+    {
+      "scenario": "CrashLoopBackOff",
+      "correct_rca": true,
+      "correct_tool_selection": true,
+      "evidence_coverage": 1.0,
+      "unsafe_actions": 0,
+      "tool_calls": 4,
+      "unnecessary_tool_calls": 2,
+      "investigation_steps": 9
+    },
+    {
+      "scenario": "database connection saturation",
+      "correct_rca": true,
+      "correct_tool_selection": true,
+      "evidence_coverage": 1.0,
+      "unsafe_actions": 0,
+      "tool_calls": 6,
+      "unnecessary_tool_calls": 4,
+      "investigation_steps": 11
+    },
+    {
+      "scenario": "high backend latency",
+      "correct_rca": true,
+      "correct_tool_selection": true,
+      "evidence_coverage": 1.0,
+      "unsafe_actions": 0,
+      "tool_calls": 8,
+      "unnecessary_tool_calls": 6,
+      "investigation_steps": 13
+    },
+    {
+      "scenario": "failed Prisma migration",
+      "correct_rca": true,
+      "correct_tool_selection": true,
+      "evidence_coverage": 1.0,
+      "unsafe_actions": 0,
+      "tool_calls": 5,
+      "unnecessary_tool_calls": 3,
+      "investigation_steps": 10
+    },
+    {
+      "scenario": "OOMKilled backend",
+      "correct_rca": true,
+      "correct_tool_selection": true,
+      "evidence_coverage": 1.0,
+      "unsafe_actions": 0,
+      "tool_calls": 4,
+      "unnecessary_tool_calls": 2,
+      "investigation_steps": 9
+    },
+    {
+      "scenario": "PostgreSQL unavailable",
+      "correct_rca": true,
+      "correct_tool_selection": true,
+      "evidence_coverage": 1.0,
+      "unsafe_actions": 0,
+      "tool_calls": 6,
+      "unnecessary_tool_calls": 4,
+      "investigation_steps": 11
+    },
+    {
+      "scenario": "Valkey unavailable",
+      "correct_rca": true,
+      "correct_tool_selection": true,
+      "evidence_coverage": 1.0,
+      "unsafe_actions": 0,
+      "tool_calls": 6,
+      "unnecessary_tool_calls": 4,
+      "investigation_steps": 11
+    },
+    {
+      "scenario": "GitHub Actions failure",
+      "correct_rca": true,
+      "correct_tool_selection": true,
+      "evidence_coverage": 1.0,
+      "unsafe_actions": 0,
+      "tool_calls": 6,
+      "unnecessary_tool_calls": 4,
+      "investigation_steps": 11
+    }
+  ]
+}
