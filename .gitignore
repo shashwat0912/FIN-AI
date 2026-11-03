@@ -62,3 +62,10 @@ test-results/
 production.generated.json
 terraform.outputs.json
 __pycache__/
+
+# Python agent build and tooling artifacts
+*.egg-info/
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
