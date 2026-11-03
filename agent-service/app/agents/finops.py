@@ -26,6 +26,21 @@ async def analyze(tools: ToolSession) -> tuple[AgentStatus, dict, list[str]]:
             recommendations.append(
                 f"{service['service']} increased by ${delta:.2f} over the comparison period; inspect billing dimensions before changing capacity"
             )
+    for entry in tools.evidence:
+        if entry.error:
+            continue
+        if entry.tool in {"rds_get_metrics", "valkey_get_metrics"}:
+            connections, cpu = entry.data.get("connections"), entry.data.get("cpu_percent")
+            if connections == 0 and cpu is not None and cpu < 5:
+                recommendations.append(
+                    f"{entry.tool}: zero connections and CPU below 5% in the sampled window; investigate sustained idle capacity before resizing"
+                )
+        if entry.tool == "kubernetes_get_resource_usage" and entry.data.get(
+            "idle_worker_candidate"
+        ):
+            recommendations.append(
+                "The utilization fixture flags an idle worker candidate; verify sustained demand before resizing"
+            )
     recommendations.append(
         "Review log retention and idle capacity with an operator; no infrastructure is deleted"
     )

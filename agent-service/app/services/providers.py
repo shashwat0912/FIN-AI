@@ -63,11 +63,24 @@ class Provider(Protocol):
 
 class MockProvider:
     async def correlate(self, incident: str, evidence: list[ToolResult]) -> Reasoning:
+        telemetry.tokens.add(0, {"provider": "mock"})
+        telemetry.llm_cost.add(0, {"provider": "mock"})
+        observations = []
+        for entry in evidence:
+            found = set(entry.data.get("signals", []))
+            for pod in entry.data.get("pods", []):
+                found.update(pod.get("signals", []))
+            if entry.tool == "cloudwatch_get_metric":
+                metric = entry.data
+                if (metric.get("unhealthy_targets") or 0) > 0:
+                    found.add("alb_unhealthy")
+                pre, post = metric.get("pre_p95_ms"), metric.get("post_p95_ms")
+                if pre is not None and post is not None and post > max(pre * 1.5, 500):
+                    found.add("high_latency")
+            observations.append(found if not entry.error else set())
         # This deterministic diagnostic baseline never reads scenario names or expected answers.
         for signal, (cause, action) in CAUSES.items():
-            ids = [
-                i for i, e in enumerate(evidence) if not e.error and signal in json.dumps(e.data)
-            ]
+            ids = [i for i, found in enumerate(observations) if signal in found]
             if ids:
                 return Reasoning(
                     likely_root_cause=cause,

@@ -121,7 +121,7 @@
           "previous_usd": 62
         },
         {
-          "service": "EC2 - Other",
+          "service": "NAT Gateway",
           "monthly_usd": 48,
           "previous_usd": 25
         },
@@ -151,7 +151,17 @@
           "previous_usd": 2
         }
       ],
-      "note": "EC2 - Other includes NAT and other charges; this does not isolate NAT spend."
+      "note": "Synthetic NAT Gateway hours and data processing cost; no live AWS billing."
+    },
+    "github_get_deployment_metadata": {
+      "deployments": [
+        {
+          "id": 1,
+          "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "environment": "simulation",
+          "created_at": "2026-11-01T00:00:00Z"
+        }
+      ]
     }
   }
 }

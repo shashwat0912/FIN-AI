@@ -121,6 +121,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             body.scenario,
             "investigation-operator",
             body.sha,
+            body.image_digest,
         )
 
     @app.post(

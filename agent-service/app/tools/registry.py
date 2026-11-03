@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import time
 from uuid import uuid4
@@ -82,5 +83,5 @@ class ToolRegistry:
             }
             # Persist only metadata; provider errors and raw payloads may contain credentials.
             await self.store.audit("tool_execution", **audit)
-            logger.info("tool_execution", extra={"audit": audit})
+            logger.info(json.dumps({"event": "tool_execution", **audit}))
         return result

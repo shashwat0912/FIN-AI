@@ -29,7 +29,13 @@ class Orchestrator:
         self.slots = asyncio.Semaphore(4)
 
     async def run(
-        self, agent: AgentName, incident: str, scenario: str, requester: str, sha: str = ""
+        self,
+        agent: AgentName,
+        incident: str,
+        scenario: str,
+        requester: str,
+        sha: str = "",
+        image_digest: str = "",
     ) -> AgentResponse:
         started = time.monotonic()
         correlation_id, investigation_id = uuid4(), uuid4()
@@ -77,6 +83,7 @@ class Orchestrator:
                             with telemetry.tracer.start_as_current_span("generate_rca"):
                                 result.likely_root_cause = redact(reasoning.likely_root_cause)
                                 result.confidence = reasoning.confidence
+                                result.summary["evidence_ids"] = reasoning.evidence_ids
                                 result.recommended_actions = redact(reasoning.recommended_actions)
                                 result.reasoning = f"Provider: {self.settings.llm_provider}; hypothesis cites evidence indices {reasoning.evidence_ids}. Tool evidence is recorded separately."
                                 result.status = (
@@ -89,7 +96,7 @@ class Orchestrator:
                                 result.status,
                                 result.summary,
                                 result.recommended_actions,
-                            ) = await deployment.review(sha, session)
+                            ) = await deployment.review(sha, session, image_digest)
                             result.likely_root_cause = (
                                 f"Deployment assessment: {result.summary['recommendation']}"
                             )

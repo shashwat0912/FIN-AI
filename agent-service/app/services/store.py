@@ -18,7 +18,9 @@ class Store:
             await asyncio.to_thread(self._initialize)
 
     def _initialize(self):
-        with psycopg.connect(self.dsn, connect_timeout=5) as conn:
+        with psycopg.connect(
+            self.dsn, connect_timeout=5, options="-c statement_timeout=5000 -c lock_timeout=3000"
+        ) as conn:
             conn.execute(Path(__file__).with_name("schema.sql").read_text())
 
     async def ready(self):
@@ -26,7 +28,9 @@ class Store:
             await asyncio.to_thread(self._ping)
 
     def _ping(self):
-        with psycopg.connect(self.dsn, connect_timeout=3) as conn:
+        with psycopg.connect(
+            self.dsn, connect_timeout=3, options="-c statement_timeout=3000"
+        ) as conn:
             conn.execute("SELECT 1")
 
     async def put(self, record_id: str, kind: str, payload: dict):
@@ -39,7 +43,9 @@ class Store:
             }
 
     def _put(self, record_id, kind, payload):
-        with psycopg.connect(self.dsn, connect_timeout=5) as conn:
+        with psycopg.connect(
+            self.dsn, connect_timeout=5, options="-c statement_timeout=5000 -c lock_timeout=3000"
+        ) as conn:
             conn.execute(
                 "INSERT INTO agent_ops.records(id,kind,payload) VALUES (%s,%s,%s::jsonb)",
                 (record_id, kind, json.dumps(payload, default=str)),
@@ -51,7 +57,9 @@ class Store:
         return self.records.get(record_id, {}).get("payload")
 
     def _get(self, record_id):
-        with psycopg.connect(self.dsn, connect_timeout=5) as conn:
+        with psycopg.connect(
+            self.dsn, connect_timeout=5, options="-c statement_timeout=5000 -c lock_timeout=3000"
+        ) as conn:
             row = conn.execute(
                 "SELECT payload FROM agent_ops.records WHERE id=%s", (record_id,)
             ).fetchone()
@@ -68,7 +76,9 @@ class Store:
             return True
 
     def _transition(self, record_id, expected, payload):
-        with psycopg.connect(self.dsn, connect_timeout=5) as conn:
+        with psycopg.connect(
+            self.dsn, connect_timeout=5, options="-c statement_timeout=5000 -c lock_timeout=3000"
+        ) as conn:
             cursor = conn.execute(
                 "UPDATE agent_ops.records SET payload=%s::jsonb WHERE id=%s AND kind='action' AND payload->>'status'=%s",
                 (json.dumps(payload, default=str), record_id, expected),

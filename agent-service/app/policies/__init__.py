@@ -1,6 +1,7 @@
 from app.models import Policy
 
 READ_TOOLS = (
+    "github_get_deployment_metadata",
     "kubernetes_get_pods",
     "kubernetes_get_deployments",
     "kubernetes_get_events",

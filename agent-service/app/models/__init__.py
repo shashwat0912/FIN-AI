@@ -20,6 +20,7 @@ class Policy(StrEnum):
 
 
 class ToolInput(StrictModel):
+    sha: str = Field(default="", pattern=r"^$|^[a-f0-9]{40}$")
     namespace: str = Field(default="finance-ai-staging", pattern=r"^[a-z0-9][a-z0-9-]{0,62}$")
     resource: str = Field(default="finance-ai-backend", pattern=r"^[a-z0-9][a-z0-9-]{0,62}$")
     scenario: str = Field(default="database_saturation", pattern=r"^[a-z_]{1,50}$")
@@ -49,6 +50,7 @@ class InvestigationRequest(StrictModel):
 
 
 class DeploymentRequest(StrictModel):
+    image_digest: str = Field(default="", pattern=r"^$|^sha256:[a-f0-9]{64}$")
     sha: str = Field(default="a" * 40, pattern=r"^[a-f0-9]{40}$")
     scenario: str = Field(default="healthy", pattern=r"^[a-z_]{1,50}$")
 

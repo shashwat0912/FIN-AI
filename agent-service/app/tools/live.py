@@ -155,6 +155,12 @@ class LiveAdapter:
         if not repo or not self.settings.github_token.get_secret_value():
             raise ValueError("GitHub read integration is not configured")
         path = "actions/runs" if name.endswith("runs") else f"actions/runs/{args.run_id}/jobs"
+        params: dict = {"per_page": args.limit}
+        if name == "github_get_recent_workflow_runs" and args.sha:
+            params["head_sha"] = args.sha
+        if name == "github_get_deployment_metadata":
+            path = "deployments"
+            params["sha"] = args.sha
         async with httpx.AsyncClient(timeout=5, trust_env=False) as client:
             response = await client.get(
                 f"https://api.github.com/repos/{repo}/{path}",
@@ -163,10 +169,22 @@ class LiveAdapter:
                     "Accept": "application/vnd.github+json",
                     "X-GitHub-Api-Version": "2022-11-28",
                 },
-                params={"per_page": args.limit},
+                params=params,
             )
             response.raise_for_status()
             data = response.json()
+        if name == "github_get_deployment_metadata":
+            return {
+                "deployments": [
+                    {
+                        "id": d["id"],
+                        "sha": d["sha"],
+                        "environment": d["environment"],
+                        "created_at": d["created_at"],
+                    }
+                    for d in data[: args.limit]
+                ]
+            }
         if name.endswith("runs"):
             return {
                 "runs": [
@@ -177,6 +195,7 @@ class LiveAdapter:
                         "conclusion": r["conclusion"],
                     }
                     for r in data.get("workflow_runs", [])[: args.limit]
+                    if r.get("name") == self.settings.github_workflow_name
                 ]
             }
         return {
@@ -228,7 +247,7 @@ class LiveAdapter:
             Dimensions=dimensions,
             StartTime=start or end - timedelta(minutes=15),
             EndTime=end,
-            Period=300,
+            Period=900,
             **(
                 {"ExtendedStatistics": [statistic]}
                 if statistic.startswith("p")
@@ -272,6 +291,7 @@ class LiveAdapter:
         if name == "cloudwatch_get_metric":
             dims = [{"Name": "Service", "Value": s.deployment}]
             now = datetime.now(UTC)
+            now = now.replace(minute=now.minute // 15 * 15, second=0, microsecond=0)
             result = {}
             for period, start, end in [
                 ("pre", now - timedelta(minutes=30), now - timedelta(minutes=15)),
@@ -282,6 +302,16 @@ class LiveAdapter:
                 )
                 result[f"{period}_error_rate"] = self.metric(
                     s.metric_namespace, "ErrorRate", dims, "Average", start, end
+                )
+            if s.alb_dimension and s.target_group_dimension:
+                result["unhealthy_targets"] = self.metric(
+                    "AWS/ApplicationELB",
+                    "UnHealthyHostCount",
+                    [
+                        {"Name": "LoadBalancer", "Value": s.alb_dimension},
+                        {"Name": "TargetGroup", "Value": s.target_group_dimension},
+                    ],
+                    "Maximum",
                 )
             return result
         if name == "rds_get_health":
@@ -318,7 +348,10 @@ class LiveAdapter:
                 BillingViewArn=s.billing_view_arn,
                 Granularity="DAILY",
                 Metrics=["UnblendedCost"],
-                GroupBy=[{"Type": "DIMENSION", "Key": "SERVICE"}],
+                GroupBy=[
+                    {"Type": "DIMENSION", "Key": "SERVICE"},
+                    {"Type": "DIMENSION", "Key": "USAGE_TYPE"},
+                ],
             )
             if result.get("NextPageToken"):
                 raise ValueError("Cost Explorer response is incomplete; narrow the account scope")
@@ -328,6 +361,8 @@ class LiveAdapter:
             for period in result["ResultsByTime"]:
                 for group in period["Groups"]:
                     service = group["Keys"][0]
+                    if "NatGateway" in group["Keys"][1]:
+                        service = "NAT Gateway"
                     cost = group["Metrics"]["UnblendedCost"]
                     currencies.add(cost["Unit"])
                     entry = totals.setdefault(
@@ -345,6 +380,6 @@ class LiveAdapter:
                 "period": "last 30 complete days vs preceding 30 days",
                 "scope": "Configured billing view; verify it contains only FIN-AI resources",
                 "services": list(totals.values()),
-                "note": "EC2 - Other includes NAT and other charges; NAT attribution requires CUR or cost allocation tags.",
+                "note": "NAT Gateway usage types are separated from EC2 - Other; totals follow the configured billing view.",
             }
         raise ValueError("Unsupported read tool")

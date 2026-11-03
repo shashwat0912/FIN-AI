@@ -2,7 +2,9 @@ from app.mcp.client import ToolSession
 from app.models import AgentStatus
 
 
-async def review(sha: str, tools: ToolSession) -> tuple[AgentStatus, dict, list[str]]:
+async def review(
+    sha: str, tools: ToolSession, image_digest: str = ""
+) -> tuple[AgentStatus, dict, list[str]]:
     for name in [
         "github_get_recent_workflow_runs",
         "kubernetes_get_deployments",
@@ -12,7 +14,10 @@ async def review(sha: str, tools: ToolSession) -> tuple[AgentStatus, dict, list[
         "cloudwatch_search_logs",
         "cloudwatch_get_metric",
     ]:
-        await tools.call(name)
+        await tools.call(
+            name, **({"sha": sha} if name == "github_get_recent_workflow_runs" else {})
+        )
+    await tools.call("github_get_deployment_metadata", sha=sha)
     data = {e.tool: e.data for e in tools.evidence if not e.error}
     runs = [
         r
@@ -26,9 +31,10 @@ async def review(sha: str, tools: ToolSession) -> tuple[AgentStatus, dict, list[
     pods = data.get("kubernetes_get_pods", {}).get("pods", [])
     metric = data.get("cloudwatch_get_metric", {})
     migration = data.get("kubernetes_get_migration_status", {}).get("status", "unknown")
-    image_matches = deployment.get("image", "").endswith(":" + sha)
+    expected_image = "@" + image_digest if image_digest else ":" + sha
+    image_matches = deployment.get("image", "").endswith(expected_image)
     pod_health = bool(pods) and all(
-        p.get("ready") and p.get("image", "").endswith(":" + sha) for p in pods
+        p.get("ready") and p.get("image", "").endswith(expected_image) for p in pods
     )
     rollout_ok = deployment.get("desired", 0) > 0 and deployment.get("ready") == deployment.get(
         "desired"
@@ -71,6 +77,11 @@ async def review(sha: str, tools: ToolSession) -> tuple[AgentStatus, dict, list[
     )
     summary = {
         "deployment": sha,
+        "github_deployments": data.get("github_get_deployment_metadata", {}).get("deployments", []),
+        "image_digest": image_digest or None,
+        "image_provenance": "Caller-supplied CI digest; SHA-to-digest attestation is not verified"
+        if image_digest
+        else "Image tag matches requested commit SHA",
         "recommendation": recommendation,
         "pre_p95_ms": pre,
         "post_p95_ms": post,

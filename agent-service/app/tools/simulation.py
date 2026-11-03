@@ -10,7 +10,9 @@ def scenario_data(scenario: str) -> dict:
     path = FIXTURES / f"{scenario}.json"
     if path.parent != FIXTURES or not path.is_file():
         raise ValueError("Unknown simulation scenario")
-    return json.loads(path.read_text())["tools"]
+    baseline = json.loads((FIXTURES / "healthy.json").read_text())["tools"]
+    baseline.update(json.loads(path.read_text())["tools"])
+    return baseline
 
 
 class SimulationAdapter:

@@ -20,7 +20,10 @@ class Settings(BaseSettings):
     rds_identifier: str = "finance-ai-staging-postgres"
     valkey_identifier: str = "finance-ai-staging-valkey"
     metric_namespace: str = "FinanceAI"
+    alb_dimension: str = ""
+    target_group_dimension: str = ""
     github_repository: str = Field(default="", pattern=r"^$|^[\w.-]+/[\w.-]+$")
+    github_workflow_name: str = "CI"
     github_token: SecretStr = SecretStr("")
     terraform_plan_path: str = ""
     terraform_outputs_path: str = ""
