@@ -19,10 +19,15 @@ export function mockPlan(input: AdvisorInput): Plan {
   if (forbidden(q)) return { intent: 'unsupported', tools: [] };
   let simulation = input.simulation;
   if (!simulation) {
-    const amount = q.match(/(?:₹|rs\.?\s*|by\s+)([\d,]+(?:\.\d{1,2})?)/i)?.[1];
+    const clause =
+      q.match(/\bincrease\b.*?\b(?:sip|savings?)\b(.*)/)?.[1] ||
+      q.match(/\badd\b(.*)/)?.[1] ||
+      q.match(/\bemergency\s+expense\b(.*)/)?.[1] ||
+      q;
+    const amount = clause.match(/(?:₹\s*|rs\.?\s*|by\s+)(-?[\d,]+(?:\.\d+)?)/i)?.[1];
     const value = amount ? Number(amount.replace(/,/g, '')) : undefined;
     if (/reduce|cut/.test(q) && /dining|food/.test(q)) {
-      const percent = q.match(/(\d+(?:\.\d+)?)\s*%/)?.[1];
+      const percent = q.match(/(-?\d+(?:\.\d+)?)\s*%/)?.[1];
       if (percent)
         simulation = { kind: 'reduce_category', category: 'food-dining', percent: Number(percent) };
     } else if (/increase.*sip/.test(q) && value)
@@ -32,7 +37,7 @@ export function mockPlan(input: AdvisorInput): Plan {
     else if (/emergency.*expense/.test(q) && value)
       simulation = { kind: 'emergency_expense', amount: value };
     else if (/deadline/.test(q)) {
-      const months = q.match(/(?:by\s+)?(-?\d+)\s*months?/)?.[1];
+      const months = q.match(/\bdeadline\b[^\d-]*(-?\d+)\s*months?/)?.[1];
       if (months)
         simulation = {
           kind: 'change_deadline',

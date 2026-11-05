@@ -28,8 +28,10 @@ in a separately deployed, infrastructure-privileged service; sharing it would
 unnecessarily move personal finance data across that boundary. No extra service,
 database, vector store or major agent was added.
 
-The model interprets intent, selects tools, extracts explicit scenario parameters,
-and selects/orders up to three validated findings for the question. The backend
+The model interprets intent, selects tools and selects/orders up to three validated
+findings for the question. Scenario parameters are bound to explicit request fields
+or the deterministic parser; model-proposed amounts and goal selections cannot
+override them. The backend
 renders their evidence-linked explanations. OpenAI does **not** supply new financial
 amounts, formulas, recommendation prose or confidence scores. This deliberately
 constrained synthesis prevents invented numbers from reaching the answer. It is
@@ -87,7 +89,8 @@ The API accepts explicit `simulation` parameters with validated amounts,
 percentages, canonical categories and optional goal ID. The form provides the
 same controls for dining reduction and the other scenario kinds, plus a selector
 for the account’s active goals. Explicit form
-parameters override model extraction. Without a goal ID the earliest active
+parameters override model extraction. Without form parameters, only scenarios
+recognized by the deterministic parser execute; other phrasing needs the form. Without a goal ID the earliest active
 incomplete goal is selected; the API supports selecting another owned goal.
 
 Baseline capacity is the **last complete UTC calendar month's recorded surplus**,
@@ -97,7 +100,8 @@ allocate the same surplus to multiple goals simultaneously. Goal status compares
 each goal independently under that assumption. Contribution counts are rounded
 up; required monthly amounts are rounded up to the next paisa. Deadline analysis
 counts complete monthly contribution periods; a deadline before the next period
-cannot be promised. Completion dates use monthly steps; estimates beyond 100 years
+cannot be promised. A deadline change that leaves no future monthly contribution
+period is rejected rather than silently clamped. Completion dates use monthly steps; estimates beyond 100 years
 omit a date. Zero/negative surplus produces no finite completion estimate.
 
 Extra savings must come from an actual spending reduction or new funds; a scenario
@@ -131,7 +135,9 @@ bytes per model input (a conservative token bound), 600 output tokens per call,
 deadline, 25-second overall deadline, 1,200-character question and 24 KB per tool
 result. Timeout stops further investigation; incomplete evidence yields an
 insufficient-evidence answer rather than a health assurance. No autonomous loop.
-The existing authenticated chat limiter and global security/CSRF gates apply.
+Client disconnects abort pending provider calls and stop further tools. The Prisma
+read in progress remains bounded by its SQL/transaction deadlines. The existing
+authenticated chat limiter and global security/CSRF gates apply.
 
 A review stays in component memory and is replaced by the next review or cleared
 on navigation. No new conversation database, localStorage financial cache or
@@ -150,7 +156,9 @@ knowledge return explicit unsupported/insufficient-evidence responses.
 Retrieved text is untrusted educational material, separated from personal data.
 Credential patterns are redacted; descriptions, emails, sessions and credentials
 are not selected into personal tool outputs. Educational excerpts carry source
-citations and a dated-material caveat. FIN-AI's existing corpus includes dated
+citations, an optional `indexedAt` timestamp and a dated-material caveat. Index time
+is not publication/effective time and never establishes current tax/regulatory
+validity; unavailable publication dates remain explicitly unverified. FIN-AI's existing corpus includes dated
 regulatory/rate claims: it does **not** establish current rules, tax liability or
 financial suitability. No live web/regulatory refresh is implemented. Curated,
 dated primary-source ingestion is needed before stronger educational claims.
@@ -180,6 +188,8 @@ may be billable without returning usage metadata. No hard dollar-budget claim.
 Run from the repository root:
 
 ```sh
+npm --prefix backend run test:db:up
+npm --prefix backend run test:db:prepare
 npm --prefix backend run test:ci
 npm --prefix backend run --silent advisor:eval
 # For actual authorization/query checks, use the guarded isolated test database:
@@ -215,7 +225,7 @@ Executed verification and the exact file inventory are recorded in
 
 ## Remaining validation and truthful scope
 
-Live paid-model intent selection, extraction, refusal/fallback quality, measured
+Live paid-model intent selection, ranking, refusal/fallback quality, measured
 latency/token billing and external OTLP still require controlled validation.
 Production data/scale, localized month boundaries and data completeness need
 product review. No paid calls, AWS resource creation, Terraform apply, live

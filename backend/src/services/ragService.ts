@@ -11,6 +11,7 @@ export interface RetrievedChunk {
   similarity: number;
   documentTitle?: string;
   sourceType?: string;
+  indexedAt?: string;
 }
 
 export interface RAGConfig {
@@ -46,6 +47,7 @@ interface RetrievalCandidate {
   content: string;
   category: string;
   embedding: string | null;
+  updatedAt?: Date;
   document: {
     title: string;
     sourceUri: string | null;
@@ -192,6 +194,7 @@ export class RAGService {
         content: true,
         category: true,
         embedding: true,
+        updatedAt: true,
         document: {
           select: {
             title: true,
@@ -260,6 +263,7 @@ export class RAGService {
         similarity: Number(item.similarity.toFixed(4)),
         documentTitle: item.candidate.document.title,
         sourceType: item.candidate.document.sourceType,
+        indexedAt: item.candidate.updatedAt?.toISOString(),
       }));
   }
 

@@ -107,7 +107,13 @@ export interface ToolData {
   get_recent_transactions: { amount: number; category: string; type: string; date: string }[];
   simulate_savings_plan: Simulation;
   simulate_goal_change: Simulation;
-  search_finance_knowledge: { id: string; excerpt: string; source: string; educational: true }[];
+  search_finance_knowledge: {
+    id: string;
+    excerpt: string;
+    source: string;
+    indexedAt?: string;
+    educational: true;
+  }[];
 }
 export type Evidence =
   | {

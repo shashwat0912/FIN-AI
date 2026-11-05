@@ -67,6 +67,7 @@ export function validatePlan(raw: unknown): Plan {
 
 export function redact(text: string): string {
   return text
+    .replace(/\bBearer\s+[a-zA-Z0-9._~+/-]+=*/gi, 'Bearer [redacted]')
     .replace(/(?:postgres(?:ql)?:\/\/|https?:\/\/)[^\s]*:[^\s]*@[^\s]+/gi, '[redacted]')
     .replace(
       /\b(?:sk-[a-zA-Z0-9_-]{12,}|gh[pousr]_[a-zA-Z0-9_]+|github_pat_[a-zA-Z0-9_]+|(?:AKIA|ASIA)[A-Z0-9]{16}|eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+)\b/g,

@@ -37,15 +37,12 @@ async function deadline<T>(
   const abort = () => controller.abort();
   parent.addEventListener('abort', abort, { once: true });
   let timer: NodeJS.Timeout | undefined;
+  const expired = new Promise<never>((_, reject) => {
+    controller.signal.addEventListener('abort', () => reject(new Error('TIMEOUT')), { once: true });
+    timer = setTimeout(abort, ms);
+  });
   try {
-    return await Promise.race([
-      fn(controller.signal),
-      new Promise<never>((_, reject) => {
-        const fail = () => reject(new Error('TIMEOUT'));
-        controller.signal.addEventListener('abort', fail, { once: true });
-        timer = setTimeout(() => controller.abort(), ms);
-      }),
-    ]);
+    return await Promise.race([expired, fn(controller.signal)]);
   } finally {
     clearTimeout(timer);
     parent.removeEventListener('abort', abort);
@@ -54,12 +51,15 @@ async function deadline<T>(
 export async function advise(
   raw: AdvisorInput,
   tools: FinanceTools,
-  provider?: AdvisorProvider
+  provider?: AdvisorProvider,
+  signal?: AbortSignal
 ): Promise<AdvisorResponse> {
   const input = validateInput(raw);
   return timed('finance_advisor', async () => {
     count('advisor_requests_total');
-    const overall = AbortSignal.timeout(25000);
+    const overall = signal
+      ? AbortSignal.any([signal, AbortSignal.timeout(25000)])
+      : AbortSignal.timeout(25000);
     const mock = new MockAdvisorProvider();
     let active =
       provider ||
@@ -99,6 +99,12 @@ export async function advise(
         plan = await mock.plan(input);
       }
     if (input.simulation && plan.intent !== 'unsupported') plan = await mock.plan(input);
+    else if (plan.intent === 'simulation') {
+      // Model plans cannot invent scenario parameters or select an unrequested goal.
+      const requested = await mock.plan(input);
+      if (requested.intent !== 'simulation') plan = { intent: 'unsupported', tools: [] };
+      else plan.simulation = requested.simulation;
+    }
     // Required evidence survives a model selecting the maximum optional tool count.
     const mandatory: ToolName[] = [...required[plan.intent]];
     if (plan.intent === 'simulation')
@@ -213,6 +219,10 @@ export async function advise(
     };
   });
 }
-export async function adviseUser(userId: string, input: AdvisorInput): Promise<AdvisorResponse> {
-  return advise(input, new ScopedFinanceTools(userId));
+export async function adviseUser(
+  userId: string,
+  input: AdvisorInput,
+  signal?: AbortSignal
+): Promise<AdvisorResponse> {
+  return advise(input, new ScopedFinanceTools(userId), undefined, signal);
 }

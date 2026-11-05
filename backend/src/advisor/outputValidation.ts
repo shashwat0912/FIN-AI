@@ -103,7 +103,13 @@ const schemas: Record<ToolName, Joi.Schema> = {
   search_finance_knowledge: Joi.array()
     .max(3)
     .items(
-      Joi.object({ id: text, excerpt: text, source: text, educational: Joi.valid(true).required() })
+      Joi.object({
+        id: text,
+        excerpt: text,
+        source: text,
+        indexedAt: date.optional(),
+        educational: Joi.valid(true).required(),
+      })
     ),
 };
 export function validateOutput<K extends ToolName>(name: K, raw: unknown): ToolData[K] {

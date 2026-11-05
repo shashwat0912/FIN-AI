@@ -7,6 +7,7 @@ import { validateOutput } from '../../src/advisor/outputValidation';
 import { goalProjection, simulateFinance } from '../../src/services/financeSimulationService';
 import type { FinanceTools, ToolName } from '../../src/advisor/types';
 import type OpenAI from 'openai';
+import { Settings } from 'luxon';
 
 function fixtureTools(): FinanceTools {
   const data = fixtureData();
@@ -128,20 +129,69 @@ describe('Finance Advisor deterministic regression', () => {
           'get_category_breakdown',
           'get_goal_progress',
         ] as ToolName[],
-        simulation: { kind: 'increase_savings' as const, amount: 3000 },
+        simulation: { kind: 'increase_savings' as const, amount: 900000 },
       }),
       select: async () => ['simulation_impact'],
     };
     const result = await advise({ question: 'Increase savings by ₹3000' }, tools, provider);
     expect(result.tools_used.length).toBeLessThanOrEqual(6);
     expect(result.simulations[0].scenarioMonthlySavings).toBe(23000);
+    expect(JSON.stringify(result)).not.toContain('900000');
     const invalid = await advise(
       { question: 'Reduce dining by 200%' },
       fixtureTools(),
       new MockAdvisorProvider()
     );
     expect(invalid.financial_health).toBe('unsupported');
+    const negative = await advise(
+      { question: 'Reduce dining by -25%' },
+      fixtureTools(),
+      new MockAdvisorProvider()
+    );
+    expect(negative.financial_health).toBe('unsupported');
+    const mock = new MockAdvisorProvider();
+    expect(
+      (await mock.plan({ question: 'My salary is ₹200000. Can I increase my SIP by ₹5000?' }))
+        .simulation
+    ).toEqual({ kind: 'increase_sip', amount: 5000 });
+    expect(
+      (await mock.plan({ question: 'I saved for 6 months. Change deadline by 3 months.' }))
+        .simulation?.deadlineMonths
+    ).toBe(3);
+    expect((await mock.plan({ question: 'Increase savings by ₹3000.123' })).intent).toBe(
+      'unsupported'
+    );
   });
+});
+it('propagates client cancellation and stops subsequent tools without exposing the error', async () => {
+  vi.useFakeTimers();
+  const controller = new AbortController();
+  const tools = fixtureTools();
+  let observed: AbortSignal | undefined;
+  const provider = {
+    name: 'openai' as const,
+    plan: vi.fn((_input, signal: AbortSignal) => {
+      observed = signal;
+      return new Promise<never>((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(new Error('private cancellation payload')), {
+          once: true,
+        });
+      });
+    }),
+    select: vi.fn().mockResolvedValue([]),
+  };
+  const pending = advise({ question: 'Summarize my finances' }, tools, provider, controller.signal);
+  controller.abort();
+  try {
+    expect(observed?.aborted).toBe(true);
+  } finally {
+    await vi.runAllTimersAsync();
+    await pending;
+  }
+  const result = await pending;
+  expect(result.financial_health).toBe('insufficient_evidence');
+  expect(tools.call).not.toHaveBeenCalled();
+  expect(JSON.stringify(result)).not.toContain('private cancellation payload');
 });
 describe('deterministic simulation calculations', () => {
   const data = fixtureData();
@@ -177,8 +227,29 @@ describe('deterministic simulation calculations', () => {
     expect(simulate({ kind: 'change_deadline', deadlineMonths: 6 })).toMatchObject({
       requiredMonthlySavings: 13333.34,
     });
+    expect(() => simulate({ kind: 'change_deadline', deadlineMonths: -12 })).toThrow(
+      'INVALID_INPUT'
+    );
   });
   it('uses exact decimal rounding and handles absent/overdue/completed goals', () => {
+    const zone = Settings.defaultZone;
+    Settings.defaultZone = 'America/New_York';
+    try {
+      expect(
+        goalProjection(
+          {
+            id: 'g',
+            targetAmount: 100,
+            currentAmount: 0,
+            targetDate: new Date('2026-11-05T00:00:00Z'),
+          },
+          200,
+          new Date('2026-10-05T00:00:00Z')
+        )
+      ).toMatchObject({ monthsRemaining: 1, monthlyRequired: 100 });
+    } finally {
+      Settings.defaultZone = zone;
+    }
     expect(
       goalProjection(
         {
@@ -235,6 +306,21 @@ describe('OpenAI provider contract (mock SDK, no network)', () => {
     });
     expect(usage).toHaveBeenCalledWith({ input: 100, output: 30 });
     create.mockResolvedValue({
+      choices: [
+        {
+          finish_reason: 'stop',
+          message: { content: JSON.stringify({ recommendationIds: ['real'], amount: 900000 }) },
+        },
+      ],
+    });
+    await expect(
+      provider.select(
+        'review',
+        [{ id: 'real', text: 'Recorded surplus.', evidenceIds: ['e1'] }],
+        new AbortController().signal
+      )
+    ).rejects.toThrow('INVALID_MODEL_OUTPUT');
+    create.mockResolvedValue({
       choices: [{ finish_reason: 'stop', message: { content: '{"recommendationIds":["fake"]}' } }],
     });
     await expect(
@@ -270,6 +356,7 @@ describe('OpenAI provider contract (mock SDK, no network)', () => {
     expect(redact('ASIA' + '1'.repeat(16))).toBe('[redacted]');
     expect(redact('github_pat_' + 'a'.repeat(20))).toBe('[redacted]');
     expect(redact('SMTP_PASS="two words"')).not.toContain('two words');
+    expect(redact('Authorization: Bearer private-value')).not.toContain('private-value');
     expect(redact('{"api_key":"two words"}')).not.toContain('two words');
   });
 });

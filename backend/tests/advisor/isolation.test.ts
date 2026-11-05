@@ -6,6 +6,7 @@ import prisma from '../../src/config/database';
 import { config } from '../../src/config/env';
 import advisorRoutes from '../../src/routes/advisor';
 import { ScopedFinanceTools } from '../../src/advisor/tools';
+import { Settings } from 'luxon';
 const integration = process.env.RUN_INTEGRATION_TESTS === 'true' ? describe : describe.skip;
 integration('Advisor authenticated PostgreSQL isolation', () => {
   const app = express();
@@ -108,8 +109,26 @@ integration('Advisor authenticated PostgreSQL isolation', () => {
       netAmount: 70000,
     });
     expect(results[5]).toMatchObject({ total: 10000, inferred: true });
+    const zone = Settings.defaultZone;
+    Settings.defaultZone = 'America/New_York';
+    try {
+      const trends = await new ScopedFinanceTools(own, new Date('2026-10-03T12:00:00Z')).call(
+        'get_spending_trends',
+        {},
+        signal
+      );
+      expect(trends.previous.start).toBe('2026-09-01T00:00:00.000Z');
+    } finally {
+      Settings.defaultZone = zone;
+    }
     expect(JSON.stringify(results)).not.toMatch(/9876543|FOREIGN_|private transaction narrative/);
-    const snapshots = await prisma.transaction.count({ where: { userId: own } });
+    const snapshot = () =>
+      Promise.all([
+        prisma.transaction.findMany({ where: { userId: own }, orderBy: { id: 'asc' } }),
+        prisma.budget.findMany({ where: { userId: own }, orderBy: { id: 'asc' } }),
+        prisma.goal.findMany({ where: { userId: own }, orderBy: { id: 'asc' } }),
+      ]);
+    const before = await snapshot();
     await expect(
       tools.call(
         'simulate_savings_plan',
@@ -127,7 +146,7 @@ integration('Advisor authenticated PostgreSQL isolation', () => {
       baselineMonthlySavings: 70000,
       scenarioMonthlySavings: 75000,
     });
-    expect(await prisma.transaction.count({ where: { userId: own } })).toBe(snapshots);
+    expect(await snapshot()).toEqual(before);
   });
   it('returns evidence-backed advice through the actual authenticated route', async () => {
     const response = await request(app)

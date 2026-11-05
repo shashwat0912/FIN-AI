@@ -65,7 +65,10 @@ function evidenceLines(e: Evidence): string[] {
       );
     case "search_finance_knowledge":
       return e.data.length
-        ? e.data.map((k) => `Educational source: ${k.source}`)
+        ? e.data.map(
+            (k) =>
+              `Educational source: ${k.source}. ${k.indexedAt ? `Indexed ${k.indexedAt.slice(0, 10)}; ` : ""}Source publication date unverified.`,
+          )
         : ["No sufficient knowledge found."];
     case "simulate_savings_plan":
     case "simulate_goal_change":

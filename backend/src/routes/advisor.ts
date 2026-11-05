@@ -18,13 +18,22 @@ router.post('/', async (req: AuthenticatedRequest, res) => {
     });
     return;
   }
+  const controller = new AbortController();
+  const disconnected = () => {
+    if (!res.writableEnded) controller.abort();
+  };
+  res.on('close', disconnected);
   try {
-    const data = await adviseUser(req.user!.id, input);
+    const data = await adviseUser(req.user!.id, input, controller.signal);
+    if (controller.signal.aborted) return;
     res.json({ success: true, data, timestamp: new Date().toISOString() });
   } catch {
+    if (controller.signal.aborted) return;
     res
       .status(503)
       .json({ success: false, message: 'Finance Advisor is unavailable. Please try again.' });
+  } finally {
+    res.off('close', disconnected);
   }
 });
 export default router;

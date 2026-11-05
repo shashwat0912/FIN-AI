@@ -35,13 +35,21 @@ afterAll(async () => {
 });
 it('exports only bounded metadata, including on provider and tool exceptions', async () => {
   const secret = 'PRIVATE_FINANCIAL_PROMPT_AND_DB_URL';
+  const privateMarkers = [
+    'person@example.com',
+    ['eyJ' + 'a'.repeat(20), 'b'.repeat(20), 'c'.repeat(20)].join('.'),
+  ];
   const data = fixtureData();
   const tools: FinanceTools = {
     call: async () => {
       throw new Error(`${secret} postgres://user:private@database/db`);
     },
   };
-  await advise({ question: `Review my finances ${secret}` }, tools, new MockAdvisorProvider());
+  await advise(
+    { question: `Review my finances ${secret} ${privateMarkers.join(' ')}` },
+    tools,
+    new MockAdvisorProvider()
+  );
   await advise(
     { question: `How are my finances? ${secret}` },
     { call: async () => data.get_financial_summary as never },
@@ -64,6 +72,7 @@ it('exports only bounded metadata, including on provider and tool exceptions', a
   );
   const metricsJson = JSON.stringify(exportedMetrics.getMetrics());
   expect(spansJson + metricsJson).not.toContain(secret);
+  for (const marker of privateMarkers) expect(spansJson + metricsJson).not.toContain(marker);
   expect(spansJson + metricsJson).not.toContain('postgres://');
   expect(spansJson + metricsJson).not.toContain('totalIncome');
   expect(spans.getFinishedSpans().some(s => s.name === 'finance_advisor')).toBe(true);

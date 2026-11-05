@@ -194,6 +194,55 @@ describe("Finance Advisor workspace", () => {
       screen.queryByText("Recommended next steps"),
     ).not.toBeInTheDocument();
   });
+  it("distinguishes knowledge indexing dates from current financial facts", async () => {
+    const response = await vi
+      .mocked(apiClient.getFinanceAdvice)
+      .getMockImplementation()!({ question: "test" });
+    vi.mocked(apiClient.getFinanceAdvice).mockResolvedValue({
+      ...response,
+      summary: "Educational information from FIN-AI.",
+      financial_health: "educational",
+      confidence: 0.5,
+      evidence: [
+        {
+          id: "k1",
+          tool: "search_finance_knowledge",
+          status: "ok",
+          source: "FIN-AI knowledge",
+          observedAt: "2026-11-05T00:00:00Z",
+          data: [
+            {
+              id: "source1",
+              source: "Dated guide",
+              excerpt: "Educational excerpt.",
+              indexedAt: "2024-01-01T00:00:00Z",
+              educational: true,
+            },
+          ],
+        },
+      ],
+      recommendations: [
+        {
+          id: "knowledge_0",
+          text: "Educational excerpt; source may be dated.",
+          evidenceIds: ["k1"],
+        },
+      ],
+      tools_used: ["search_finance_knowledge"],
+    });
+    const user = userEvent.setup();
+    render(<AiAdvisor />);
+    await user.type(
+      screen.getByLabelText("Your financial question"),
+      "What is PPF?",
+    );
+    await user.click(screen.getByRole("button", { name: "Ask FinanceAI" }));
+    expect(
+      await screen.findByText(
+        "Educational source: Dated guide. Indexed 2024-01-01; Source publication date unverified.",
+      ),
+    ).toBeInTheDocument();
+  });
   it("handles errors without rendering sensitive provider error messages", async () => {
     vi.mocked(apiClient.getFinanceAdvice).mockRejectedValue(
       new Error("postgres://secret@database"),

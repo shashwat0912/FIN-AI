@@ -57,6 +57,7 @@ export class ScopedFinanceTools implements FinanceTools {
         id: c.id,
         excerpt: redact(c.content),
         source: redact(c.source || 'FIN-AI knowledge'),
+        ...(c.indexedAt ? { indexedAt: c.indexedAt } : {}),
         educational: true as const,
       })) as ToolData[K];
     }
@@ -151,7 +152,9 @@ export class ScopedFinanceTools implements FinanceTools {
           case 'get_spending_trends': {
             const currentRange = range(this.asOf);
             currentRange.end = this.asOf;
-            const previousStart = DateTime.fromJSDate(currentRange.start).minus({ months: 1 });
+            const previousStart = DateTime.fromJSDate(currentRange.start, { zone: 'utc' }).minus({
+              months: 1,
+            });
             const previousEnd = previousStart.plus({
               milliseconds: this.asOf.getTime() - currentRange.start.getTime(),
             });

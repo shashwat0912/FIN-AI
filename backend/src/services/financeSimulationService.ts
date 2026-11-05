@@ -22,7 +22,10 @@ export function goalProjection(
     ? Math.max(
         0,
         Math.floor(
-          DateTime.fromJSDate(goal.targetDate).diff(DateTime.fromJSDate(asOf), 'months').months
+          DateTime.fromJSDate(goal.targetDate, { zone: 'utc' }).diff(
+            DateTime.fromJSDate(asOf, { zone: 'utc' }),
+            'months'
+          ).months
         )
       )
     : null;
@@ -85,10 +88,12 @@ export function simulateFinance(
       : DateTime.fromJSDate(asOf, { zone: 'utc' }).plus({ months }).toISODate();
   const deadline =
     input.kind === 'change_deadline'
-      ? Math.max(0, (goal.monthsRemaining ?? 0) + input.deadlineMonths!)
+      ? (goal.monthsRemaining ?? 0) + input.deadlineMonths!
       : goal.monthsRemaining;
   if (input.kind === 'change_deadline' && goal.monthsRemaining === null)
     throw new Error('INSUFFICIENT_DATA');
+  if (input.kind === 'change_deadline' && deadline !== null && deadline <= 0)
+    throw new Error('INVALID_INPUT');
   const required =
     deadline === null || deadline === 0
       ? null

@@ -1,9 +1,10 @@
 # Finance Advisor validation
 
 Branch: `feat/finance-advisor-agent`, based on merged main `8227be2` (PR #25).
-No Cloud Ops architecture, infrastructure manifest, schema migration or application
-replacement is included. No remote push, PR creation, merge, deployment, Terraform
-apply, DNS change, live remediation or paid LLM call is part of this task.
+The initial local implementation ended at `690116b`. Final review publishes only
+the feature branch as a draft PR. Cloud Ops architecture and infrastructure
+manifests are unchanged. No merge, deployment, Terraform apply, DNS change, live
+remediation or paid LLM call is authorized by this review.
 
 ## Actual deterministic evaluation
 
@@ -12,6 +13,9 @@ not hand-edited. The committed [JSON](finance-advisor-evaluation.json) contains
 per-scenario outcomes and the measured summary.
 
 - Scenarios and correct outcomes: **22/22**.
+
+**22/22 = deterministic synthetic regression coverage, NOT production financial-advice accuracy.**
+
 - Required tool selection, data consistency, reference recommendation relevance
   and citation coverage: **22/22** each.
 - Deterministic simulations: **5/5**.
@@ -37,10 +41,10 @@ missing budget and missing knowledge produce insufficient-evidence responses.
 
 | Check                                                         | Actual local result                                                                                  |
 | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Root clean `npm ci`, typecheck, tests, build                  | Passed; 66 frontend tests                                                                            |
+| Root clean `npm ci`, typecheck, tests, build                  | Passed; 67 frontend tests                                                                            |
 | Backend clean `npm ci`, Prisma generation, typecheck, build   | Passed with the final pinned lockfile                                                                |
-| Backend full unit/service suite                               | 218 passed; 16 skipped (13 existing integration skips plus three new DB tests run separately)        |
-| Final Advisor/provider/privacy focused rerun                  | 12 passed, including the additional credential-pattern assertions                                    |
+| Backend full unit/service suite                               | 221 passed; 16 skipped (13 existing integration skips plus three new DB tests run separately)        |
+| Advisor/provider/privacy/HTTP tests                           | 15 passed within the full suite, including cancellation and failure-isolation checks                 |
 | Guarded PostgreSQL integration suite                          | 17 passed, including three Advisor authentication/ownership/no-write checks                          |
 | Deterministic Advisor evaluation                              | 22/22 outcomes; five simulations and five abstentions correct                                        |
 | Browser smoke                                                 | Passed: login, ledger, legacy advice, new Advisor UI, desktop/mobile screenshots, refresh and logout |
@@ -50,7 +54,7 @@ missing budget and missing knowledge produce insufficient-evidence responses.
 | Linux Node 20 compatibility runtime                           | 22/22 outcomes passed; production remains Node 22                                                    |
 | Trivy image HIGH/CRITICAL, ignore-unfixed, exit-code 1        | Passed; zero fixable HIGH/CRITICAL findings                                                          |
 | Backend runtime npm audit HIGH gate                           | Passed; zero HIGH/CRITICAL, two moderate findings remain                                             |
-| Full branch-history secret scan                               | Passed; 85 commits scanned, zero leaks                                                               |
+| Full branch-history secret scan                               | Passed; Zero leaks; rechecked before push                                                            |
 | Cloud Ops regression                                          | 66 pytest tests passed with isolated PostgreSQL; 24/24 evaluation outcomes                           |
 | Terraform validation/mock tests                               | Passed across existing roots; no apply or AWS resources                                              |
 | Helm lint, production values and static Kubernetes checks     | Passed                                                                                               |
@@ -98,14 +102,39 @@ Node 22 image. Compatible SDK bridge/deprecation warnings remain.
 Existing development advisories and two moderate backend runtime advisories are
 not represented as resolved; the unchanged runtime HIGH threshold is the gate.
 
+## Final pre-PR review corrections
+
+Four failure cases were reproduced before the corrections: a provider could replace a
+requested savings increment with a different amount; request cancellation did not
+reach pending calls; a deadline change into the past silently clamped to zero; and server timezone/DST
+could change goal month counts. Goal and trend windows now explicitly use UTC.
+Scenario parameters now come from explicit request fields or deterministic parsing,
+HTTP disconnects propagate an abort signal through orchestration, and impossible
+deadline shifts return a structured error. Negative percentages and excess decimal
+precision are rejected; unrelated salary/month counts are not scenario parameters.
+
+Tests reject provider-supplied extra amount/prose fields, retain the six-tool limit,
+prove an unrelated health request succeeds while a provider call is pending, and
+verify that disconnect aborts it. Real PostgreSQL tests retain negative ownership
+cases and compare complete transaction/budget/goal snapshots before and after
+simulation. Exported telemetry checks include email/JWT markers and exception paths;
+Bearer credentials are redacted before model context. Knowledge index time is
+retained separately from source publication/effective time, which remains unverified.
+
+The current review uses fetched `origin/main` (`8227be2`). The local `main` ref is
+older and is left untouched. Generated traces, Playwright output, actual environment
+files and local absolute documentation paths are excluded from the branch diff.
+
 ## CI and readiness
 
 Existing backend, frontend, Docker and security jobs retain their checks. Added:
 Advisor lint/format, unit/provider/privacy tests, actual PostgreSQL/API isolation
 checks, browser coverage and a deterministic evaluation step/JSON artifact.
-Automated runs force mock providers and local retrieval. Hosted CI has not been
-run for this local branch. A draft PR can be considered after local checks pass;
-merge requires normal review and green hosted checks. Production-readiness is
+Automated runs force mock providers and local retrieval. The draft PR checks show
+the current hosted status; the table above records local verification. The existing
+Terraform workflow filters out finance-only changes, so it can be dispatched on
+this branch for the requested hosted validation without changing its path filters.
+Merge requires normal review and green hosted checks. Production readiness is
 not established by these tests.
 
 Remaining limitations and live/paid validation: broader intent/extraction quality,
@@ -148,7 +177,9 @@ or measured production recommendation accuracy.
 - [backend/src/services/v1/v1FinancialEngine.ts](../backend/src/services/v1/v1FinancialEngine.ts)
 - [backend/tests/advisor/advisor.test.ts](../backend/tests/advisor/advisor.test.ts)
 - [backend/tests/advisor/isolation.test.ts](../backend/tests/advisor/isolation.test.ts)
+- [backend/tests/advisor/route.test.ts](../backend/tests/advisor/route.test.ts)
 - [backend/tests/advisor/telemetry.test.ts](../backend/tests/advisor/telemetry.test.ts)
+- [backend/tests/services/ragService.test.ts](../backend/tests/services/ragService.test.ts)
 - [backend/tests/setup/testEnv.ts](../backend/tests/setup/testEnv.ts)
 - [docs/FINANCE_ADVISOR_AGENT.md](../docs/FINANCE_ADVISOR_AGENT.md)
 - [docs/FINANCE_ADVISOR_VALIDATION.md](../docs/FINANCE_ADVISOR_VALIDATION.md)

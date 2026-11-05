@@ -53,6 +53,7 @@ describe('RAGService retrieval fallback', () => {
         content: 'Section 80C allows deduction up to 1.5 lakh for ELSS and PPF.',
         category: 'tax_planning',
         embedding: null,
+        updatedAt: new Date('2024-01-01T00:00:00Z'),
         document: { title: 'Tax Guide', sourceUri: 'seed://tax', sourceType: 'knowledge_base' },
       },
       {
@@ -60,9 +61,13 @@ describe('RAGService retrieval fallback', () => {
         content: 'Nifty index funds are good for long-term equity investing.',
         category: 'investment',
         embedding: null,
-        document: { title: 'Investment Guide', sourceUri: 'seed://invest', sourceType: 'knowledge_base' },
+        document: {
+          title: 'Investment Guide',
+          sourceUri: 'seed://invest',
+          sourceType: 'knowledge_base',
+        },
       },
-    ] as any);
+    ] as unknown as Awaited<ReturnType<typeof prisma.ragChunk.findMany>>);
 
     const result = await ragService.retrieveContext('How can I save tax under 80C?', {
       topK: 1,
@@ -72,5 +77,6 @@ describe('RAGService retrieval fallback', () => {
     expect(result).toHaveLength(1);
     expect(result[0].category).toBe('tax_planning');
     expect(result[0].similarity).toBeGreaterThan(0);
+    expect(result[0].indexedAt).toBe('2024-01-01T00:00:00.000Z');
   });
 });
