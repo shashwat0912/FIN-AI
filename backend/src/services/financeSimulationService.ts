@@ -86,12 +86,22 @@ export function simulateFinance(
     months === null || months > 1200
       ? null
       : DateTime.fromJSDate(asOf, { zone: 'utc' }).plus({ months }).toISODate();
+  if (input.kind === 'change_deadline' && !goal.targetDate) throw new Error('INSUFFICIENT_DATA');
   const deadline =
     input.kind === 'change_deadline'
-      ? (goal.monthsRemaining ?? 0) + input.deadlineMonths!
+      ? goalProjection(
+          {
+            id: goal.id,
+            targetAmount: goal.target,
+            currentAmount: goal.current,
+            targetDate: DateTime.fromISO(goal.targetDate!, { zone: 'utc' })
+              .plus({ months: input.deadlineMonths! })
+              .toJSDate(),
+          },
+          baseline.netAmount,
+          asOf
+        ).monthsRemaining
       : goal.monthsRemaining;
-  if (input.kind === 'change_deadline' && goal.monthsRemaining === null)
-    throw new Error('INSUFFICIENT_DATA');
   if (input.kind === 'change_deadline' && deadline !== null && deadline <= 0)
     throw new Error('INVALID_INPUT');
   const required =

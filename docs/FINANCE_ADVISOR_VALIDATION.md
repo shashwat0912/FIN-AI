@@ -110,7 +110,8 @@ reach pending calls; a deadline change into the past silently clamped to zero; a
 could change goal month counts. Goal and trend windows now explicitly use UTC.
 Scenario parameters now come from explicit request fields or deterministic parsing,
 HTTP disconnects propagate an abort signal through orchestration, and impossible
-deadline shifts return a structured error. Negative percentages and excess decimal
+deadline shifts return a structured error. Shifts use the stored target date,
+including overdue goals, rather than their clamped remaining-month count. Negative percentages and excess decimal
 precision are rejected; unrelated salary/month counts are not scenario parameters.
 
 Tests reject provider-supplied extra amount/prose fields, retain the six-tool limit,
@@ -126,6 +127,18 @@ older and is left untouched. Generated traces, Playwright output, actual environ
 files and local absolute documentation paths are excluded from the branch diff.
 
 ## CI and readiness
+
+The first draft-PR run found two failures missed locally. The frontend Docker
+context excluded its shared public Advisor type contract; the ignore rules now
+include only that file from the backend. An exported-context assertion confirms
+that no other backend files enter the frontend build, and the image builds.
+The Cloud Ops image scan found fixable HIGH findings in cached Debian `apt` and
+`libapt-pkg6.0` packages (CVE-2026-109518). Its existing security-upgrade base
+stage is now rebuilt on every hosted run instead of reusing that cached layer.
+[Debian identifies 2.6.2 as the fixed Bookworm version](https://security-tracker.debian.org/tracker/CVE-2026-109518). The failed frontend build
+also prevented the backend image from being built, causing a secondary missing-
+image scan error. Scan severities, failure thresholds and existing gates remain
+unchanged; final hosted checks must validate both corrected builds.
 
 Existing backend, frontend, Docker and security jobs retain their checks. Added:
 Advisor lint/format, unit/provider/privacy tests, actual PostgreSQL/API isolation
@@ -153,6 +166,8 @@ or measured production recommendation accuracy.
 
 ## Exact changed-file inventory
 
+- [.dockerignore](../.dockerignore)
+- [.github/workflows/agent-service.yml](../.github/workflows/agent-service.yml)
 - [.github/workflows/ci.yml](../.github/workflows/ci.yml)
 - [README.md](../README.md)
 - [backend/.env.example](../backend/.env.example)

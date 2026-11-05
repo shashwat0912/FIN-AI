@@ -230,6 +230,24 @@ describe('deterministic simulation calculations', () => {
     expect(() => simulate({ kind: 'change_deadline', deadlineMonths: -12 })).toThrow(
       'INVALID_INPUT'
     );
+    expect(() =>
+      simulateFinance(
+        { kind: 'change_deadline', deadlineMonths: 6 },
+        data.get_financial_summary,
+        data.get_category_breakdown,
+        { ...goal, targetDate: '2020-01-03T12:00:00Z', monthsRemaining: 0 },
+        asOf
+      )
+    ).toThrow('INVALID_INPUT');
+    expect(
+      simulateFinance(
+        { kind: 'change_deadline', deadlineMonths: 6 },
+        data.get_financial_summary,
+        data.get_category_breakdown,
+        { ...goal, targetDate: '2026-10-03T12:00:00Z', monthsRemaining: 0 },
+        asOf
+      ).requiredMonthlySavings
+    ).toBe(48000);
   });
   it('uses exact decimal rounding and handles absent/overdue/completed goals', () => {
     const zone = Settings.defaultZone;
