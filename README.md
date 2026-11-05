@@ -278,3 +278,13 @@ and retained engineering history are described in
 
 No license has been selected for this repository. Until one is added, normal
 copyright restrictions apply.
+
+## Finance Advisor Agent
+
+The existing Advisor workspace now supports evidence-backed financial reviews and
+deterministic savings/goal simulations through the authenticated product backend.
+The LLM interprets intent and organizes validated recommendations; FIN-AI services
+compute the amounts. Mock mode is the zero-cost default. There are no transfers,
+trades or autonomous financial decisions. Cloud Ops remains a separate platform
+capability. See [architecture, tools, limits and safety](docs/FINANCE_ADVISOR_AGENT.md)
+and [actual validation results](docs/FINANCE_ADVISOR_VALIDATION.md).
