@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { MessageCircle, Send } from "lucide-react";
+import { Send } from "lucide-react";
 import { apiClient, type AiHistoryItem } from "../lib/api";
-import { useLanguage } from "../context/LanguageContext";
-import { logger } from "../utils/logger";
 import {
   Button,
   EmptyState,
@@ -10,257 +8,426 @@ import {
   InlineNotice,
 } from "../components/ui/PrivateLedger";
 import { ledgerControlClass } from "../styles/tokens";
-import type { AiAdvice } from "../types";
+import type {
+  AdvisorResponse,
+  SimulationInput,
+  Evidence,
+} from "../../backend/src/advisor/types";
 
-const QUICK_QUESTIONS = [
-  "Summarize this month",
-  "Why is food spending high?",
-  "How can I reduce spending?",
+const QUESTIONS = [
+  "How am I doing financially this month?",
+  "Which categories are hurting my budget?",
+  "If I reduce dining spend by 25%, how much sooner can I reach my goal?",
 ];
-
-const formatSessionDate = (value: string) =>
-  new Intl.DateTimeFormat(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(value));
-
-const getErrorMessage = (error: unknown, fallback: string) =>
-  error instanceof Error ? error.message : fallback;
-
+const money = (n: number) =>
+  `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+function evidenceLines(e: Evidence): string[] {
+  if (e.status === "error")
+    return [
+      "This source could not be used. Try again or add the missing data.",
+    ];
+  switch (e.tool) {
+    case "get_financial_summary":
+      return [
+        `Income ${money(e.data.totalIncome)} · Expenses ${money(e.data.totalExpenses)} · Surplus ${money(e.data.netAmount)}`,
+        `${e.data.transactionCount} recorded transactions · ${e.data.start.slice(0, 10)} to ${e.data.end.slice(0, 10)}`,
+      ];
+    case "get_budget_status":
+      return e.data.length
+        ? e.data.map(
+            (b) =>
+              `${b.category}: ${money(b.spent)} / ${money(b.amount)} · ${b.status === "UNMAPPED" ? "Category mapping needed" : b.status.replace(/_/g, " ").toLowerCase()}`,
+          )
+        : ["No active budgets recorded."];
+    case "get_goal_progress":
+      return e.data.length
+        ? e.data.map(
+            (g) =>
+              `${g.name}: remaining ${money(g.remaining)} · ${g.monthlyRequired === null ? "Deadline needed for a monthly target" : `${money(g.monthlyRequired)} / month required`}`,
+          )
+        : ["No active goals recorded."];
+    case "get_category_breakdown":
+      return e.data.map((c) => `${c.category}: ${money(c.amount)}`);
+    case "get_spending_trends":
+      return [
+        e.data.comparable
+          ? `Matched-window expense change: ${money(e.data.expenseChange)}`
+          : "Not enough history for a matched-window comparison.",
+      ];
+    case "get_recurring_expenses":
+      return [
+        `Inferred recurring categories: ${money(e.data.total)} / month. Review before treating these as subscriptions.`,
+      ];
+    case "get_recent_transactions":
+      return e.data.map(
+        (t) =>
+          `${t.date.slice(0, 10)} · ${t.category} · ${money(t.amount)} ${t.type.toLowerCase()}`,
+      );
+    case "search_finance_knowledge":
+      return e.data.length
+        ? e.data.map((k) => `Educational source: ${k.source}`)
+        : ["No sufficient knowledge found."];
+    case "simulate_savings_plan":
+    case "simulate_goal_change":
+      return [
+        `Scenario monthly savings: ${money(e.data.scenarioMonthlySavings)}`,
+      ];
+  }
+}
+const labels: Record<Evidence["tool"], string> = {
+  get_financial_summary: "Recorded cash flow",
+  get_budget_status: "Budget limits and spending",
+  get_goal_progress: "Goal progress",
+  get_category_breakdown: "Spending categories",
+  get_spending_trends: "Spending comparison",
+  get_recurring_expenses: "Recurring expense candidates",
+  get_recent_transactions: "Recent activity",
+  search_finance_knowledge: "Educational knowledge",
+  simulate_savings_plan: "Savings scenario",
+  simulate_goal_change: "Goal scenario",
+};
 export default function AiAdvisor() {
-  const { t } = useLanguage();
+  const [history, setHistory] = useState<AiHistoryItem[]>([]);
+  const [goals, setGoals] = useState<{ id: string; name: string }[]>([]);
+  const [goalId, setGoalId] = useState("");
+  useEffect(() => {
+    let active = true;
+    apiClient
+      .getAiHistory()
+      .then((rows) => {
+        if (active) setHistory(rows);
+      })
+      .catch(() => undefined);
+    apiClient
+      .getGoals(1, 20, "ACTIVE")
+      .then((result) => {
+        if (active) setGoals(result.data);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
   const [query, setQuery] = useState("");
-  const [advice, setAdvice] = useState<AiAdvice | null>(null);
-  const [sessions, setSessions] = useState<AiHistoryItem[]>([]);
+  const [answer, setAnswer] = useState<AdvisorResponse | null>(null);
+  const [lastQuestion, setLastQuestion] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const loadAiHistory = async () => {
-      try {
-        setError(null);
-        const history = await apiClient.getAiHistory();
-        setSessions(history || []);
-      } catch (requestError: unknown) {
-        logger.error(
-          "Error loading AI history",
-          requestError instanceof Error ? requestError : undefined,
-        );
-        setError(t("failed-load-ai-history"));
-        setSessions([]);
-      }
-    };
-
-    loadAiHistory();
-  }, [t]);
-
+  const [kind, setKind] = useState<SimulationInput["kind"] | "">("");
+  const [value, setValue] = useState("3000");
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    const trimmedQuery = query.trim();
-    if (!trimmedQuery || loading) return;
-
+    if (!query.trim() || loading) return;
+    let simulation: SimulationInput | undefined;
+    if (kind)
+      simulation =
+        kind === "reduce_category"
+          ? { kind, percent: Number(value), category: "food-dining" }
+          : kind === "change_deadline"
+            ? { kind, deadlineMonths: Number(value) }
+            : { kind, amount: Number(value) };
+    if (simulation && goalId) simulation.goalId = goalId;
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      setError(null);
-      const response = await apiClient.getAiAdvice(trimmedQuery);
-      setAdvice(response);
-      setSessions((current) => [
-        {
-          id: Date.now().toString(),
-          query: trimmedQuery,
-          response: response.advice,
-          category: response.category,
-          createdAt: new Date().toISOString(),
-        },
-        ...current,
-      ]);
+      const response = await apiClient.getFinanceAdvice({
+        question: query.trim(),
+        ...(simulation ? { simulation } : {}),
+      });
+      setAnswer(response);
+      setLastQuestion(query.trim());
       setQuery("");
-    } catch (requestError: unknown) {
-      logger.error(
-        "Error getting AI advice",
-        requestError instanceof Error ? requestError : undefined,
-      );
-      setError(getErrorMessage(requestError, t("failed-get-ai-advice")));
+    } catch {
+      setError("Could not prepare your financial review. Please try again.");
     } finally {
       setLoading(false);
     }
   };
-
   return (
     <div className="space-y-8" aria-busy={loading}>
       <FolioHeader
-        title="AI Advisor"
-        description="Ask focused questions about your spending, budgets, and recorded financial activity."
+        title="Finance Advisor"
+        description="Understand your recorded finances and test a plan before making a decision."
       />
-
-      <section aria-labelledby="advisor-workspace-heading">
-        <div className="flex flex-col gap-3 border-b border-ledger-border pb-5 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-sm font-medium text-accent">Advisor workspace</p>
-            <h2
-              id="advisor-workspace-heading"
-              className="mt-1 text-xl font-semibold tracking-[-0.02em] text-ink"
-            >
-              What would you like to understand?
-            </h2>
-          </div>
-          <p className="text-xs text-ink-muted">
-            Uses your FinanceAI activity · {sessions.length.toLocaleString()}{" "}
-            previous {sessions.length === 1 ? "conversation" : "conversations"}
-          </p>
+      <form
+        onSubmit={handleSubmit}
+        className="space-y-4 border-b border-ledger-border pb-6"
+      >
+        <label
+          htmlFor="advisor-question"
+          className="block text-sm font-medium text-ink"
+        >
+          Your financial question
+        </label>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <input
+            id="advisor-question"
+            className={`${ledgerControlClass} min-h-11 min-w-0 sm:flex-1`}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            maxLength={1200}
+            minLength={3}
+            required
+            disabled={loading}
+            placeholder="Ask about this month, a budget, or your next goal"
+            autoComplete="off"
+          />
+          <Button type="submit" disabled={loading || query.trim().length < 3}>
+            <Send className="h-4 w-4" aria-hidden="true" />
+            {loading ? "Reviewing…" : "Ask FinanceAI"}
+          </Button>
         </div>
-
-        <form
-          onSubmit={handleSubmit}
-          className="border-b border-ledger-border py-5"
-        >
-          <label htmlFor="advisor-question" className="sr-only">
-            {t("ask-financial-question")}
-          </label>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-            <input
-              id="advisor-question"
-              type="text"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Ask about this month, a budget, or your next financial step"
-              className={`${ledgerControlClass} flex-1`}
+        <div className="flex flex-wrap gap-3">
+          {QUESTIONS.map((q) => (
+            <button
+              type="button"
+              className="min-h-11 text-left text-sm text-accent underline underline-offset-4 disabled:opacity-50"
+              key={q}
               disabled={loading}
-              autoComplete="off"
-            />
-            <Button
-              type="submit"
-              disabled={loading || !query.trim()}
-              className="w-full sm:w-auto"
+              onClick={() => {
+                setQuery(q);
+                setKind("");
+              }}
             >
-              <Send className="h-4 w-4" aria-hidden="true" />
-              {loading ? "Preparing advice…" : "Ask FinanceAI"}
-            </Button>
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-            <span className="text-xs text-ink-muted">Suggested</span>
-            {QUICK_QUESTIONS.map((question) => (
-              <button
-                key={question}
-                type="button"
-                onClick={() => setQuery(question)}
+              {q}
+            </button>
+          ))}
+        </div>
+        <details className="text-sm text-ink-secondary">
+          <summary className="min-h-11 cursor-pointer py-3">
+            Test a financial scenario (optional)
+          </summary>
+          <p className="mb-3">
+            Uses the last complete month and your earliest active goal. No
+            account data is changed.
+          </p>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <label className="flex-1">
+              Scenario
+              <select
+                aria-label="Scenario"
+                className={`${ledgerControlClass} mt-1 w-full`}
+                value={kind}
+                onChange={(e) => {
+                  const k = e.target.value as typeof kind;
+                  setKind(k);
+                  setValue(
+                    k === "reduce_category"
+                      ? "20"
+                      : k === "change_deadline"
+                        ? "6"
+                        : "3000",
+                  );
+                }}
                 disabled={loading}
-                className="min-h-11 rounded-control px-2 text-left text-sm font-medium text-ink-secondary transition-colors duration-150 ease-out hover:bg-accent-soft hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
               >
-                {question}
-              </button>
-            ))}
+                <option value="">Use question only</option>
+                <option value="increase_savings">
+                  Increase monthly savings
+                </option>
+                <option value="reduce_category">Reduce dining spending</option>
+                <option value="increase_sip">Increase SIP contribution</option>
+                <option value="emergency_expense">
+                  Add an emergency expense
+                </option>
+                <option value="change_deadline">Change goal deadline</option>
+              </select>
+            </label>
+            {kind && (
+              <label className="flex-1">
+                {kind === "reduce_category"
+                  ? "Reduction (%)"
+                  : kind === "change_deadline"
+                    ? "Months later (negative for earlier)"
+                    : "Amount (₹)"}
+                <input
+                  aria-label="Scenario value"
+                  className={`${ledgerControlClass} mt-1 w-full`}
+                  type="number"
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                  min={kind === "change_deadline" ? -120 : 0.01}
+                  max={
+                    kind === "reduce_category"
+                      ? 100
+                      : kind === "change_deadline"
+                        ? 120
+                        : 10000000
+                  }
+                  step={kind === "change_deadline" ? 1 : "any"}
+                  required
+                  disabled={loading}
+                />
+              </label>
+            )}
           </div>
-        </form>
-      </section>
-
-      {error && <InlineNotice>{error}</InlineNotice>}
-
-      {advice && (
-        <section
-          className="border-b border-ledger-border pb-8"
-          aria-labelledby="current-advice-heading"
-        >
-          <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[minmax(0,7fr)_minmax(14rem,3fr)] lg:gap-10">
-            <div>
-              <p className="text-sm font-medium capitalize text-accent">
-                {advice.category} recommendation
-              </p>
-              <h2
-                id="current-advice-heading"
-                className="mt-2 text-xl font-semibold tracking-[-0.02em] text-ink"
+          {kind && (
+            <label className="mt-3 block">
+              Goal
+              <select
+                aria-label="Scenario goal"
+                className={`${ledgerControlClass} mt-1 w-full`}
+                value={goalId}
+                onChange={(e) => setGoalId(e.target.value)}
+                disabled={loading}
               >
-                Current recommendation
-              </h2>
-              <p className="mt-3 max-w-[72ch] whitespace-pre-wrap text-sm leading-7 text-ink-secondary">
-                {advice.advice}
+                <option value="">Earliest active incomplete goal</option>
+                {goals.map((goal) => (
+                  <option key={goal.id} value={goal.id}>
+                    {goal.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </details>
+      </form>
+      {error && <InlineNotice>{error}</InlineNotice>}
+      {!answer && (
+        <EmptyState
+          title="Start with a question"
+          description="Your review will include the recorded data, practical recommendations, and any assumptions. No paid API is needed in deterministic mode."
+        />
+      )}
+      {answer && (
+        <section
+          className="space-y-6"
+          aria-live="polite"
+          aria-labelledby="advisor-answer"
+        >
+          <div>
+            <p className="text-sm text-ink-muted">You asked: {lastQuestion}</p>
+            <h2
+              id="advisor-answer"
+              className="mt-2 text-xl font-semibold text-ink"
+            >
+              Your financial review
+            </h2>
+            <p className="mt-2 text-sm capitalize text-accent">
+              {answer.financial_health.replace(/_/g, " ")}
+            </p>
+            <p className="mt-3 max-w-[72ch] text-sm leading-7 text-ink-secondary">
+              {answer.summary}
+            </p>
+          </div>
+          {!!answer.recommendations.length && (
+            <div>
+              <h3 className="font-semibold text-ink">Recommended next steps</h3>
+              <ol className="mt-3 list-decimal space-y-3 pl-5 text-sm leading-7 text-ink-secondary">
+                {answer.recommendations.map((r) => (
+                  <li key={r.id}>
+                    {r.text}
+                    <span className="ml-2 text-xs text-ink-muted">
+                      Based on{" "}
+                      {r.evidenceIds
+                        .map(
+                          (id) =>
+                            labels[
+                              answer.evidence.find((e) => e.id === id)!.tool
+                            ],
+                        )
+                        .join(", ")}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+          {answer.simulations.map((s, i) => (
+            <div key={i} className="border-y border-ledger-border py-5">
+              <h3 className="font-semibold text-ink">Scenario impact</h3>
+              <dl className="mt-3 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+                <dt>Monthly savings capacity</dt>
+                <dd>
+                  {money(s.baselineMonthlySavings)} →{" "}
+                  {money(s.scenarioMonthlySavings)}
+                </dd>
+                <dt>Goal completion</dt>
+                <dd>
+                  {s.baselineCompletion || "No finite estimate"} →{" "}
+                  {s.scenarioCompletion || "No finite estimate"}
+                </dd>
+                <dt>Change</dt>
+                <dd>
+                  {s.monthsEarlier === null
+                    ? "No finite comparison"
+                    : s.monthsEarlier >= 0
+                      ? `${s.monthsEarlier} months earlier`
+                      : `${Math.abs(s.monthsEarlier)} months later`}
+                </dd>
+                {s.kind === "change_deadline" && (
+                  <>
+                    <dt>Required monthly savings</dt>
+                    <dd>
+                      {s.requiredMonthlySavings === null
+                        ? "No feasible deadline"
+                        : money(s.requiredMonthlySavings)}
+                    </dd>
+                  </>
+                )}
+              </dl>
+              <p className="mt-3 text-sm text-ink-secondary">
+                Uses the last complete recorded month, with no returns, taxes or
+                inflation assumed. An estimate, not a promised outcome. No money
+                has moved.
               </p>
             </div>
-            <aside className="border-t border-ledger-border pt-5 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
-              <p className="text-xs font-medium uppercase tracking-[0.08em] text-ink-muted">
-                Advisor note
-              </p>
-              <p className="mt-2 text-sm leading-6 text-ink-secondary">
-                Treat this as guidance. Review the recorded amounts and your own
-                priorities before acting.
-              </p>
-            </aside>
+          ))}
+          <div>
+            <h3 className="font-semibold text-ink">Based on your data</h3>
+            <ul className="mt-3 space-y-4 text-sm text-ink-secondary">
+              {answer.evidence.map((e) => (
+                <li key={e.id}>
+                  <p className="font-medium text-ink">{labels[e.tool]}</p>
+                  {evidenceLines(e).map((line, i) => (
+                    <p key={i} className="mt-1">
+                      {line}
+                    </p>
+                  ))}
+                </li>
+              ))}
+            </ul>
           </div>
+          <details className="text-sm text-ink-secondary">
+            <summary className="min-h-11 cursor-pointer py-3">
+              Assumptions and activity
+            </summary>
+            <ul className="list-disc space-y-2 pl-5">
+              {answer.assumptions.map((a) => (
+                <li key={a}>{a}</li>
+              ))}
+            </ul>
+            <p className="mt-4">
+              {answer.provider === "openai"
+                ? "OpenAI assisted"
+                : answer.provider === "mock_fallback"
+                  ? "Deterministic fallback"
+                  : "Deterministic mode"}{" "}
+              · {answer.tools_used.length} data checks · Evidence confidence{" "}
+              {Math.round(answer.confidence * 100)}% (rule-based, not
+              calibrated)
+            </p>
+          </details>
+          <p className="text-xs leading-6 text-ink-muted">
+            Personal-finance education and planning support. Review your
+            obligations and priorities before acting; this service does not
+            execute investments or provide regulated advice.
+          </p>
         </section>
       )}
-
-      <section aria-labelledby="advisor-history-heading">
-        <div className="flex items-baseline justify-between gap-4 border-b border-ledger-border pb-4">
-          <div>
-            <h2
-              id="advisor-history-heading"
-              className="text-xl font-semibold tracking-[-0.02em] text-ink"
-            >
-              {t("recent-conversations")}
-            </h2>
-            <p className="mt-1 text-sm text-ink-secondary">
-              Questions and guidance from this account.
-            </p>
-          </div>
-          {sessions.length > 0 && (
-            <p className="shrink-0 text-sm tabular-nums text-ink-secondary">
-              {sessions.length.toLocaleString()} shown
-            </p>
-          )}
-        </div>
-
-        {sessions.length === 0 ? (
-          <EmptyState
-            title={t("no-conversations-yet")}
-            description="Ask about recent spending, a budget, or the next step toward a goal."
-          />
-        ) : (
-          <div>
-            {sessions.map((session) => (
-              <article
-                key={session.id}
-                className="border-b border-ledger-border py-6"
-              >
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between sm:gap-6">
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium uppercase tracking-[0.08em] text-ink-muted">
-                      You asked
-                    </p>
-                    <h3 className="mt-1 text-base font-semibold leading-6 text-ink">
-                      {session.query}
-                    </h3>
-                  </div>
-                  <time
-                    dateTime={session.createdAt}
-                    className="shrink-0 text-xs tabular-nums text-ink-muted"
-                  >
-                    {formatSessionDate(session.createdAt)}
-                  </time>
-                </div>
-
-                <div className="mt-4 border-l border-accent pl-4 sm:ml-4 sm:pl-5">
-                  <div className="flex items-center gap-2">
-                    <MessageCircle
-                      className="h-4 w-4 text-accent"
-                      aria-hidden="true"
-                    />
-                    <p className="text-xs font-medium capitalize text-accent">
-                      FinanceAI · {session.category}
-                    </p>
-                  </div>
-                  <p className="mt-2 max-w-[76ch] whitespace-pre-wrap text-sm leading-7 text-ink-secondary">
-                    {session.response}
-                  </p>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
+      {!!history.length && (
+        <details className="text-sm text-ink-secondary">
+          <summary className="min-h-11 cursor-pointer py-3">
+            Previous advisor conversations
+          </summary>
+          {history.map((h) => (
+            <article key={h.id} className="border-b border-ledger-border py-4">
+              <h3 className="font-medium text-ink">{h.query}</h3>
+              <p className="mt-2 whitespace-pre-wrap leading-7">{h.response}</p>
+            </article>
+          ))}
+        </details>
+      )}
     </div>
   );
 }

@@ -10,6 +10,7 @@ const child = spawn(process.execPath, ['backend/node_modules/tsx/dist/cli.mjs', 
   stdio: 'inherit', env: { ...process.env, DATABASE_URL: database, NODE_ENV: 'development', PORT: '3001',
     JWT_SECRET: randomBytes(64).toString('hex'), JWT_REFRESH_SECRET: randomBytes(64).toString('hex'),
     CORS_ORIGIN: 'http://127.0.0.1:5173', CORS_CREDENTIALS: 'true', AI_PROVIDER: 'local', EMBEDDING_PROVIDER: 'local',
+    ADVISOR_PROVIDER: 'mock', ADVISOR_TELEMETRY: 'none',
     SMTP_HOST: '', SMTP_USER: '', SMTP_PASS: '', REDIS_AUTH_MODE: 'url', REDIS_URL: 'redis://127.0.0.1:6399',
   },
 });
