@@ -1,4 +1,5 @@
 import cloudOpsRoutes from './cloudOps';
+import advisorRoutes from './advisor';
 import { Router } from 'express';
 import { Request, Response } from 'express';
 import { ApiResponse } from '../types';
@@ -44,6 +45,7 @@ router.get('/csrf-token', (req: Request, res: Response<ApiResponse>) => {
 
 // API routes
 router.use('/cloud-ops', cloudOpsRoutes);
+router.use('/advisor', advisorRoutes);
 router.use('/auth', authRoutes);
 router.use('/transactions', transactionRoutes);
 router.use('/ai', aiRoutes);
