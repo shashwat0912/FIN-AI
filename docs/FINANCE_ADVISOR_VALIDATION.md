@@ -134,7 +134,9 @@ include only that file from the backend. An exported-context assertion confirms
 that no other backend files enter the frontend build, and the image builds.
 The Cloud Ops image scan found fixable HIGH findings in cached Debian `apt` and
 `libapt-pkg6.0` packages (CVE-2026-109518). Its existing security-upgrade base
-stage is now rebuilt on every hosted run instead of reusing that cached layer.
+stage and derived image layers are now rebuilt on every hosted run. A first
+stage-only refresh installed the fixes but reused stale derived runtime layers;
+the final build disables layer-cache reuse for this small image.
 [Debian identifies 2.6.2 as the fixed Bookworm version](https://security-tracker.debian.org/tracker/CVE-2026-109518). The failed frontend build
 also prevented the backend image from being built, causing a secondary missing-
 image scan error. Scan severities, failure thresholds and existing gates remain
