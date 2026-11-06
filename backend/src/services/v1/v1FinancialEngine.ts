@@ -1,4 +1,5 @@
 import prisma from '../../config/database';
+import type { Prisma } from '@prisma/client';
 
 export interface CashflowResult {
   totalIncome: number;
@@ -27,20 +28,24 @@ export class V1FinancialEngine {
     return { start, end };
   }
 
-  async getCashflow(userId: string): Promise<CashflowResult> {
-    const { start, end } = this.getMonthRange();
+  async getCashflow(
+    userId: string,
+    range?: { start: Date; end: Date },
+    client: Pick<Prisma.TransactionClient, 'transaction'> = prisma
+  ): Promise<CashflowResult> {
+    const { start, end } = range || this.getMonthRange();
     const dateFilter = { gte: start, lte: end };
 
     const [incomeAgg, expenseAgg, categoryGroups] = await Promise.all([
-      prisma.transaction.aggregate({
+      client.transaction.aggregate({
         where: { userId, type: 'INCOME', date: dateFilter },
         _sum: { amount: true },
       }),
-      prisma.transaction.aggregate({
+      client.transaction.aggregate({
         where: { userId, type: 'EXPENSE', date: dateFilter },
         _sum: { amount: true },
       }),
-      prisma.transaction.groupBy({
+      client.transaction.groupBy({
         by: ['category'],
         where: { userId, type: 'EXPENSE', date: dateFilter },
         _sum: { amount: true },
@@ -51,11 +56,10 @@ export class V1FinancialEngine {
 
     const totalIncome = sumToNumber(incomeAgg._sum);
     const totalExpenses = sumToNumber(expenseAgg._sum);
-    const savingsRate = totalIncome > 0
-      ? Math.round(((totalIncome - totalExpenses) / totalIncome) * 100) / 100
-      : 0;
+    const savingsRate =
+      totalIncome > 0 ? Math.round(((totalIncome - totalExpenses) / totalIncome) * 100) / 100 : 0;
 
-    const topCategories = categoryGroups.map((g) => ({
+    const topCategories = categoryGroups.map(g => ({
       category: g.category,
       amount: sumToNumber(g._sum),
     }));

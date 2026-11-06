@@ -73,8 +73,8 @@ jobs:
           push: false
           load: true
           tags: finance-ai-agent:ci
-          cache-from: type=gha,scope=agent
-          cache-to: type=gha,mode=max,scope=agent
+          # Stage-only refresh reused stale derived runtime layers in hosted CI.
+          no-cache: true
       - name: Scan agent image (existing HIGH/CRITICAL gate)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:

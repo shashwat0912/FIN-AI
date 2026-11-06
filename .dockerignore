@@ -5,7 +5,13 @@
 **/.env.*
 !**/.env.example
 **/node_modules
-backend
+# Include only the public Advisor contract needed by frontend typechecking.
+backend/*
+!backend/src
+backend/src/*
+!backend/src/advisor
+backend/src/advisor/*
+!backend/src/advisor/types.ts
 **/dist
 **/build
 **/coverage

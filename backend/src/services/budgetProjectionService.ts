@@ -50,12 +50,13 @@ export function getBudgetPeriodRange(
 export async function projectBudgets(
   userId: string,
   budgets: Budget[],
-  options: { timezone?: string; asOf?: Date } = {}
+  options: { timezone?: string; asOf?: Date; client?: Pick<Prisma.TransactionClient, 'user' | 'transaction'> } = {}
 ): Promise<BudgetProjection[]> {
   if (budgets.length === 0) return [];
+  const client = options.client || prisma;
 
   const timezone = options.timezone || (
-    await prisma.user.findUnique({ where: { id: userId }, select: { timezone: true } })
+    await client.user.findUnique({ where: { id: userId }, select: { timezone: true } })
   )?.timezone || DEFAULT_TIMEZONE;
   const asOf = options.asOf || new Date();
   const ranges = new Map<string, ReturnType<typeof getBudgetPeriodRange>>();
@@ -75,7 +76,7 @@ export async function projectBudgets(
     )];
     if (categoryKeys.length === 0) return;
 
-    const grouped = await prisma.transaction.groupBy({
+    const grouped = await client.transaction.groupBy({
       by: ['categoryKey'],
       where: {
         userId,

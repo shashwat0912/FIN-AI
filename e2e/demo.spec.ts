@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test('email login, ledger, goal, advisor, refresh and logout', async ({ page, request }) => {
+test('email login, ledger, goal, advisor, refresh and logout', async ({ page, request }, testInfo) => {
   const email = process.env.SMOKE_EMAIL || `smoke-${Date.now()}@example.com`;
   const api = process.env.SMOKE_BASE_URL ? `${process.env.SMOKE_BASE_URL}/api/v1` : 'http://127.0.0.1:3001/api/v1';
   await page.goto('/');
@@ -57,7 +57,26 @@ test('email login, ledger, goal, advisor, refresh and logout', async ({ page, re
     expect(advice.body.data.advice.length).toBeGreaterThan(20);
     if (advice.body.data.sessionId) await call(`/ai/sessions/${advice.body.data.sessionId}`, 'DELETE');
 
+    await page.goto('/dashboard/ai-advisor');
+    await page.getByLabel('Your financial question').fill('How are my finances this month?');
+    const advisor = page.waitForResponse(response => response.url().endsWith('/advisor'));
+    await page.getByRole('button', { name: 'Ask FinanceAI' }).click();
+    const review = await advisor;
+    expect(review.ok()).toBeTruthy();
+    const reviewData = (await review.json()).data;
+    expect(reviewData.evidence.length).toBeGreaterThan(0);
+    await expect(page.getByRole('heading', { name: 'Your financial review' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Based on your data' })).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath('finance-advisor-desktop.png'), fullPage: true });
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath('finance-advisor-mobile.png'), fullPage: true });
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.goto('/dashboard/goals');
+
     // Force the real refresh path; no signed token forgery or mocked network.
+    await expect(page.getByText(goal.body.data.name, { exact: true }).first()).toBeVisible();
+    await page.waitForLoadState('networkidle');
     await page.evaluate(() => {
       const expired = btoa(JSON.stringify({ exp: 1 }));
       localStorage.setItem('accessToken', `expired.${expired}.expired`);

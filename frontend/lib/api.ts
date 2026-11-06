@@ -1,3 +1,4 @@
+import type { AdvisorInput, AdvisorResponse } from "../../backend/src/advisor/types";
 import {
   ApiResponse,
   User,
@@ -633,6 +634,11 @@ class ApiClient {
   async searchTransactions(query: string, limit = 10): Promise<TransactionSearchResult[]> {
     const response = await this.request<TransactionSearchResult[]>(`/transactions/search?q=${encodeURIComponent(query)}&limit=${limit}`);
     return response.data || [];
+  }
+
+  async getFinanceAdvice(input: AdvisorInput): Promise<AdvisorResponse> {
+    const response = await this.request<AdvisorResponse>('/advisor', { method: 'POST', body: JSON.stringify(input) });
+    return response.data!;
   }
 
   // AI methods

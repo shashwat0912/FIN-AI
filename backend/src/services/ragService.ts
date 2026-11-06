@@ -11,9 +11,11 @@ export interface RetrievedChunk {
   similarity: number;
   documentTitle?: string;
   sourceType?: string;
+  indexedAt?: string;
 }
 
 export interface RAGConfig {
+  keywordOnly?: boolean;
   topK?: number;
   similarityThreshold?: number;
   candidatePool?: number;
@@ -45,6 +47,7 @@ interface RetrievalCandidate {
   content: string;
   category: string;
   embedding: string | null;
+  updatedAt?: Date;
   document: {
     title: string;
     sourceUri: string | null;
@@ -151,10 +154,10 @@ export class RAGService {
       try {
         const result = await this.indexDocument(input);
         results.push(result);
-      } catch (error: any) {
+      } catch (error: unknown) {
         logger.error('Failed to index RAG document', {
           title: input.title,
-          error: error?.message || 'unknown',
+          error: error instanceof Error ? error.message : 'unknown',
         });
       }
     }
@@ -191,6 +194,7 @@ export class RAGService {
         content: true,
         category: true,
         embedding: true,
+        updatedAt: true,
         document: {
           select: {
             title: true,
@@ -208,12 +212,12 @@ export class RAGService {
     const queryKeywords = this.extractKeywords(query);
     const hintedCategories = this.inferCategoryHints(query);
     let queryEmbedding: number[] | null = null;
-    if (this.embeddingService.isConfigured()) {
+    if (!config?.keywordOnly && this.embeddingService.isConfigured()) {
       try {
         queryEmbedding = await this.embeddingService.generateEmbedding(query);
-      } catch (error: any) {
+      } catch (error: unknown) {
         logger.warn('RAG embedding generation failed. Falling back to keyword retrieval.', {
-          error: error?.message || 'unknown',
+          error: error instanceof Error ? error.message : 'unknown',
         });
       }
     }
@@ -259,6 +263,7 @@ export class RAGService {
         similarity: Number(item.similarity.toFixed(4)),
         documentTitle: item.candidate.document.title,
         sourceType: item.candidate.document.sourceType,
+        indexedAt: item.candidate.updatedAt?.toISOString(),
       }));
   }
 

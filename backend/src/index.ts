@@ -1,3 +1,4 @@
+import { startAdvisorTelemetry, stopAdvisorTelemetry } from './advisor/telemetry';
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
@@ -87,6 +88,7 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 export function startServer() {
+  startAdvisorTelemetry();
   const PORT = config.PORT;
   const server = app.listen(PORT, () => {
     logger.info(`🚀 Finance AI Backend running on port ${PORT}`);
@@ -100,7 +102,10 @@ export function startServer() {
     server,
     jobs,
     disconnectPrisma: () => prisma.$disconnect(),
-    shutdownRedis: closeRedisConnection,
+    shutdownRedis: async () => {
+      await closeRedisConnection();
+      await stopAdvisorTelemetry();
+    },
   });
 
   process.on('SIGTERM', () => void shutdown('SIGTERM'));

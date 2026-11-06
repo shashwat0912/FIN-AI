@@ -27,3 +27,6 @@ process.env.RATE_LIMIT_MAX_REQUESTS = process.env.RATE_LIMIT_MAX_REQUESTS || '10
 
 process.env.AI_PROVIDER = 'local';
 process.env.EMBEDDING_PROVIDER = 'local';
+
+process.env.ADVISOR_PROVIDER = 'mock';
+process.env.ADVISOR_TELEMETRY = 'none';

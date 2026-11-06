@@ -51,6 +51,11 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Finance Advisor lint and format
+        run: |
+          npx eslint backend/src/advisor backend/src/routes/advisor.ts backend/src/services/financeSimulationService.ts backend/src/scripts/evaluateAdvisor.ts backend/tests/advisor frontend/pages/AiAdvisor.tsx frontend/__tests__/pages/advisorSettings.test.tsx
+          npx prettier --check backend/src/advisor backend/src/routes/advisor.ts backend/src/services/financeSimulationService.ts backend/src/scripts/evaluateAdvisor.ts backend/tests/advisor frontend/pages/AiAdvisor.tsx frontend/__tests__/pages/advisorSettings.test.tsx
+
       - name: Test
         run: npm run test:run
 
@@ -100,6 +105,9 @@ jobs:
       CORS_ORIGIN: http://localhost:5173
       CORS_CREDENTIALS: "true"
       OPENAI_API_KEY: test-openai-key
+      ADVISOR_PROVIDER: mock
+      ADVISOR_TELEMETRY: none
+      EMBEDDING_PROVIDER: local
       OPENAI_MODEL: gpt-4o-mini
       LOG_LEVEL: error
 
@@ -133,6 +141,16 @@ jobs:
 
       - name: Unit and service tests
         run: npm run test:ci
+
+      - name: Finance Advisor deterministic evaluation (no paid APIs)
+        run: npm run --silent advisor:eval > advisor-evaluation.json
+
+      - name: Upload Finance Advisor evaluation
+        uses: actions/upload-artifact@v4
+        with:
+          name: finance-advisor-evaluation
+          path: backend/advisor-evaluation.json
+          if-no-files-found: error
 
       - name: API integration tests
         run: npm run test:integration
