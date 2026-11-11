@@ -1,290 +1,125 @@
-# Finance AI
+# FIN-AI
 
-Finance AI is a full-stack personal finance platform that combines deterministic
-financial calculations with AI-assisted insights. The repository also serves as
-a production-style Platform/DevOps implementation on AWS using Terraform, EKS,
-Kubernetes, Helm, GitHub Actions, PostgreSQL, and Valkey.
+FIN-AI is a cloud-native personal finance platform with deterministic financial calculations, an evidence-backed Finance Advisor, and an operations service for incident diagnosis, deployment review, and FinOps.
 
-The public launch runbook is [docs/PUBLIC_DEMO.md](docs/PUBLIC_DEMO.md).
-Verified results and remaining blockers are in [docs/LAUNCH_REPORT.md](docs/LAUNCH_REPORT.md).
-This is a portfolio demo, not a regulated or real-money financial service.
+| Layer                            | What it does                                                                                                                                            |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Product Platform**             | React dashboard and Express API for transactions, budgets, goals, and cash flow. PostgreSQL stores the ledger and Valkey supports runtime coordination. |
+| **Product AI**                   | The Finance Advisor uses authenticated finance tools to explain recorded data and model savings scenarios.                                              |
+| **Agentic Cloud Operations**     | A separate FastAPI service runs SRE, Deployment, and FinOps workflows through scoped MCP readers.                                                       |
+| **Cloud / Platform Engineering** | Docker images, Terraform for AWS, Helm for EKS, and GitHub Actions with OIDC for image publishing.                                                      |
 
-## FIN-AI Product Platform + Agentic Cloud Operations Platform
+**Validation snapshot** · 22 Advisor and 24 Cloud Ops synthetic cases passed, along with hosted application, container, and agent checks. EKS is an on-demand deployment target. The local demo uses synthetic data and mock providers.
 
-An optional Python/FastAPI service adds bounded SRE incident investigation,
-deployment validation, and FinOps workflows around FIN-AI. Controlled MCP tools,
-code-enforced policies, separate human approval, PostgreSQL audit records, and
-OpenTelemetry demonstrate AI platform operations without replacing the product.
-Helm keeps the agent disabled by default. Deterministic simulation works without
-AWS or paid model calls and is explicitly labelled in the dashboard.
+[Architecture](#architecture) · [Demo](#demo) · [Validated](#validated) · [Run locally](#local-development-and-demo) · [Interview guide](docs/INTERVIEW_GUIDE.md)
 
-```mermaid
-flowchart LR
-    Engineer --> CloudOps[Existing dashboard: Cloud Ops]
-    CloudOps --> AdminAPI[FIN-AI ADMIN proxy]
-    AdminAPI --> AgentAPI[Agent operations API]
-    AgentAPI --> Workflows[SRE / Deployment / FinOps]
-    Workflows --> MCP[Controlled MCP server]
-    MCP --> Fixtures[Local simulation]
-    MCP --> Readers[Kubernetes / CloudWatch / RDS / Valkey / GitHub / Terraform / Costs]
-    AgentAPI --> Approval[Separate human approval: simulation only]
-```
+## Why this project is different
 
-See [architecture, local demo and security boundaries](docs/AGENTIC_PLATFORM.md),
-[actual validation results](docs/AGENTIC_VALIDATION.md), and
-[agent service source](agent-service/). Live AWS is not assumed to be running;
-production remediation execution is intentionally unavailable.
-
-## What It Does
-
-- tracks income and expense transactions;
-- manages budgets and financial goals;
-- calculates cash-flow and spending insights;
-- supports AI-assisted financial conversations; and
-- requires confirmation before chat-initiated financial writes.
-
-## Platform Highlights
-
-- Terraform-managed AWS infrastructure with EKS workloads packaged by Helm
-- immutable frontend and backend images published to ECR by GitHub Actions
-- keyless GitHub OIDC authentication and backend IRSA workload identity
-- private RDS PostgreSQL and ElastiCache Valkey
-- verified RDS TLS trust and separate runtime/migration database identities
-- a pre-install/pre-upgrade Prisma migration gate
-- dependency-aware probes and locally validated Helm upgrade/rollback behavior
+- **Deterministic money calculations.** The model chooses relevant tools and ranks findings. Application code calculates amounts and builds the response from validated evidence.
+- **Scoped infrastructure access.** Cloud Ops collects evidence through read-only MCP tools with bounded inputs, timeouts, and provenance. The tool surface has no shell or unrestricted AWS access.
+- **Explicit uncertainty and action boundaries.** Workflows can abstain when evidence is insufficient. IAM, Kubernetes RBAC, and the separate approval policy are enforced in code and infrastructure.
+- **Reproducible behavior.** Fixtures exercise the same workflow contracts used by live readers. Both agents emit OpenTelemetry spans and metrics, and CI evaluates agent behavior alongside application tests.
 
 ## Architecture
 
 ```mermaid
-flowchart TD
-    Developer[Developer] --> GitHub[GitHub]
-    GitHub --> Actions[GitHub Actions]
-    Actions -->|OIDC| AWS[AWS]
-    Actions --> ECR[ECR]
+flowchart TB
+    subgraph Product["Product Platform"]
+        UI["React dashboard"]
+        API["Express API"]
+        Advisor["Product AI · Finance Advisor<br/>inside Express"]
+        Engine["Deterministic finance tools and engine"]
+        Data[("PostgreSQL · Valkey")]
+        UI --> API
+        API --> Advisor --> Engine --> Data
+        API --> Engine
+    end
 
-    Terraform[Terraform] --> VPC[VPC]
-    Terraform --> EKS[EKS]
-    Terraform --> RDS[RDS PostgreSQL]
-    Terraform --> Valkey[Valkey]
-    Terraform --> IAM[IAM and IRSA]
-    Terraform --> State[S3 Terraform state]
+    subgraph Ops["Agentic Cloud Operations"]
+        Agent["FastAPI service<br/>SRE · Deployment · FinOps"]
+        MCP["Controlled MCP readers"]
+        Sources["Kubernetes · CloudWatch · RDS · Valkey<br/>GitHub Actions · Terraform · AWS costs"]
+        Fixtures["Simulation fixtures"]
+        Agent --> MCP
+        MCP --> Sources
+        MCP --> Fixtures
+    end
 
-    ECR --> EKS
-    EKS --> Frontend[Frontend]
-    EKS --> Backend[Backend]
-    EKS --> Migration[Prisma migration job]
-    Backend --> RDS
-    Backend --> Valkey
-    Migration --> RDS
+    API -->|Admin proxy| Agent
+    Data -.- Foundation
+    Sources -.- Foundation
+    Foundation["Platform foundation<br/>Docker · EKS · Helm · Terraform<br/>GitHub Actions · OIDC · ECR"]
 ```
 
-Terraform keeps application nodes in private subnets and data services in
-isolated private-data subnets. Helm applies restricted security contexts,
-resource budgets, ConfigMaps, external Secret references, Services, probes, and
-the optional migration hook.
+## Demo
 
-## Request and Runtime Flow
+Click a screenshot for the full-size workspace. The Advisor ledger is synthetic, and both infrastructure screenshots are from Cloud Ops simulation mode.
 
-Requests flow from the user through the frontend and backend API to PostgreSQL
-and Valkey, with an AI provider called only when configured.
+| Finance Advisor                                                                                                                       | SRE investigation · simulation                                                                                                           | Deployment review · simulation                                                                                                               |
+| ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| [![Finance Advisor with a savings scenario and evidence](docs/assets/demo/finance-advisor.png)](docs/assets/demo/finance-advisor.png) | [![SRE investigation with database saturation evidence](docs/assets/demo/sre-investigation.png)](docs/assets/demo/sre-investigation.png) | [![Deployment review with pre- and post-deployment metrics](docs/assets/demo/deployment-review.png)](docs/assets/demo/deployment-review.png) |
+| A 20% dining cut raises monthly savings capacity from ₹12,000 to ₹13,600 and brings the modeled goal forward three months.            | The workflow correlates readiness symptoms with connection pool saturation and suggests checks for the operator.                         | The workflow compares deployment-aligned metric windows and recommends rollback after a failed rollout.                                      |
 
-`/livez` reports whether the backend process is alive. `/readyz` gates traffic
-on shutdown state, PostgreSQL connectivity, and required Valkey connectivity.
-This lets Kubernetes distinguish a running process from a workload that can
-safely serve requests.
+Follow the [6½-minute demo script](docs/DEMO_SCRIPT.md) to reproduce the walkthrough.
 
-## CI/CD and Release Flow
+## Product and Finance Advisor
 
-1. Pull requests and pushes run frontend tests/builds, backend tests/builds,
-   container builds, and Terraform validation.
-2. On `main`, GitHub Actions exchanges its OIDC identity for the narrow AWS ECR
-   publisher role; no long-lived AWS access key is stored in GitHub.
-3. Frontend and backend images are tagged with the commit and workflow identity
-   and published to their staging ECR repositories.
-4. An operator supplies the reviewed image references to the Helm release. The
-   repository does not currently run `helm upgrade` automatically.
-5. When enabled, the Helm pre-install/pre-upgrade migration job runs the exact
-   backend image before application resources roll out.
-6. Readiness gates traffic after dependencies become available.
-7. The disposable local Kubernetes validation exercises a failed upgrade and
-   rollback to the last healthy Helm revision.
+The product tracks income and expenses, derives budget spending from transactions, and projects progress toward goals. Chat-assisted financial writes require confirmation. The read-only Advisor lives in the authenticated Express backend and uses user-scoped tools for cash flow, spending, budgets, goals, and educational knowledge. Its five simulations cover savings increases, category reductions, SIP increases, emergency expenses, and deadline changes. Results cite evidence and state their assumptions. See [Finance Advisor architecture and tool contracts](docs/FINANCE_ADVISOR_AGENT.md).
 
-## AWS Infrastructure
+## Agentic Cloud Operations
 
-| Component      | Purpose                                                                  |
-| -------------- | ------------------------------------------------------------------------ |
-| VPC            | Public, private-application, and isolated private-data subnet boundaries |
-| EKS            | Managed Kubernetes control plane and private worker nodes                |
-| ECR            | Immutable, scan-on-push frontend and backend image repositories          |
-| RDS PostgreSQL | Private encrypted system-of-record database                              |
-| Valkey         | Private TLS/IAM-authenticated cache and coordination store               |
-| IAM            | GitHub OIDC publisher role, cluster roles, and backend IRSA identity     |
-| S3             | Versioned, encrypted Terraform remote state with native lock files       |
+The optional FastAPI service has three distinct workflows. **SRE** correlates infrastructure signals to diagnose incidents. **Deployment** checks the release and compares baseline and observation windows before recommending PROMOTE, HOLD, or ROLLBACK_RECOMMENDED. **FinOps** compares cost drivers and reports savings only when evidence supports an estimate. Helm disables the service by default. Live adapters require configured integrations, while simulation returns clearly labelled fixture evidence. Approval execution is simulation-only. See [Cloud Ops architecture, local setup, and policies](docs/AGENTIC_PLATFORM.md).
 
-Staging and production are separate Terraform roots with distinct state keys
-and environment inputs.
+## Cloud and platform engineering
 
-## Security Model
+Terraform defines separate staging and production roots with private EKS workers, RDS PostgreSQL, ElastiCache Valkey, and encrypted S3 state. GitHub Actions builds and scans images, then publishes immutable product image tags to ECR on successful `main` pushes using OIDC. An operator supplies reviewed image references to Helm. A separate Prisma migration identity and pre-upgrade hook gate rollout, and `/livez` and `/readyz` distinguish process health from dependency readiness.
 
-- GitHub Actions uses OIDC instead of stored AWS access keys.
-- The backend uses IRSA for its narrowly scoped AWS permissions.
-- RDS and Valkey accept traffic only from the application network boundary;
-  database connections verify TLS with a system-plus-RDS CA bundle.
-- Application credentials are supplied through external Kubernetes Secrets,
-  not Helm values or static container credentials.
-- The runtime database role receives application DML but cannot perform schema
-  migrations or access the Prisma migration ledger.
-- The dedicated migration role owns Prisma objects; its Helm job uses a separate
-  Secret and ServiceAccount and receives no AWS credentials.
-- Containers run with restricted security contexts; the backend runs non-root.
+Application and platform visibility comes from structured logs, Kubernetes health checks, and AWS-managed telemetry when deployed. Separately, the Advisor and Cloud Ops instrument requests and tool calls with OpenTelemetry. Local export and telemetry privacy tests are documented in the agent validation reports. See the [Terraform roots](infra/terraform/README.md) and [Helm chart](deploy/helm/finance-ai/README.md).
 
-See [Security](docs/SECURITY.md) and
-[Database setup](backend/DATABASE_SETUP.md) for implementation details.
+## Validated
 
-## Database Migrations
+**Synthetic regression/evaluation results, not production accuracy claims.**
 
-The active Prisma schema targets PostgreSQL. Its checked-in history begins with
-a reviewed PostgreSQL baseline under `backend/prisma/migrations/`.
+| System                                                  | Confirmed result                                                                                                                                                     |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Cloud Ops](docs/agent-evaluation.json)                 | 20 controlled MCP readers. 24/24 fixture outcomes: 15 diagnoses, 8 correct abstentions, and 1 healthy case. Zero unsafe actions and 5.38 mean tool calls.            |
+| [Finance Advisor](docs/finance-advisor-evaluation.json) | 22/22 deterministic outcomes, including 5/5 simulations and 5/5 abstentions. Zero measured unsafe actions or hallucinated financial values and 2.82 mean tool calls. |
 
-The migration model is forward-only:
+Hosted validation on merged `main` covered frontend type checking, tests and build, backend tests and PostgreSQL integration, browser smoke, Docker builds, Trivy, Gitleaks, dependency audits, and Helm/static Kubernetes checks. The Agent Platform run checked policy, MCP and PostgreSQL behavior, ran mock evaluations, scanned the agent image, and uploaded an SBOM. Terraform formatting, validation, and mock tests passed in the separate validation workflow. [Main CI](https://github.com/shashwat0912/FIN-AI/actions/runs/42204417711) · [Agent Platform](https://github.com/shashwat0912/FIN-AI/actions/runs/42204417784) · [Terraform validation](https://github.com/shashwat0912/FIN-AI/actions/runs/42107978249)
 
-- migrations are generated and reviewed outside deployed environments;
-- a dedicated migrator runs `prisma migrate deploy` as a Helm hook;
-- the application runtime does not own DDL or `_prisma_migrations`; and
-- failed migrations stop the release because the job has `backoffLimit: 0`.
+## Local development and demo
 
-The original SQLite migrations remain in
-`backend/prisma/legacy-sqlite-migrations/` as historical evidence and are not
-part of the active chain.
-
-## Reliability
-
-- `/livez` process health and `/readyz` dependency health
-- PostgreSQL and Valkey readiness checks
-- Kubernetes liveness/readiness probes
-- CPU and memory requests/limits
-- Valkey reconnect handling and graceful application shutdown
-- immutable image references supported by the Helm chart
-- single-attempt migration hooks before rollout
-- tested local Helm upgrade failure and rollback
-
-No SLA or production traffic claim is made by this repository.
-
-## Repository Structure
-
-```text
-frontend/                 React application and UI tests
-backend/                  Express API, Prisma schema, migrations, and tests
-infra/terraform/          AWS modules and isolated environment roots
-deploy/helm/              Application Helm chart and environment values
-deploy/local/             Disposable local Kubernetes dependencies
-scripts/                  Development and infrastructure validation scripts
-docs/                     Security, architecture history, and design decisions
-```
-
-## Local Development
-
-Prerequisites: Node.js 20 or newer, npm, and Docker.
+Use Node.js 20+, npm, and Docker. For Cloud Ops, add Python 3.12+ and follow the [simulation setup](docs/AGENTIC_PLATFORM.md#local-demonstration-without-aws).
 
 ```sh
 npm ci
 npm --prefix backend ci
-cp backend/.env.example backend/.env
-# Replace example HMAC/CSRF values. Blank JWT keys generate fresh development-only keys.
+cp -n backend/.env.example backend/.env
+# Set development HMAC and CSRF secrets in backend/.env.
 npm --prefix backend run db:generate
 docker compose -f backend/docker-compose.yml up -d postgres redis
 npm --prefix backend run db:migrate:deploy
 npm run dev
 ```
 
-The frontend defaults to `http://localhost:3000/api/v1`. Override it by copying
-`frontend/.env.example` to `frontend/.env` when needed.
+Use `AI_PROVIDER=local`, `EMBEDDING_PROVIDER=local`, and `ADVISOR_PROVIDER=mock` in the backend for deterministic local use. The [demo script](docs/DEMO_SCRIPT.md#local-setup-and-screenshot-capture) describes the disposable PostgreSQL setup and Playwright capture.
 
-To stop the local data services:
+## Security
 
-```sh
-docker compose -f backend/docker-compose.yml down
-```
+Product authorization scopes finance reads to the signed-in user. Infrastructure requests go through the administrator-only proxy and a dedicated service identity. Live readers have dedicated IRSA and namespace-scoped RBAC. The operator approval API uses separate credentials and validates the action, target, payload hash, and expiry. Runtime and migration database roles are separated, TLS protects data-service connections, and deployment Secrets are supplied by reference. See the [security model](docs/SECURITY.md) and [agent policy details](docs/AGENTIC_PLATFORM.md).
 
-Local development does not require AWS. OpenAI is optional; without a usable
-key, the default provider mode falls back to deterministic local behavior.
+## Limitations
 
-## Infrastructure Validation
+The repository demonstrates a deployable architecture. Current verification covers local and hosted CI, including disposable Kubernetes checks. Live AWS integration and external OTLP export still require environment-specific validation. DNS, TLS, secrets, SMTP delivery, and Helm rollout require operator setup. Finance projections are educational, depend on recorded inputs and fixed assumptions, and perform no transactions. Production remediation executors are absent.
 
-The Terraform script runs formatting checks, backend-free initialization,
-validation, and the repository's mocked Terraform tests without contacting AWS:
+## Detailed documentation
 
-```sh
-./scripts/terraform-validate.sh
-```
+| Path                                                                    | What to read                                                                                                                                                                                  |
+| ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`frontend/`](frontend/) · [`backend/`](backend/)                       | Dashboard and Express API. See [product scope](PRODUCT.md) and [database setup](backend/DATABASE_SETUP.md).                                                                                   |
+| [`backend/src/advisor/`](backend/src/advisor/)                          | [Advisor design](docs/FINANCE_ADVISOR_AGENT.md) and [validation](docs/FINANCE_ADVISOR_VALIDATION.md).                                                                                         |
+| [`agent-service/`](agent-service/)                                      | [Cloud Ops design](docs/AGENTIC_PLATFORM.md) and [validation](docs/AGENTIC_VALIDATION.md).                                                                                                    |
+| [`infra/terraform/`](infra/terraform/) · [`deploy/helm/`](deploy/helm/) | AWS definitions and chart. See the [public demo runbook](docs/PUBLIC_DEMO.md), [launch report](docs/LAUNCH_REPORT.md), and [EC2 to EKS migration](docs/architecture/legacy-ec2-migration.md). |
+| [`docs/`](docs/)                                                        | [Demo script](docs/DEMO_SCRIPT.md), [interview guide](docs/INTERVIEW_GUIDE.md), and engineering records.                                                                                      |
 
-Helm can be checked without a cluster:
-
-```sh
-helm lint deploy/helm/finance-ai -f deploy/helm/finance-ai/values-staging.yaml
-helm template finance-ai-staging deploy/helm/finance-ai \
-  --namespace finance-ai-staging \
-  -f deploy/helm/finance-ai/values-staging.yaml >/dev/null
-K8S_LOCAL_STATIC_ONLY=true ./scripts/k8s-local-validate.sh
-```
-
-The full `scripts/k8s-local-validate.sh` additionally creates a disposable kind
-cluster, builds and loads images, deploys the chart, validates health behavior,
-and exercises upgrade rollback.
-
-## Deployment Notes
-
-The repository contains reusable Terraform and Helm definitions, not production
-credentials. Real `tfvars`, Terraform backend configuration, state, plans, and
-application Secrets are ignored. Staging values contain non-secret infrastructure
-identifiers such as an IAM role ARN and service endpoint names.
-
-Applying Terraform, creating Kubernetes Secrets, and installing or upgrading a
-shared Helm release are explicit operator actions outside the automated ECR
-publishing workflow.
-
-## Architecture Evolution
-
-Finance AI originally used an EC2 and Docker Compose deployment before moving
-toward Terraform, EKS, managed data services, and Helm. The migration boundaries
-and retained engineering history are described in
-[Migration from EC2 to EKS](docs/architecture/legacy-ec2-migration.md).
-
-## Tech Stack
-
-| Area     | Technologies                                          |
-| -------- | ----------------------------------------------------- |
-| Frontend | React, TypeScript, Vite, Tailwind CSS                 |
-| Backend  | Node.js, Express, TypeScript, Prisma                  |
-| Data     | PostgreSQL, Valkey                                    |
-| Cloud    | AWS VPC, EKS, ECR, RDS, ElastiCache, IAM, S3          |
-| Platform | Terraform, Docker, Kubernetes, Helm                   |
-| CI/CD    | GitHub Actions, OIDC                                  |
-| Security | IRSA, TLS, external Secrets, least-privilege DB roles |
-
-## Current Limitations
-
-- No workflow currently performs an automatic Helm deployment to staging.
-- DNS, public ingress, TLS certificates, and environment Secrets require
-  environment-specific operator configuration.
-- OpenAI-backed behavior requires an externally supplied API key.
-- SMTP is required for production email OTP delivery; production SMS delivery
-  is not yet integrated.
-- Observability is currently limited to structured logs, Kubernetes health
-  checks, and AWS-managed service logs; no application metrics/tracing stack is
-  included.
-
-## License
-
-No license has been selected for this repository. Until one is added, normal
-copyright restrictions apply.
-
-## Finance Advisor Agent
-
-The existing Advisor workspace now supports evidence-backed financial reviews and
-deterministic savings/goal simulations through the authenticated product backend.
-The LLM interprets intent and organizes validated recommendations; FIN-AI services
-compute the amounts. Mock mode is the zero-cost default. There are no transfers,
-trades or autonomous financial decisions. Cloud Ops remains a separate platform
-capability. See [architecture, tools, limits and safety](docs/FINANCE_ADVISOR_AGENT.md)
-and [actual validation results](docs/FINANCE_ADVISOR_VALIDATION.md).
+No license has been selected. Standard copyright restrictions apply.
