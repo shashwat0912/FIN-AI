@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { useState, useEffect, useLayoutEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, useNavigationType } from 'react-router-dom';
 import { LanguageProvider } from './context/LanguageContext';
 import { DarkModeProvider } from './context/DarkModeContext';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -17,6 +17,17 @@ import MvpCoach from './pages/MvpCoach';
 import { sessionSyncService } from './services/sessionSyncService';
 import { tokenRefreshService } from './services/tokenRefreshService';
 import { isTokenExpired } from './utils/jwtUtils';
+
+// In-app links keep the window's scroll position, so a new page would open part-way down.
+// Back and Forward (POP) are left to the browser.
+function ScrollToTopOnNavigate() {
+  const { pathname } = useLocation();
+  const navigationType = useNavigationType();
+  useLayoutEffect(() => {
+    if (navigationType !== 'POP') window.scrollTo({ top: 0, behavior: 'instant' });
+  }, [pathname, navigationType]);
+  return null;
+}
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -122,6 +133,7 @@ function App() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
+        <ScrollToTopOnNavigate />
         <DarkModeProvider>
           <LanguageProvider>
             <Routes>

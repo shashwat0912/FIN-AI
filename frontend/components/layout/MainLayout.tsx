@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import React, { useLayoutEffect, useRef, useState } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
 import ChatFAB from '../chat/ChatFAB';
@@ -11,6 +11,13 @@ interface MainLayoutProps {
 
 export default function MainLayout({ children }: MainLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { pathname } = useLocation();
+  const mainRef = useRef<HTMLElement>(null);
+
+  // Each page starts at its top; the scroll area outlives page switches.
+  useLayoutEffect(() => {
+    mainRef.current?.scrollTo({ top: 0 });
+  }, [pathname]);
 
   return (
     <div className="private-ledger flex h-[100dvh] min-h-0 overflow-hidden bg-canvas text-ink">
@@ -23,9 +30,11 @@ export default function MainLayout({ children }: MainLayoutProps) {
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar onMenuClick={() => setSidebarOpen(true)} />
 
-        <main id="main-content" tabIndex={-1} className="min-h-0 flex-1 overflow-auto bg-canvas outline-none">
+        <main ref={mainRef} id="main-content" tabIndex={-1} className="min-h-0 flex-1 overflow-auto bg-canvas outline-none">
           <PageContainer>
-            {children || <Outlet />}
+            <div key={pathname} className="page-enter">
+              {children || <Outlet />}
+            </div>
           </PageContainer>
         </main>
       </div>

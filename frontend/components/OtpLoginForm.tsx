@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import {
   AlertCircle,
   ArrowLeft,
@@ -15,8 +16,31 @@ import {
 } from 'lucide-react';
 import { apiClient } from '../lib/api';
 import { tokenRefreshService } from '../services/tokenRefreshService';
+import { isFirstInvalid, shake } from '../utils/formFeedback';
 
 type Step = 'identifier' | 'otp';
+type FieldName = 'identifier' | 'otp' | 'name';
+
+// Server messages name the field they are about (see backend otpService); anything else stays general.
+const FIELD_HINTS: Record<FieldName, RegExp> = {
+  identifier: /\b(email|phone)\b/i,
+  otp: /\b(otp|code)\b/i,
+  name: /\bname\b/i,
+};
+
+const fieldTone = (hasError: boolean) =>
+  hasError
+    ? 'border-red-400/60 focus:border-red-400/80 focus:ring-red-500/15'
+    : 'border-white/[0.10] focus:border-emerald-400/70 focus:ring-emerald-500/10';
+
+function FieldError({ id, message }: { id: string; message: string }) {
+  return (
+    <p id={id} className="field-message-in mt-2 flex items-start gap-1.5 text-xs font-medium leading-relaxed text-red-300">
+      <AlertCircle size={13} className="mt-0.5 shrink-0" aria-hidden="true" />
+      {message}
+    </p>
+  );
+}
 
 const trustItems = [
   'Secure OTP verification',
@@ -37,6 +61,35 @@ export default function OtpLoginForm() {
   const [timeRemaining, setTimeRemaining] = useState(300); // 5 minutes in seconds
   const [isNewUser, setIsNewUser] = useState(false);
   const [otpForDev, setOtpForDev] = useState<string | null>(null);
+  const [fieldError, setFieldError] = useState<{ field: FieldName; message: string } | null>(null);
+  const inputs = useRef<Partial<Record<FieldName, HTMLInputElement | null>>>({});
+
+  // Bring the user to the field that needs fixing. A fresh error object replays the nudge on every attempt.
+  useEffect(() => {
+    if (!fieldError) return;
+    const input = inputs.current[fieldError.field];
+    input?.focus();
+    shake(fieldError.field === 'identifier' ? input?.parentElement ?? null : input ?? null);
+  }, [fieldError]);
+
+  const reportError = (error: unknown, fields: FieldName[]) => {
+    const message = error instanceof Error ? error.message : String(error);
+    const field = fields.find((name) => FIELD_HINTS[name].test(message));
+    if (field) setFieldError({ field, message });
+    else setError(message);
+  };
+
+  const clearFieldError = (field: FieldName) => {
+    if (fieldError?.field === field) setFieldError(null);
+  };
+
+  // Replace the browser's tooltip with an inline message; the first invalid field wins.
+  const handleInvalid = (field: FieldName, describe: (validity: ValidityState) => string) =>
+    (event: React.FormEvent<HTMLInputElement>) => {
+      event.preventDefault();
+      const input = event.currentTarget;
+      if (isFirstInvalid(input)) setFieldError({ field, message: describe(input.validity) });
+    };
 
   // Clear any existing error when component mounts
   useEffect(() => {
@@ -65,6 +118,7 @@ export default function OtpLoginForm() {
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setFieldError(null);
     setLoading(true);
 
     try {
@@ -78,7 +132,7 @@ export default function OtpLoginForm() {
       setStep('otp');
       setTimeRemaining(response.expiresIn);
     } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
+      reportError(error, ['identifier']);
     } finally {
       setLoading(false);
     }
@@ -87,12 +141,13 @@ export default function OtpLoginForm() {
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setFieldError(null);
     setLoading(true);
 
     try {
       // Validate: if new user, name is required
       if (isNewUser && !name?.trim()) {
-        setError('Please enter your name to create an account');
+        setFieldError({ field: 'name', message: 'Please enter your name to create an account' });
         setLoading(false);
         return;
       }
@@ -103,7 +158,7 @@ export default function OtpLoginForm() {
       // Reload page to trigger authentication check
       window.location.reload();
     } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
+      reportError(error, ['name', 'otp']);
       // If error mentions name is required, show name field (fallback)
       if (error instanceof Error && error.message.includes('Name is required')) {
         setIsNewUser(true);
@@ -116,6 +171,7 @@ export default function OtpLoginForm() {
   const handleResendOtp = async () => {
     setOtp('');
     setError(null);
+    setFieldError(null);
     setLoading(true);
 
     try {
@@ -125,7 +181,7 @@ export default function OtpLoginForm() {
       if (response.otpForDev) setOtp(response.otpForDev);
       setError(null);
     } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
+      reportError(error, ['otp']);
     } finally {
       setLoading(false);
     }
@@ -139,6 +195,7 @@ export default function OtpLoginForm() {
     setIsNewUser(false);
     setOtpForDev(null);
     setError(null);
+    setFieldError(null);
   };
 
   const identifierLabel = identifierType === 'phone' ? 'phone' : 'email';
@@ -150,12 +207,12 @@ export default function OtpLoginForm() {
 
       <div className="relative z-10 mx-auto grid min-h-screen w-full max-w-7xl grid-cols-1 gap-10 px-6 py-6 sm:px-8 sm:py-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-16">
         <section className="flex flex-col justify-between gap-10 lg:min-h-[calc(100vh-4rem)]">
-          <a href="/" className="flex w-fit items-center gap-2 rounded-full text-white focus-visible:outline-none">
+          <Link to="/" className="flex w-fit items-center gap-2 rounded-full text-white focus-visible:outline-none">
             <span className="grid h-8 w-8 place-items-center rounded-md bg-emerald-500 text-zinc-950">
               <span className="font-display text-sm font-bold">F</span>
             </span>
             <span className="font-display text-base font-semibold tracking-tight">FinanceAI</span>
-          </a>
+          </Link>
 
           <div className="max-w-2xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs text-zinc-300 backdrop-blur">
@@ -236,30 +293,51 @@ export default function OtpLoginForm() {
                   <label htmlFor="identifier" className="block text-sm font-medium text-zinc-200">
                     {emailOnly ? 'Email address' : 'Email or phone number'}
                   </label>
-                  <div className="mt-2 flex items-center rounded-xl border border-white/[0.10] bg-white/[0.03] px-3 transition-colors focus-within:border-emerald-400/70 focus-within:ring-4 focus-within:ring-emerald-500/10">
-                    <div className="flex items-center gap-1.5 text-zinc-500">
+                  <div
+                    className={`mt-2 flex items-center rounded-xl border bg-white/[0.03] px-3 transition-[border-color,box-shadow] duration-200 focus-within:ring-4 ${
+                      fieldError?.field === 'identifier'
+                        ? 'border-red-400/60 focus-within:border-red-400/80 focus-within:ring-red-500/15'
+                        : 'border-white/[0.10] focus-within:border-emerald-400/70 focus-within:ring-emerald-500/10'
+                    }`}
+                  >
+                    <div className={`flex items-center gap-1.5 transition-colors ${fieldError?.field === 'identifier' ? 'text-red-300' : 'text-zinc-500'}`}>
                       <Mail size={16} />
                       {!emailOnly && <Smartphone size={15} />}
                     </div>
                     <input
+                      ref={(element) => { inputs.current.identifier = element; }}
                       id="identifier"
                       name="identifier"
                       type={emailOnly ? 'email' : 'text'}
                       autoComplete="email"
                       required
                       value={identifier}
-                      onChange={(e) => setIdentifier(e.target.value)}
+                      onChange={(e) => {
+                        setIdentifier(e.target.value);
+                        clearFieldError('identifier');
+                      }}
+                      onInvalid={handleInvalid('identifier', (validity) =>
+                        validity.valueMissing
+                          ? emailOnly ? 'Enter your email address.' : 'Enter your email or phone number.'
+                          : 'Enter a valid email address, like name@example.com.'
+                      )}
+                      aria-invalid={fieldError?.field === 'identifier' || undefined}
+                      aria-describedby={fieldError?.field === 'identifier' ? 'identifier-error' : 'identifier-help'}
                       className="min-h-12 w-full bg-transparent px-3 text-sm text-white outline-none placeholder:text-zinc-600"
                       placeholder={emailOnly ? 'email@example.com' : 'email@example.com or 9876543210'}
                     />
                   </div>
-                  <p className="mt-2 text-xs leading-relaxed text-zinc-500">
-                    {emailOnly ? 'We will email you a sign-in code.' : 'Email or a 10-digit Indian mobile number works here.'}
-                  </p>
+                  {fieldError?.field === 'identifier' ? (
+                    <FieldError id="identifier-error" message={fieldError.message} />
+                  ) : (
+                    <p id="identifier-help" className="mt-2 text-xs leading-relaxed text-zinc-500">
+                      {emailOnly ? 'We will email you a sign-in code.' : 'Email or a 10-digit Indian mobile number works here.'}
+                    </p>
+                  )}
                 </div>
 
                 {error && (
-                  <div className="flex items-start gap-3 rounded-xl border border-red-400/20 bg-red-400/10 p-4">
+                  <div role="alert" className="field-message-in flex items-start gap-3 rounded-xl border border-red-400/20 bg-red-400/10 p-4">
                     <AlertCircle size={18} className="mt-0.5 shrink-0 text-red-300" />
                     <p className="text-sm font-medium leading-relaxed text-red-200">{error}</p>
                   </div>
@@ -293,6 +371,7 @@ export default function OtpLoginForm() {
                     6-digit code
                   </label>
                   <input
+                    ref={(element) => { inputs.current.otp = element; }}
                     id="otp"
                     name="otp"
                     type="text"
@@ -302,11 +381,20 @@ export default function OtpLoginForm() {
                     maxLength={6}
                     required
                     value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                    className="mt-2 min-h-14 w-full rounded-xl border border-white/[0.10] bg-white/[0.03] px-4 text-center font-mono text-2xl tracking-[0.35em] text-white outline-none transition-colors placeholder:text-zinc-700 focus:border-emerald-400/70 focus:ring-4 focus:ring-emerald-500/10"
+                    onChange={(e) => {
+                      setOtp(e.target.value.replace(/\D/g, ''));
+                      clearFieldError('otp');
+                    }}
+                    onInvalid={handleInvalid('otp', (validity) =>
+                      validity.valueMissing ? 'Enter the 6-digit code.' : 'Enter all 6 digits of the code.'
+                    )}
+                    aria-invalid={fieldError?.field === 'otp' || undefined}
+                    aria-describedby={fieldError?.field === 'otp' ? 'otp-error' : undefined}
+                    className={`mt-2 min-h-14 w-full rounded-xl border bg-white/[0.03] px-4 text-center font-mono text-2xl tracking-[0.35em] text-white outline-none transition-[border-color,box-shadow] duration-200 placeholder:text-zinc-700 focus:ring-4 ${fieldTone(fieldError?.field === 'otp')}`}
                     placeholder="000000"
                     autoFocus
                   />
+                  {fieldError?.field === 'otp' && <FieldError id="otp-error" message={fieldError.message} />}
                   {/* Show OTP in dev so you can see it. SMS/email are simulated. */}
                   {otpForDev && (
                     <div className="mt-3 rounded-xl border border-amber-300/20 bg-amber-300/10 p-3">
@@ -341,24 +429,35 @@ export default function OtpLoginForm() {
                       Your name
                     </label>
                     <input
+                      ref={(element) => { inputs.current.name = element; }}
                       id="name"
                       name="name"
                       type="text"
                       autoComplete="name"
                       required
                       value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="mt-2 min-h-12 w-full rounded-xl border border-white/[0.10] bg-white/[0.03] px-4 text-sm text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-emerald-400/70 focus:ring-4 focus:ring-emerald-500/10"
+                      onChange={(e) => {
+                        setName(e.target.value);
+                        clearFieldError('name');
+                      }}
+                      onInvalid={handleInvalid('name', () => 'Please enter your name to create an account')}
+                      aria-invalid={fieldError?.field === 'name' || undefined}
+                      aria-describedby={fieldError?.field === 'name' ? 'name-error' : 'name-help'}
+                      className={`mt-2 min-h-12 w-full rounded-xl border bg-white/[0.03] px-4 text-sm text-white outline-none transition-[border-color,box-shadow] duration-200 placeholder:text-zinc-600 focus:ring-4 ${fieldTone(fieldError?.field === 'name')}`}
                       placeholder="Enter your full name"
                     />
-                    <p className="mt-2 text-xs leading-relaxed text-zinc-500">
-                      We need this once to create your FinanceAI account.
-                    </p>
+                    {fieldError?.field === 'name' ? (
+                      <FieldError id="name-error" message={fieldError.message} />
+                    ) : (
+                      <p id="name-help" className="mt-2 text-xs leading-relaxed text-zinc-500">
+                        We need this once to create your FinanceAI account.
+                      </p>
+                    )}
                   </div>
                 )}
 
                 {error && (
-                  <div className="flex items-start gap-3 rounded-xl border border-red-400/20 bg-red-400/10 p-4">
+                  <div role="alert" className="field-message-in flex items-start gap-3 rounded-xl border border-red-400/20 bg-red-400/10 p-4">
                     <AlertCircle size={18} className="mt-0.5 shrink-0 text-red-300" />
                     <p className="text-sm font-medium leading-relaxed text-red-200">{error}</p>
                   </div>

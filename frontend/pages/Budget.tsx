@@ -47,6 +47,7 @@ export default function Budget() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [newId, setNewId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingBudget, setEditingBudget] = useState<BudgetItem | null>(null);
   const [budgetForm, setBudgetForm] = useState({
@@ -133,6 +134,7 @@ export default function Budget() {
           budgetData,
         )) as BudgetItem;
         setBudgets((current) => [created, ...current]);
+        setNewId(created.id);
       }
 
       resetEditor();
@@ -420,6 +422,7 @@ export default function Budget() {
                   <BudgetDesktopRow
                     key={budget.id}
                     budget={budget}
+                    isNew={budget.id === newId}
                     onEdit={handleEdit}
                     onDelete={handleDelete}
                     t={t}
@@ -433,6 +436,7 @@ export default function Budget() {
                 <BudgetMobileRow
                   key={budget.id}
                   budget={budget}
+                  isNew={budget.id === newId}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
                   t={t}
@@ -511,7 +515,7 @@ function SummaryItem({
   );
 }
 
-function BudgetDesktopRow({ budget, onEdit, onDelete, t }: BudgetRowProps) {
+function BudgetDesktopRow({ budget, onEdit, onDelete, t, isNew }: BudgetRowProps) {
   const percentage = budget.utilizationPercentage;
   const remaining = budget.remaining;
   const status = getBudgetStatus(budget.status, t);
@@ -519,7 +523,7 @@ function BudgetDesktopRow({ budget, onEdit, onDelete, t }: BudgetRowProps) {
   return (
     <div
       role="row"
-      className="group grid min-h-20 grid-cols-[minmax(10rem,1.4fr)_7.5rem_7.5rem_7.5rem_minmax(10rem,0.9fr)_2.75rem] items-center gap-4 border-b border-ledger-border py-3 transition-colors duration-150 hover:bg-ledger-surface focus-within:bg-ledger-surface motion-reduce:transition-none"
+      className={`group grid min-h-20 grid-cols-[minmax(10rem,1.4fr)_7.5rem_7.5rem_7.5rem_minmax(10rem,0.9fr)_2.75rem] items-center gap-4 border-b border-ledger-border py-3 transition-colors duration-150 hover:bg-ledger-surface focus-within:bg-ledger-surface motion-reduce:transition-none ${isNew ? "row-arrive" : ""}`}
     >
       <div role="cell" className="min-w-0">
         <p className="break-words text-sm font-medium text-ink">
@@ -583,13 +587,13 @@ function BudgetDesktopRow({ budget, onEdit, onDelete, t }: BudgetRowProps) {
   );
 }
 
-function BudgetMobileRow({ budget, onEdit, onDelete, t }: BudgetRowProps) {
+function BudgetMobileRow({ budget, onEdit, onDelete, t, isNew }: BudgetRowProps) {
   const percentage = budget.utilizationPercentage;
   const remaining = budget.remaining;
   const status = getBudgetStatus(budget.status, t);
 
   return (
-    <article className="group border-b border-ledger-border py-5">
+    <article className={`group border-b border-ledger-border py-5 ${isNew ? "row-arrive" : ""}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="break-words text-sm font-semibold text-ink">
@@ -655,6 +659,7 @@ function getBudgetStatus(status: BudgetItem["status"], t: (key: string) => strin
 
 interface BudgetRowProps {
   budget: BudgetItem;
+  isNew?: boolean;
   onEdit: (budget: BudgetItem) => void;
   onDelete: (budget: BudgetItem) => void;
   t: (key: string) => string;

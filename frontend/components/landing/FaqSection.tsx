@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+
 const faqs = [
   ['Is my financial data secure?', 'FinanceAI is designed as a private intelligence layer. You control what you add and can remove data when needed.'],
   ['How does the AI work?', 'It uses your transaction history, categories, budgets, and goals to explain changes and suggest next steps.'],
@@ -13,7 +15,7 @@ export function FaqSection() {
       <div className="mx-auto grid max-w-7xl grid-cols-1 gap-12 px-6 sm:px-8 lg:grid-cols-12">
         <div className="reveal lg:col-span-5">
           <h2 className="font-display text-balance text-4xl font-semibold tracking-tighter text-white sm:text-5xl">Questions, answered.</h2>
-          <p className="mt-4 max-w-md text-zinc-400">Ready to try it? <a href="/signup" className="text-emerald-400 underline-offset-4 hover:underline">Create your account</a>.</p>
+          <p className="mt-4 max-w-md text-zinc-400">Ready to try it? <Link to="/signup" className="text-emerald-400 underline-offset-4 hover:underline">Create your account</Link>.</p>
         </div>
         <div className="reveal lg:col-span-7">
           <div className="divide-y divide-white/[0.06] overflow-hidden rounded-2xl border border-white/[0.06] bg-zinc-950/60">

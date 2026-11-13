@@ -55,6 +55,7 @@ export default function Goals() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [newId, setNewId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingGoal, setEditingGoal] = useState<GoalItem | null>(null);
   const [goalForm, setGoalForm] = useState({
@@ -144,6 +145,7 @@ export default function Goals() {
       } else {
         const created = (await apiClient.createGoal(goalData)) as GoalItem;
         setGoals((current) => [created, ...current]);
+        setNewId(created.id);
       }
 
       resetEditor();
@@ -417,6 +419,7 @@ export default function Goals() {
                 <GoalDesktopRow
                   key={goal.id}
                   goal={goal}
+                  isNew={goal.id === newId}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
                   t={t}
@@ -430,6 +433,7 @@ export default function Goals() {
               <GoalMobileRow
                 key={goal.id}
                 goal={goal}
+                isNew={goal.id === newId}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
                 t={t}
@@ -548,14 +552,14 @@ function FocusAmount({
   );
 }
 
-function GoalDesktopRow({ goal, onEdit, onDelete, t }: GoalRowProps) {
+function GoalDesktopRow({ goal, onEdit, onDelete, t, isNew }: GoalRowProps) {
   const progress = getProgress(goal.currentAmount, goal.targetAmount);
   const remaining = goal.targetAmount - goal.currentAmount;
 
   return (
     <div
       role="row"
-      className="group grid min-h-20 grid-cols-[minmax(11rem,1.4fr)_8rem_8rem_8rem_minmax(9rem,0.8fr)_6rem_2.75rem] items-center gap-4 border-b border-ledger-border py-3 transition-colors duration-150 hover:bg-ledger-surface focus-within:bg-ledger-surface motion-reduce:transition-none"
+      className={`group grid min-h-20 grid-cols-[minmax(11rem,1.4fr)_8rem_8rem_8rem_minmax(9rem,0.8fr)_6rem_2.75rem] items-center gap-4 border-b border-ledger-border py-3 transition-colors duration-150 hover:bg-ledger-surface focus-within:bg-ledger-surface motion-reduce:transition-none ${isNew ? "row-arrive" : ""}`}
     >
       <div role="cell" className="min-w-0">
         <p className="break-words text-sm font-medium text-ink">{goal.name}</p>
@@ -608,12 +612,12 @@ function GoalDesktopRow({ goal, onEdit, onDelete, t }: GoalRowProps) {
   );
 }
 
-function GoalMobileRow({ goal, onEdit, onDelete, t }: GoalRowProps) {
+function GoalMobileRow({ goal, onEdit, onDelete, t, isNew }: GoalRowProps) {
   const progress = getProgress(goal.currentAmount, goal.targetAmount);
   const remaining = goal.targetAmount - goal.currentAmount;
 
   return (
-    <article className="group border-b border-ledger-border py-5">
+    <article className={`group border-b border-ledger-border py-5 ${isNew ? "row-arrive" : ""}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="break-words text-sm font-semibold text-ink">
@@ -708,6 +712,7 @@ function GoalStatus({
 
 interface GoalRowProps {
   goal: GoalItem;
+  isNew?: boolean;
   onEdit: (goal: GoalItem) => void;
   onDelete: (goal: GoalItem) => void;
   t: (key: string) => string;

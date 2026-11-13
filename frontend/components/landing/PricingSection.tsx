@@ -1,4 +1,5 @@
 import { Check } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { cn } from './landingUtils';
 
 const tiers = [
@@ -31,9 +32,9 @@ export function PricingSection() {
                 ))}
               </ul>
               <div className="mt-auto pt-8">
-                <a href={tier.href} data-testid={`pricing-cta-${tier.name.toLowerCase()}`} className={cn('inline-flex h-11 w-full items-center justify-center rounded-full text-sm font-medium transition-colors', tier.highlighted ? 'bg-emerald-500 text-zinc-950 hover:bg-emerald-400' : 'border border-white/15 text-white hover:bg-white/[0.06]')}>
+                <Link to={tier.href} data-testid={`pricing-cta-${tier.name.toLowerCase()}`} className={cn('inline-flex h-11 w-full items-center justify-center rounded-full text-sm font-medium transition-colors', tier.highlighted ? 'bg-emerald-500 text-zinc-950 hover:bg-emerald-400' : 'border border-white/15 text-white hover:bg-white/[0.06]')}>
                   {tier.cta}
-                </a>
+                </Link>
               </div>
             </div>
           ))}

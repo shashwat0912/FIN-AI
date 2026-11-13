@@ -45,7 +45,7 @@ export const privateLedgerRadii = {
   popover: 8,
 } as const;
 
-export const ledgerControlClass = 'h-11 w-full rounded-control border border-ledger-border bg-surface-strong px-3 text-sm text-ink placeholder:text-ink-muted transition-[border-color,background-color] duration-150 ease-out hover:border-border-strong focus:border-focus focus:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none';
+export const ledgerControlClass = 'h-11 w-full rounded-control border border-ledger-border bg-surface-strong px-3 text-sm text-ink placeholder:text-ink-muted transition-[border-color,background-color] duration-150 ease-out hover:border-border-strong focus:border-focus focus:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none aria-[invalid=true]:!border-negative aria-[invalid=true]:focus-visible:ring-negative';
 
 export const v2Colors = {
   background: '#0A0A0B',
