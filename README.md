@@ -24,32 +24,49 @@ FIN-AI is a cloud-native personal finance platform with deterministic financial 
 
 ```mermaid
 flowchart TB
-    subgraph Product["Product Platform"]
-        UI["React dashboard"]
-        API["Express API"]
-        Advisor["Product AI · Finance Advisor<br/>inside Express"]
-        Engine["Deterministic finance tools and engine"]
-        Data[("PostgreSQL · Valkey")]
-        UI --> API
-        API --> Advisor --> Engine --> Data
-        API --> Engine
+    User["User / Operator"]
+
+    subgraph Product["1 · Product Platform"]
+        direction LR
+        UI["React Dashboard"] --> API["Express API"]
     end
 
-    subgraph Ops["Agentic Cloud Operations"]
-        Agent["FastAPI service<br/>SRE · Deployment · FinOps"]
-        MCP["Controlled MCP readers"]
-        Sources["Kubernetes · CloudWatch · RDS · Valkey<br/>GitHub Actions · Terraform · AWS costs"]
-        Fixtures["Simulation fixtures"]
-        Agent --> MCP
-        MCP --> Sources
-        MCP --> Fixtures
+    subgraph ProductAI["2 · Product AI"]
+        direction LR
+        Advisor["Finance Advisor"] --> FinanceTools["Deterministic Finance Tools"]
     end
 
+    subgraph CloudOps["3 · Agentic Cloud Operations"]
+        direction LR
+        Agent["FastAPI<br/>SRE · Deployment · FinOps"] --> MCP["Scoped MCP Readers"]
+        MCP --> Live["Live Evidence"]
+        MCP --> Sim["Simulation Fixtures"]
+    end
+
+    subgraph Platform["4 · Platform Foundation"]
+        direction LR
+        Runtime["EKS · Helm"]
+        Data["RDS · Valkey"]
+        Delivery["GitHub Actions · OIDC · ECR"]
+        IaC["Terraform"]
+    end
+
+    User --> UI
+    API --> Advisor
     API -->|Admin proxy| Agent
-    Data -.- Foundation
-    Sources -.- Foundation
-    Foundation["Platform foundation<br/>Docker · EKS · Helm · Terraform<br/>GitHub Actions · OIDC · ECR"]
+
+    FinanceTools --> Data
+
+    Live --> Runtime
+    Live --> Data
+    Live --> Delivery
+
+    IaC --> Runtime
+    IaC --> Data
+    Delivery --> Runtime
 ```
+
+Cloud Ops readers cover Kubernetes, CloudWatch, RDS, Valkey, GitHub Actions, Terraform artifacts, and AWS cost data, with tool scope and security boundaries described in the [Agentic Cloud Operations design](docs/AGENTIC_PLATFORM.md).
 
 ## Demo
 
@@ -82,7 +99,7 @@ Application and platform visibility comes from structured logs, Kubernetes healt
 
 | System                                                  | Confirmed result                                                                                                                                                     |
 | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Cloud Ops](docs/agent-evaluation.json)                 | 20 controlled MCP readers. 24/24 fixture outcomes: 15 diagnoses, 8 correct abstentions, and 1 healthy case. Zero unsafe actions and 5.38 mean tool calls.            |
+| [Cloud Ops](docs/agent-evaluation.json)                 | 20 scoped MCP readers. 24/24 fixture outcomes: 15 diagnoses, 8 correct abstentions, and 1 healthy case. Zero unsafe actions and 5.38 mean tool calls.                |
 | [Finance Advisor](docs/finance-advisor-evaluation.json) | 22/22 deterministic outcomes, including 5/5 simulations and 5/5 abstentions. Zero measured unsafe actions or hallucinated financial values and 2.82 mean tool calls. |
 
 Hosted validation on merged `main` covered frontend type checking, tests and build, backend tests and PostgreSQL integration, browser smoke, Docker builds, Trivy, Gitleaks, dependency audits, and Helm/static Kubernetes checks. The Agent Platform run checked policy, MCP and PostgreSQL behavior, ran mock evaluations, scanned the agent image, and uploaded an SBOM. Terraform formatting, validation, and mock tests passed in the separate validation workflow. [Main CI](https://github.com/shashwat0912/FIN-AI/actions/runs/42204417711) · [Agent Platform](https://github.com/shashwat0912/FIN-AI/actions/runs/42204417784) · [Terraform validation](https://github.com/shashwat0912/FIN-AI/actions/runs/42107978249)
