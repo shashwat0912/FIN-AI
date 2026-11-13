@@ -1,7 +1,34 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { ProgressLine } from '../../components/ui/FinanceLedger';
-import { Amount } from '../../components/ui/PrivateLedger';
+import { Amount, Field } from '../../components/ui/PrivateLedger';
+
+describe('Private Ledger field', () => {
+  it('shows the browser validation message inline, then clears it once the value is valid', () => {
+    render(
+      <form>
+        <Field label="Amount" htmlFor="amount" helper="Rupees and paise.">
+          <input id="amount" required defaultValue="" />
+        </Field>
+      </form>,
+    );
+    const input = screen.getByLabelText('Amount') as HTMLInputElement;
+    expect(input).not.toHaveAttribute('aria-invalid');
+
+    const invalid = fireEvent.invalid(input);
+    expect(invalid).toBe(false); // tooltip cancelled: the inline message replaces it
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    expect(input).toHaveAttribute('aria-describedby', 'amount-message');
+    const message = document.getElementById('amount-message');
+    expect(message).toHaveClass('text-negative');
+    expect(message?.textContent).toBe(input.validationMessage || 'Please check this field.');
+    expect(input).toHaveFocus();
+
+    fireEvent.change(input, { target: { value: '12.50' } });
+    expect(input).not.toHaveAttribute('aria-invalid');
+    expect(document.getElementById('amount-message')).toHaveTextContent('Rupees and paise.');
+  });
+});
 
 describe('Private Ledger amount', () => {
   it('formats income and expenses as signed Indian rupee values', () => {

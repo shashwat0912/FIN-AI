@@ -514,6 +514,12 @@
   background: #09090b;
 }
 
+/* Pulling past the top or bottom edge reveals the page root (body, in Safari), so both must be dark too. */
+html:has(.landing-page),
+html:has(.landing-page) body {
+  background: #09090b;
+}
+
 .font-display {
   font-family: Inter, Geist, ui-sans-serif, system-ui, sans-serif;
   font-optical-sizing: auto;
@@ -552,12 +558,19 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
+  html:has(.landing-page) {
+    scroll-behavior: smooth;
+  }
+
+  /* The cascade delay applies only to the reveal itself, so hover colours still respond at once. */
   .landing-page .reveal {
     opacity: 0;
     transform: translateY(16px);
     transition:
-      opacity 700ms cubic-bezier(0.22, 1, 0.36, 1),
-      transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
+      opacity 700ms cubic-bezier(0.22, 1, 0.36, 1) var(--reveal-delay, 0ms),
+      transform 700ms cubic-bezier(0.22, 1, 0.36, 1) var(--reveal-delay, 0ms),
+      background-color 200ms ease-out,
+      border-color 200ms ease-out;
     will-change: opacity, transform;
   }
 
@@ -565,6 +578,69 @@
     opacity: 1;
     transform: translateY(0);
   }
+
+  /* FAQ answers unfold instead of snapping open. Browsers without these features keep the instant toggle. */
+  .landing-page details {
+    interpolate-size: allow-keywords;
+  }
+
+  .landing-page details::details-content {
+    block-size: 0;
+    opacity: 0;
+    overflow: hidden;
+    transition:
+      block-size 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 240ms ease-out,
+      content-visibility 320ms allow-discrete;
+  }
+
+  .landing-page details[open]::details-content {
+    block-size: auto;
+    opacity: 1;
+  }
+}
+
+/* Inline error messages drop in from just above where they settle. */
+@keyframes field-message-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+
+.field-message-in {
+  animation: field-message-in var(--motion-standard) var(--ease-out-ui);
+}
+
+/* A new dashboard page settles in instead of swapping. No fill mode, so no transform is left behind
+   to trap the page's fixed-position dialogs. */
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.page-enter {
+  animation: page-enter var(--motion-standard) var(--ease-out-ui);
+}
+
+/* A row that was just saved fades in under a soft accent wash, holds it briefly, then lets it go. */
+@keyframes row-arrive {
+  0% {
+    opacity: 0;
+    background-color: var(--ledger-accent-soft);
+  }
+  15% {
+    opacity: 1;
+  }
+  45% {
+    background-color: var(--ledger-accent-soft);
+  }
+}
+
+.row-arrive {
+  animation: row-arrive 1.8s ease-out;
 }
 
 @keyframes landing-scroll-x {

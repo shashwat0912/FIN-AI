@@ -1,4 +1,8 @@
-import { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from 'react';
+import { ButtonHTMLAttributes, HTMLAttributes, ReactNode, cloneElement, isValidElement, useState } from 'react';
+import { isFirstInvalid, shake } from '../../utils/formFeedback';
+
+// The browser's tooltip is cancelled below, so never fall back to showing nothing.
+const describeInvalid = (control: HTMLInputElement) => control.validationMessage || 'Please check this field.';
 
 const cx = (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ');
 
@@ -83,15 +87,40 @@ export function Field({
   error?: ReactNode;
   children: ReactNode;
 }) {
+  // The browser's own checks (required, type, min, step) report here instead of in its tooltip.
+  const [invalidMessage, setInvalidMessage] = useState('');
+  const message = error || invalidMessage;
+  const messageId = `${htmlFor}-message`;
+  const control =
+    message && isValidElement<Record<string, unknown>>(children)
+      ? cloneElement(children, { 'aria-invalid': true, 'aria-describedby': messageId })
+      : children;
+
   return (
-    <div>
+    <div
+      onInvalidCapture={(event) => {
+        const target = event.target as HTMLInputElement;
+        event.preventDefault();
+        setInvalidMessage(describeInvalid(target));
+        shake(target);
+        if (isFirstInvalid(target)) target.focus();
+      }}
+      onChangeCapture={(event) => {
+        const target = event.target as HTMLInputElement;
+        if (invalidMessage) setInvalidMessage(target.validity.valid ? '' : describeInvalid(target));
+      }}
+    >
       <label htmlFor={htmlFor} className="mb-2 block text-sm font-medium text-ink">
         {label}
       </label>
-      {children}
-      {(helper || error) && (
-        <p id={`${htmlFor}-message`} className={cx('mt-1.5 text-xs leading-5', error ? 'text-negative' : 'text-ink-muted')}>
-          {error || helper}
+      {control}
+      {(helper || message) && (
+        <p
+          key={message ? 'error' : 'helper'}
+          id={messageId}
+          className={cx('mt-1.5 text-xs leading-5', message ? 'field-message-in text-negative' : 'text-ink-muted')}
+        >
+          {message || helper}
         </p>
       )}
     </div>

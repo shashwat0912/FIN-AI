@@ -58,6 +58,7 @@ export default function Transactions() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [newId, setNewId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(() => searchParams.get('add') === '1');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'ALL' | 'INCOME' | 'EXPENSE'>('ALL');
@@ -100,7 +101,7 @@ export default function Transactions() {
     event.preventDefault();
     try {
       setError(null);
-      await apiClient.createTransaction({
+      const created = await apiClient.createTransaction({
         amount: Number.parseFloat(newTransaction.amount),
         description: newTransaction.description,
         category: selectedCategory?.name || newTransaction.category,
@@ -117,6 +118,7 @@ export default function Transactions() {
       });
       setSelectedCategory(null);
       setShowAddForm(false);
+      setNewId(created.id);
       loadTransactions();
     } catch (requestError: unknown) {
       logger.error('Error creating transaction', requestError);
@@ -368,7 +370,7 @@ export default function Transactions() {
               </div>
               <div role="rowgroup">
                 {filteredTransactions.map((transaction) => (
-                  <div key={transaction.id} role="row" className="group grid min-h-16 grid-cols-[7rem_minmax(0,1.4fr)_minmax(9rem,0.8fr)_8rem_2.75rem] items-center gap-4 border-b border-ledger-border py-3 transition-colors duration-150 hover:bg-ledger-surface focus-within:bg-ledger-surface motion-reduce:transition-none">
+                  <div key={transaction.id} role="row" className={`group grid min-h-16 grid-cols-[7rem_minmax(0,1.4fr)_minmax(9rem,0.8fr)_8rem_2.75rem] items-center gap-4 border-b border-ledger-border py-3 transition-colors duration-150 hover:bg-ledger-surface focus-within:bg-ledger-surface motion-reduce:transition-none ${transaction.id === newId ? 'row-arrive' : ''}`}>
                     <time role="cell" className="text-sm tabular-nums text-ink-secondary" dateTime={transaction.date}>
                       {new Date(transaction.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                     </time>
@@ -399,7 +401,7 @@ export default function Transactions() {
               {filteredTransactions.map((transaction) => {
                 const date = new Date(transaction.date);
                 return (
-                  <article key={transaction.id} className="grid min-h-20 grid-cols-[3.25rem_minmax(0,1fr)_5.75rem_2.75rem] items-center gap-2 border-b border-ledger-border py-4">
+                  <article key={transaction.id} className={`grid min-h-20 grid-cols-[3.25rem_minmax(0,1fr)_5.75rem_2.75rem] items-center gap-2 border-b border-ledger-border py-4 ${transaction.id === newId ? 'row-arrive' : ''}`}>
                     <time dateTime={transaction.date} className="text-center tabular-nums text-ink-secondary">
                       <span className="block text-base font-medium text-ink">{date.toLocaleDateString('en-IN', { day: '2-digit' })}</span>
                       <span className="block text-xs">{date.toLocaleDateString('en-IN', { month: 'short' })}</span>

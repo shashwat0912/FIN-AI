@@ -1,4 +1,5 @@
 import { ArrowRight, Play } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { DashboardMockup } from './mockups/DashboardMockup';
 
 export function HeroSection() {
@@ -26,9 +27,9 @@ export function HeroSection() {
           </p>
 
           <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <a href="/signup" data-testid="hero-cta-primary" className="inline-flex h-12 items-center gap-2 rounded-full bg-emerald-500 px-6 text-sm font-medium text-zinc-950 transition-colors hover:bg-emerald-400">
+            <Link to="/signup" data-testid="hero-cta-primary" className="inline-flex h-12 items-center gap-2 rounded-full bg-emerald-500 px-6 text-sm font-medium text-zinc-950 transition-colors hover:bg-emerald-400">
               Get started <ArrowRight size={16} />
-            </a>
+            </Link>
             <a href="#showcase" data-testid="hero-cta-secondary" className="inline-flex h-12 items-center gap-2 rounded-full border border-white/15 px-6 text-sm font-medium text-white transition-colors hover:bg-white/[0.05]">
               <Play size={14} /> See product
             </a>
